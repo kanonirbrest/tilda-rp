@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Slot {
+  id         String   @id @default(cuid())
+  title      String
+  startsAt   DateTime
+  priceCents Int
+  currency   String   @default("BYN")
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  orders     Order[]
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String
+  createdAt DateTime @default(now())
+  orders    Order[]
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  slotId       String
+  slot         Slot        @relation(fields: [slotId], references: [id])
+  customerId   String
+  customer     Customer    @relation(fields: [customerId], references: [id])
+  status       OrderStatus @default(PENDING)
+  amountCents  Int
+  currency     String      @default("BYN")
+  bepaidUid    String?     @unique
+  createdAt    DateTime    @default(now())
+  paidAt       DateTime?
+  ticket       Ticket?
+}
+
+model Ticket {
+  id          String    @id @default(cuid())
+  orderId     String    @unique
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  publicToken String    @unique
+  usedAt      DateTime?
+  usedById    String?
+  usedBy      StaffUser? @relation(fields: [usedById], references: [id])
+  createdAt   DateTime  @default(now())
+}
+
+model StaffUser {
+  id           String   @id @default(cuid())
+  login        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  checkIns     Ticket[]
+}
+
+model WebhookReceipt {
+  id         String   @id @default(cuid())
+  provider   String
+  externalId String   @unique
+  createdAt  DateTime @default(now())
+}

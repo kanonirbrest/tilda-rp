@@ -1,0 +1,37 @@
+# Blueprint Render: Web Service (Docker) + PostgreSQL.
+# New → Blueprint → репозиторий с корнем в каталоге приложения (рядом с Dockerfile).
+# Веб и БД в Frankfurt — приватная сеть Render.
+# Планы free — для тестов; для продакшена с bePaid см. README (усыпление веба, лимиты БД).
+
+databases:
+  - name: dei-tickets-db
+    databaseName: dei_tickets
+    user: dei
+    region: frankfurt
+    plan: free
+
+services:
+  - type: web
+    name: dei-tickets
+    runtime: docker
+    region: frankfurt
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dei-tickets-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DEV_SKIP_PAYMENT
+        value: "false"
+      # Необязательно: если задать — перекроет автоматический URL *.onrender.com в ссылках/QR.
+      - key: APP_BASE_URL
+        sync: false
+      - key: BEPAID_SHOP_ID
+        sync: false
+      - key: BEPAID_SECRET_KEY
+        sync: false
+      - key: BEPAID_API_URL
+        value: https://gateway.bepaid.by/beyag/payments

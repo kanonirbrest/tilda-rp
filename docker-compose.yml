@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dei
+      POSTGRES_PASSWORD: dei
+      POSTGRES_DB: dei_tickets
+    ports:
+      # 5433 на хосте — чтобы не конфликтовать с уже занятым 5432
+      - "5433:5432"
+    volumes:
+      - dei_pg_data:/var/lib/postgresql/data
+
+volumes:
+  dei_pg_data:

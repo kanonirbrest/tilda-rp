@@ -2,7 +2,8 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #18181b;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -12,15 +13,22 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Не переключаемся на тёмную тему по ОС: иначе наследуется светлый color на белых карточках (персонал, формы). */
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Светлые формы: при prefers-color-scheme: dark body даёт светлый color — инпуты на белом фоне иначе нечитаемы */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+textarea,
+select {
+  color: #18181b;
+  background-color: #ffffff;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #71717a;
 }

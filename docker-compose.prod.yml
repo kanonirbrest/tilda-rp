@@ -1,0 +1,39 @@
+# Продакшен: приложение + PostgreSQL в одной сети.
+# Скопируйте .env.production.example → .env.production, задайте секреты и APP_BASE_URL (https).
+# Запуск: docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      POSTGRES_USER: dei
+      POSTGRES_DB: dei_tickets
+    volumes:
+      - dei_pg_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dei -d dei_tickets"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    env_file:
+      - .env.production
+    environment:
+      # Внутри compose хост БД — имя сервиса (переопределяет хост в DATABASE_URL из файла, если задано целиком)
+      DATABASE_URL: postgresql://dei:${POSTGRES_PASSWORD:-dei}@postgres:5432/dei_tickets
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  dei_pg_prod:

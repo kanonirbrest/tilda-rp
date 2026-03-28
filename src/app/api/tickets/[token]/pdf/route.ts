@@ -1,0 +1,43 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { buildTicketPdf } from "@/lib/pdf-ticket";
+import { getPublicAppBaseUrl } from "@/lib/request-origin";
+
+export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
+  const { token } = await ctx.params;
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { publicToken: token },
+    include: {
+      order: {
+        include: { customer: true, slot: true },
+      },
+    },
+  });
+
+  if (!ticket || ticket.order.status !== "PAID") {
+    return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+  }
+
+  const base = getPublicAppBaseUrl();
+  const qrUrl = `${base}/staff/quick?t=${ticket.publicToken}`;
+
+  const pdfBytes = await buildTicketPdf({
+    title: ticket.order.slot.title,
+    customerName: ticket.order.customer.name,
+    startsAt: ticket.order.slot.startsAt,
+    amountCents: ticket.order.amountCents,
+    currency: ticket.order.currency,
+    orderId: ticket.order.id,
+    qrUrl,
+  });
+
+  return new NextResponse(Buffer.from(pdfBytes), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="ticket-${ticket.order.id.slice(0, 8)}.pdf"`,
+      "Cache-Control": "private, no-store",
+    },
+  });
+}
