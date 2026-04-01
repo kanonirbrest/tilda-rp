@@ -152,6 +152,7 @@ function render(): void {
             показать неактивные</label>
           <span class="small">${slotsData ? `Часовой пояс списка дат: ${esc(slotsData.timezone)}` : ""}</span>
         </div>
+        <p class="small">Общее число билетов на сеанс меняется в колонке <strong>«Всего мест»</strong>: введите новое значение (например 250 вместо 200) и нажмите <strong>Сохранить</strong> в строке. Уменьшить можно только до числа не меньше уже занятых (оплачено + в ожидании).</p>
         <h2>Новый сеанс</h2>
         <p class="small">Цены в <strong>копейках</strong>. Для взрослый / детский / льготный пустое поле = для этого типа берётся <strong>базовая</strong> цена (как в оплате и на сайте).</p>
         <form id="form-new-slot">
@@ -160,7 +161,7 @@ function render(): void {
             <div><label>Дата и время (локально в браузере)</label><input name="startsAt" type="datetime-local" required /></div>
           </div>
           <div class="row">
-            <div><label>Лимит мест (пусто = без лимита)</label><input name="capacity" type="number" min="1" placeholder="200" /></div>
+            <div><label>Всего мест на сеанс (пусто = без лимита)</label><input name="capacity" type="number" min="1" placeholder="200" /></div>
             <div><label>Базовая цена, коп.</label><input name="priceCents" type="number" min="0" value="1000" required /></div>
             <div><label>Валюта</label><input name="currency" value="BYN" maxlength="8" /></div>
           </div>
@@ -312,7 +313,7 @@ function renderSlotsTable(data: SlotsResponse | null): string {
   for (const d of dates) {
     html += `<div class="date-group">${esc(d)}</div>`;
     html += `<table><thead><tr>
-      <th>Время (календарь)</th><th>Название</th><th>Цены, коп. (база / типы)</th><th>Лимит</th><th>Оплачено</th><th>В ожидании</th><th>Активен</th><th></th>
+      <th>Время (календарь)</th><th>Название</th><th>Цены, коп. (база / типы)</th><th>Всего мест</th><th>Оплачено</th><th>В ожидании</th><th>Активен</th><th></th>
     </tr></thead><tbody>`;
     for (const s of byDate.get(d)!) {
       const cap = s.capacity == null ? "∞" : String(s.capacity);
@@ -333,8 +334,8 @@ function renderSlotsTable(data: SlotsResponse | null): string {
           </div>
         </td>
         <td>
-          <input name="capacity" type="number" min="1" placeholder="∞" value="${s.capacity ?? ""}" style="width:5rem" />
-          <div class="small">свободно: ${esc(free)} / ${esc(cap)}</div>
+          <input name="capacity" type="number" min="1" placeholder="∞" title="Общий лимит билетов на этот сеанс" value="${s.capacity ?? ""}" style="width:5rem" />
+          <div class="small">Осталось: ${esc(free)} · всего в лимите: ${esc(cap)}</div>
         </td>
         <td>${s.soldPaid}</td>
         <td>${s.pendingReserved}</td>

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
+import { reservedSeatsForSlot } from "@/lib/slot-reserved";
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
@@ -45,6 +46,20 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (body.priceConcessionCents !== undefined) data.priceConcessionCents = body.priceConcessionCents;
   if (body.currency !== undefined) data.currency = body.currency;
   if (body.active !== undefined) data.active = body.active;
+
+  if (body.capacity !== undefined && body.capacity !== null) {
+    const reserved = await reservedSeatsForSlot(id);
+    if (body.capacity < reserved) {
+      return jsonWithCors(
+        req,
+        {
+          error: "CAPACITY_BELOW_RESERVED",
+          message: `Сейчас занято мест (оплачено + в ожидании): ${reserved}. Лимит не может быть меньше — увеличьте число или отмените заказы.`,
+        },
+        { status: 400 },
+      );
+    }
+  }
 
   try {
     await prisma.slot.update({
