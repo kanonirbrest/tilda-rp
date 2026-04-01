@@ -409,7 +409,25 @@ export default function AdminDashboard() {
           {!slotsData ? (
             <p className="small">Нажмите «Обновить список», чтобы загрузить слоты.</p>
           ) : slotsData.slots.length === 0 ? (
-            <p>Нет слотов.</p>
+            <div className="small" style={{ maxWidth: "42rem", lineHeight: 1.5 }}>
+              <p>
+                <strong>В базе нет сеансов.</strong> Миграции создают только таблицы, сами слоты нужно добавить.
+              </p>
+              <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0 }}>
+                <li>
+                  На сервере (Render Shell и т.п.) один раз:{" "}
+                  <code style={{ fontSize: "0.9em" }}>npx prisma db seed</code> в каталоге приложения при заданном{" "}
+                  <code>DATABASE_URL</code> — появятся слоты 01–02.04.2026 (часы 10–18).
+                </li>
+                <li>
+                  Или создайте сеанс вручную формой <strong>«Новый сеанс»</strong> выше и снова нажмите «Обновить список».
+                </li>
+                <li>
+                  Если слоты точно есть, включите <strong>«показать неактивные»</strong> — возможно, все помечены
+                  неактивными.
+                </li>
+              </ul>
+            </div>
           ) : (
             dates.map((d) => (
               <div key={d}>
