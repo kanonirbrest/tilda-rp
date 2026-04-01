@@ -11,11 +11,24 @@ model Slot {
   id         String   @id @default(cuid())
   title      String
   startsAt   DateTime
+  /// Базовая цена (если цена по типу не задана)
   priceCents Int
+  /// Опционально: разные цены для Тильды (взрослый / детский / льготный). Иначе везде priceCents.
+  priceAdultCents      Int?
+  priceChildCents      Int?
+  priceConcessionCents Int?
+  /// Максимум мест на сеанс (все типы билетов вместе). null = без лимита.
+  capacity   Int?
   currency   String   @default("BYN")
   active     Boolean  @default(true)
   createdAt  DateTime @default(now())
   orders     Order[]
+}
+
+enum TicketTier {
+  ADULT
+  CHILD
+  CONCESSION
 }
 
 model Customer {
@@ -47,6 +60,16 @@ model Order {
   createdAt    DateTime    @default(now())
   paidAt       DateTime?
   ticket       Ticket?
+  lines        OrderLine[]
+}
+
+model OrderLine {
+  id             String     @id @default(cuid())
+  orderId        String
+  order          Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tier           TicketTier
+  quantity       Int
+  unitPriceCents Int
 }
 
 model Ticket {
@@ -54,6 +77,8 @@ model Ticket {
   orderId     String    @unique
   order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   publicToken String    @unique
+  /// Сколько человек по этому QR (вся группа за раз)
+  admissionCount Int    @default(1)
   usedAt      DateTime?
   usedById    String?
   usedBy      StaffUser? @relation(fields: [usedById], references: [id])

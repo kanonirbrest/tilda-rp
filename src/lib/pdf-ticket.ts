@@ -29,6 +29,9 @@ export async function buildTicketPdf(opts: {
   currency: string;
   orderId: string;
   qrUrl: string;
+  /** Состав билетов с Тильды */
+  linesSummary?: string;
+  admissionCount?: number;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
@@ -57,6 +60,12 @@ export async function buildTicketPdf(opts: {
   line(opts.title, 14, true);
   line(`Участник: ${opts.customerName}`, 12);
   line(`Дата и время: ${opts.startsAt.toLocaleString("ru-RU")}`, 12);
+  if (opts.linesSummary) {
+    line(`Состав: ${opts.linesSummary}`, 11);
+  }
+  if (opts.admissionCount != null && opts.admissionCount > 1) {
+    line(`Количество мест: ${opts.admissionCount}`, 11);
+  }
   line(`Сумма: ${(opts.amountCents / 100).toFixed(2)} ${opts.currency}`, 12);
   line(`Заказ: ${opts.orderId}`, 10);
   y -= 16;

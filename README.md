@@ -74,11 +74,33 @@ npm run dev
 
 ## Tilda и сайт dei.by
 
-1. На странице [https://dei.by/tickets](https://dei.by/tickets) кнопки «Купить» ведите на **ваш** хост, например:  
-   `https://pay.dei.by/tickets`  
-   или сразу на слот:  
-   `https://pay.dei.by/checkout?slotId=<id_из_prisma_studio>`.
-2. ID слотов удобно смотреть в `npm run db:studio` или завести отдельную страницу-редирект по «человеческим» кодам (можно добавить позже поле `slug` у слота).
+1. Список слотов: `https://<хост>/tickets`.
+2. **Без промежуточной страницы — сразу оплата** (после заполнения формы на Тильде): endpoint **`/pay`** проверяет слот в БД и делает редирект на bePaid (или на `/success` при `DEV_SKIP_PAYMENT=true`).  
+   В ссылку нужно подставить поля формы и выбор сеанса, например:  
+   `https://<хост>/pay?date=2026-04-15&time=14:00&adult=2&child=1&concession=0&name=ИМЯ&email=EMAIL&phone=ТЕЛЕФОН`  
+   - `date` — `YYYY-MM-DD`, `time` — `HH:mm` (как у слота в БД, в `EXHIBITION_TIMEZONE`, по умолчанию `Europe/Minsk`)  
+   - `adult`, `child`, `concession` — целые ≥ 0, сумма > 0  
+   - `name`, `email`, `phone` — из формы Тильды (подставляются переменными формы в URL действия).  
+   Имя и контакты в query видны в логах/прокси — используйте только **HTTPS**.  
+3. **С промежуточной страницей** (ввод контактов на нашем сайте):  
+   `https://<хост>/checkout?date=2026-04-15&time=14:00&adult=2&child=1&concession=0`  
+   Либо по `slotId`:  
+   `https://<хост>/checkout?slotId=<id_из_prisma_studio>` (по умолчанию 1 взрослый билет).  
+4. У слота в БД можно задать **разные цены**: `priceAdultCents`, `priceChildCents`, `priceConcessionCents`; если не заданы, везде используется `priceCents`.  
+5. **Лимит мест** — поле `capacity` (целое число): суммарно не больше стольких билетов (взрослые+детские+льготные) на сеанс. Учитываются заказы в статусах **PENDING** и **PAID** (незавершённая оплата временно держит места). `capacity = null` — без лимита.  
+6. Поле `slug` у слота для красивых ссылок — по желанию отдельной задачей.
+
+## Мини-админка (слоты, лимиты, все покупки)
+
+Статический интерфейс в каталоге [`admin-ui/`](admin-ui/): собирается Vite и может публиковаться на **GitHub Pages**, а данные читает/меняет через **HTTPS API** вашего деплоя (Render и т.д.). База данных по-прежнему только на сервере Next.js.
+
+1. На сервере задайте переменные:
+   - **`ADMIN_API_SECRET`** — длинная случайная строка; её же вводите в форме «Секрет» в админке.
+   - **`ADMIN_CORS_ORIGIN`** — origin страницы админки, например `https://ваш-логин.github.io` (можно несколько через запятую). Иначе браузер заблокирует запросы с GitHub Pages.
+2. После деплоя API откройте собранную страницу, укажите **базовый URL** без слэша в конце (например `https://dei-tickets.onrender.com`) и секрет → «Сохранить в этом браузере».
+3. Вкладки: **Слоты** — группировка по датам (`EXHIBITION_TIMEZONE`), лимит мест (`capacity`), сколько **оплачено** и сколько **в ожидании** (PENDING), создание и правка сеансов; **Все покупки** — список заказов с клиентом, сеансом и составом линий.
+
+Публикация на Pages: в репозитории включите **Settings → Pages → GitHub Actions**, при пуше в `main` с изменениями в `admin-ui/` сработает [`.github/workflows/deploy-admin-pages.yml`](.github/workflows/deploy-admin-pages.yml). Для **project site** (`https://user.github.io/<repo>/`) в workflow уже подставляется `VITE_BASE_PATH=/<имя репозитория>/`. Если Pages на корне пользовательского сайта (`username.github.io`), в workflow замените `VITE_BASE_PATH` на `/`.
 
 ## Вебхук в Tilda CRM / Make
 
@@ -131,10 +153,11 @@ npm run dev
 | `src/app/api/tickets/[token]/pdf/route.ts` | Скачивание PDF |
 | `src/app/staff/scan/scan-client.tsx` | Камера QR |
 | `render.yaml` | Blueprint для Render (Docker + Postgres) |
+| `src/app/api/admin/*` | Админ-API (Bearer `ADMIN_API_SECRET`): слоты, заказы |
+| `admin-ui/` | Статическая панель для GitHub Pages |
 
 ## Следующие шаги (по желанию)
 
 - Проверка подписи вебхука bePaid.
 - Поля `slug` у слота и красивые ссылки с Tilda.
-- Админка для слотов и отчётов.
 - Отдельный поддомен только для `/staff/*` и базовая защита (IP, VPN).

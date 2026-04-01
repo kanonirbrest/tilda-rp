@@ -10,6 +10,8 @@ type CrmPayload = {
   slotTitle: string;
   slotStartsAt: string;
   usedAt?: string | null;
+  linesSummary?: string | null;
+  admissionCount?: number;
 };
 
 export async function sendCrmWebhook(payload: CrmPayload): Promise<void> {

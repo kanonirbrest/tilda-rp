@@ -78,6 +78,7 @@ export async function POST(req: Request) {
       slotTitle: t.order.slot.title,
       slotStartsAt: t.order.slot.startsAt.toISOString(),
       usedAt: new Date().toISOString(),
+      admissionCount: t.admissionCount,
     });
   } catch (e) {
     console.error("CRM ticket_used", e);

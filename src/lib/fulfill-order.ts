@@ -3,6 +3,7 @@ import { buildTicketPdf } from "./pdf-ticket";
 import { sendTicketEmail } from "./mail";
 import { sendCrmWebhook } from "./crm";
 import { getPublicAppBaseUrl } from "./request-origin";
+import { linesSummaryRu } from "./slot-pricing";
 
 export async function fulfillPaidOrder(orderId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
@@ -28,9 +29,12 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
 
   const full = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { customer: true, slot: true, ticket: true },
+    include: { customer: true, slot: true, ticket: true, lines: true },
   });
   if (!full?.ticket) return;
+
+  const linesSummary =
+    full.lines.length > 0 ? linesSummaryRu(full.lines) : undefined;
 
   const base = getPublicAppBaseUrl();
   const qrUrl = `${base}/staff/quick?t=${full.ticket.publicToken}`;
@@ -44,6 +48,8 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
     currency: full.currency,
     orderId: full.id,
     qrUrl,
+    linesSummary,
+    admissionCount: full.ticket.admissionCount,
   });
 
   await sendTicketEmail({
@@ -65,5 +71,7 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
     slotTitle: full.slot.title,
     slotStartsAt: full.slot.startsAt.toISOString(),
     usedAt: full.ticket.usedAt?.toISOString() ?? null,
+    linesSummary: linesSummary ?? null,
+    admissionCount: full.ticket.admissionCount,
   });
 }

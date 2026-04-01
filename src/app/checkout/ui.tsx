@@ -1,8 +1,11 @@
 "use client";
 
+import type { TicketTier } from "@prisma/client";
 import { useState } from "react";
 
-export function CheckoutForm({ slotId }: { slotId: string }) {
+type Line = { tier: TicketTier; quantity: number };
+
+export function CheckoutForm({ slotId, lines }: { slotId: string; lines: Line[] }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -21,7 +24,7 @@ export function CheckoutForm({ slotId }: { slotId: string }) {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slotId, name, email, phone }),
+        body: JSON.stringify({ slotId, name, email, phone, lines }),
       });
       const raw = await res.text();
       type FieldErr = Record<string, string[] | undefined>;

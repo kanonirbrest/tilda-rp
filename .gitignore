@@ -2,6 +2,10 @@
 
 # dependencies
 /node_modules
+admin-ui/node_modules
+
+# vite admin static build (артефакт CI)
+admin-ui/dist
 /.pnp
 .pnp.*
 .yarn/*

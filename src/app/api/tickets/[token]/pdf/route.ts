@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildTicketPdf } from "@/lib/pdf-ticket";
 import { getPublicAppBaseUrl } from "@/lib/request-origin";
+import { linesSummaryRu } from "@/lib/slot-pricing";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
@@ -10,7 +11,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     where: { publicToken: token },
     include: {
       order: {
-        include: { customer: true, slot: true },
+        include: { customer: true, slot: true, lines: true },
       },
     },
   });
@@ -21,6 +22,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
 
   const base = getPublicAppBaseUrl();
   const qrUrl = `${base}/staff/quick?t=${ticket.publicToken}`;
+  const lines = ticket.order.lines;
+  const linesSummary = lines.length > 0 ? linesSummaryRu(lines) : undefined;
 
   const pdfBytes = await buildTicketPdf({
     title: ticket.order.slot.title,
@@ -30,6 +33,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     currency: ticket.order.currency,
     orderId: ticket.order.id,
     qrUrl,
+    linesSummary,
+    admissionCount: ticket.admissionCount,
   });
 
   return new NextResponse(Buffer.from(pdfBytes), {

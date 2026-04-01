@@ -48,5 +48,6 @@ export async function POST(req: Request) {
     amountCents: ticket.order.amountCents,
     currency: ticket.order.currency,
     orderId: ticket.order.id,
+    admissionCount: ticket.admissionCount,
   });
 }
