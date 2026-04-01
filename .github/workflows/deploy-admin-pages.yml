@@ -1,0 +1,52 @@
+# Статическая админка из admin-ui → GitHub Pages (Project site: https://user.github.io/<repo>/).
+# В настройках репозитория: Pages → Source: GitHub Actions.
+name: Deploy admin UI to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "admin-ui/**"
+      - ".github/workflows/deploy-admin-pages.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-admin
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: admin-ui/package-lock.json
+      - name: Install
+        run: npm ci
+        working-directory: admin-ui
+      - name: Build
+        run: npm run build
+        working-directory: admin-ui
+        env:
+          # Project page: ассеты по пути /<имя-репоз>/ ; для user site (username.github.io) замените на /
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: admin-ui/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
