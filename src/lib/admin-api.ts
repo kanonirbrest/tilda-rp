@@ -2,11 +2,22 @@ import { NextResponse } from "next/server";
 
 /** CORS для статической админки (GitHub Pages): задайте ADMIN_CORS_ORIGIN=https://user.github.io */
 export function adminCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin");
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+  };
+
+  // Локально: любой порт Vite (5173, 5174, …) и любой localhost / LAN — иначе браузер даёт «Failed to fetch»
+  if (process.env.NODE_ENV === "development") {
+    headers["Access-Control-Allow-Origin"] = origin || "*";
+    return headers;
+  }
+
   const allowed =
     process.env.ADMIN_CORS_ORIGIN?.split(",")
       .map((s) => s.trim())
       .filter(Boolean) ?? [];
-  const origin = req.headers.get("origin");
   let allow = "";
   if (allowed.length > 0) {
     if (origin && allowed.includes(origin)) allow = origin;
@@ -14,11 +25,9 @@ export function adminCorsHeaders(req: Request): Record<string, string> {
   } else {
     allow = "*";
   }
-  return {
-    "Access-Control-Allow-Origin": allow,
-    "Access-Control-Allow-Headers": "Authorization, Content-Type",
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
-  };
+  if (!allow) allow = "*";
+  headers["Access-Control-Allow-Origin"] = allow;
+  return headers;
 }
 
 export function jsonWithCors(req: Request, data: unknown, init?: { status?: number }): NextResponse {

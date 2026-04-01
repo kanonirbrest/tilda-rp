@@ -1,6 +1,6 @@
 import "./style.css";
 
-/** Задайте в `admin-ui/.env`: `VITE_API_BASE`, `VITE_ADMIN_TOKEN` (попадают в бандл при сборке). */
+/** В проде — полный URL Next.js. В `npm run dev` можно оставить пустым: тогда запросы идут на тот же origin, Vite проксирует `/api` (см. vite.config). */
 const ENV_API_BASE = (import.meta.env.VITE_API_BASE ?? "").trim().replace(/\/$/, "");
 const ENV_ADMIN_TOKEN = (import.meta.env.VITE_ADMIN_TOKEN ?? "").trim();
 
@@ -13,7 +13,9 @@ function esc(s: string): string {
 }
 
 function getBase(): string {
-  return ENV_API_BASE;
+  if (ENV_API_BASE) return ENV_API_BASE;
+  if (import.meta.env.DEV) return "";
+  return "";
 }
 
 function getSecret(): string {
@@ -29,9 +31,14 @@ function isoToDatetimeLocal(iso: string): string {
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const base = getBase();
   const secret = getSecret();
-  if (!base || !secret) {
+  if (!secret) {
     throw new Error(
-      "Задайте VITE_API_BASE и VITE_ADMIN_TOKEN в admin-ui/.env (см. .env.example) и пересоберите или перезапустите npm run dev.",
+      "Задайте VITE_ADMIN_TOKEN в admin-ui/.env (тот же секрет, что ADMIN_API_SECRET на сервере).",
+    );
+  }
+  if (base === "" && !import.meta.env.DEV) {
+    throw new Error(
+      "Задайте VITE_API_BASE в admin-ui/.env для production-сборки (URL Next.js без / в конце).",
     );
   }
   const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
@@ -381,10 +388,16 @@ function renderOrdersTable(data: OrdersResponse | null): string {
   return html;
 }
 
+function canCallApi(): boolean {
+  if (!getSecret()) return false;
+  if (getBase()) return true;
+  return import.meta.env.DEV;
+}
+
 async function loadSlots(options: { preserveMessage?: boolean } = {}): Promise<void> {
-  if (!getBase() || !getSecret()) {
+  if (!canCallApi()) {
     errMsg =
-      "Задайте VITE_API_BASE и VITE_ADMIN_TOKEN в admin-ui/.env и перезапустите dev или пересоберите.";
+      "Задайте VITE_ADMIN_TOKEN в admin-ui/.env; для dev можно VITE_API_BASE пустым (прокси Vite → Next). Перезапустите npm run dev.";
     render();
     return;
   }
@@ -406,9 +419,9 @@ async function loadSlots(options: { preserveMessage?: boolean } = {}): Promise<v
 }
 
 async function loadOrders(): Promise<void> {
-  if (!getBase() || !getSecret()) {
+  if (!canCallApi()) {
     errMsg =
-      "Задайте VITE_API_BASE и VITE_ADMIN_TOKEN в admin-ui/.env и перезапустите dev или пересоберите.";
+      "Задайте VITE_ADMIN_TOKEN в admin-ui/.env; для dev можно VITE_API_BASE пустым (прокси Vite). Перезапустите npm run dev.";
     render();
     return;
   }
