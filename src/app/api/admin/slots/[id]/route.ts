@@ -25,7 +25,7 @@ const patchBody = z
   });
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const deny = requireAdmin(req);
+  const deny = await requireAdmin(req);
   if (deny) return deny;
 
   const { id } = await ctx.params;

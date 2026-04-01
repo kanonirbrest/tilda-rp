@@ -57,6 +57,8 @@ npm run dev
 
 Персонал: [http://localhost:3000/staff/login](http://localhost:3000/staff/login) → сканер или вставка содержимого QR → «Клиент прошёл».
 
+Админка (слоты, лимиты, заказы): [http://localhost:3000/admin](http://localhost:3000/admin) — вход по секрету **`ADMIN_API_SECRET`** из `.env` (cookie на 7 дней, подпись через **`SESSION_SECRET`**).
+
 ## Подключение bePaid
 
 1. Получите у bePaid `shop_id` и секрет, уточните **точный URL API** и формат тела запроса/ответа (они могут отличаться по продукту) — сверьте с [документацией bePaid](https://docs.bepaid.by/).
@@ -82,6 +84,10 @@ npm run dev
    - `adult`, `child`, `concession` — целые ≥ 0, сумма > 0  
    - `name`, `email`, `phone` — из формы Тильды (подставляются переменными формы в URL действия).  
    Имя и контакты в query видны в логах/прокси — используйте только **HTTPS**.  
+2b. **Та же логика через `fetch` (JSON), без данных в URL** — `POST /api/orders` с заголовком `Content-Type: application/json`.  
+   В продакшене задайте **`PUBLIC_ORDERS_CORS_ORIGIN`** — список origin страниц Тильды через запятую (как в браузере в заголовке `Origin`, без слэша в конце). В `development` CORS для API заказов разрешён с любого origin.  
+   Тело: **`name`, `email`, `phone`**; слот — либо **`slotId`**, либо пара **`date`** (`YYYY-MM-DD`) и **`time`** (`HH:mm`); билеты — либо **`lines`** `[{ "tier": "ADULT"|"CHILD"|"CONCESSION", "quantity": n }]`, либо **`adult` / `child` / `concession`** (числа; при выборе по `date`+`time` без `lines` хотя бы одно количество &gt; 0).  
+   Успех: JSON `{ "orderId", "redirectUrl" }` — открыть оплату: `window.location.href = redirectUrl` (URL уже абсолютный). Ошибки: JSON с полем `error` и при необходимости `hint`.  
 3. **С промежуточной страницей** (ввод контактов на нашем сайте):  
    `https://<хост>/checkout?date=2026-04-15&time=14:00&adult=2&child=1&concession=0`  
    Либо по `slotId`:  
@@ -92,13 +98,14 @@ npm run dev
 
 ## Мини-админка (слоты, лимиты, все покупки)
 
-Статический интерфейс в каталоге [`admin-ui/`](admin-ui/): собирается Vite и может публиковаться на **GitHub Pages**, а данные читает/меняет через **HTTPS API** вашего деплоя (Render и т.д.). База данных по-прежнему только на сервере Next.js.
+Встроена в приложение: страница **`/admin`**. Один набор переменных в `.env` сервера:
 
-1. На сервере Next.js: **`ADMIN_API_SECRET`** (случайная строка) и **`ADMIN_CORS_ORIGIN`** — origin страницы админки, например `https://ваш-логин.github.io` (иначе браузер заблокирует запросы с GitHub Pages).
-2. При сборке **`admin-ui`** задайте в **`.env`** (или в Secrets/Variables CI, см. [`admin-ui/README.md`](admin-ui/README.md)) **`VITE_API_BASE`** (URL API без `/` в конце) и **`VITE_ADMIN_TOKEN`** (тот же секрет, что `ADMIN_API_SECRET` на сервере).
-3. Вкладки: **Слоты** — группировка по датам (`EXHIBITION_TIMEZONE`), лимит мест (`capacity`), сколько **оплачено** и сколько **в ожидании** (PENDING), создание и правка сеансов; **Все покупки** — список заказов с клиентом, сеансом и составом линий.
+- **`ADMIN_API_SECRET`** — пароль при входе на `/admin` и по-прежнему заголовок **`Authorization: Bearer`** для внешних скриптов к `/api/admin/*`.
+- **`SESSION_SECRET`** — уже нужен для персонала; им же подписывается httpOnly-cookie сессии админки после входа.
 
-Публикация на Pages: в репозитории включите **Settings → Pages → GitHub Actions**, при пуше в `main` с изменениями в `admin-ui/` сработает [`.github/workflows/deploy-admin-pages.yml`](.github/workflows/deploy-admin-pages.yml). Для **project site** (`https://user.github.io/<repo>/`) в workflow уже подставляется `VITE_BASE_PATH=/<имя репозитория>/`. Если Pages на корне пользовательского сайта (`username.github.io`), в workflow замените `VITE_BASE_PATH` на `/`.
+Опционально **`ADMIN_CORS_ORIGIN`** — если вызываете админ-API **с другого origin** (не с того же сайта, что Next).
+
+Вкладки: **Слоты** — даты в `EXHIBITION_TIMEZONE`, `capacity`, оплачено / в ожидании (PENDING), создание и правка; **Все покупки** — заказы с клиентом и сеансом.
 
 ## Вебхук в Tilda CRM / Make
 
@@ -151,8 +158,8 @@ npm run dev
 | `src/app/api/tickets/[token]/pdf/route.ts` | Скачивание PDF |
 | `src/app/staff/scan/scan-client.tsx` | Камера QR |
 | `render.yaml` | Blueprint для Render (Docker + Postgres) |
-| `src/app/api/admin/*` | Админ-API (Bearer `ADMIN_API_SECRET`): слоты, заказы |
-| `admin-ui/` | Статическая панель для GitHub Pages |
+| `src/app/api/admin/*` | Админ-API: Bearer `ADMIN_API_SECRET` или cookie после `/admin` |
+| `src/app/admin/*` | Веб-админка `/admin` |
 
 ## Следующие шаги (по желанию)
 

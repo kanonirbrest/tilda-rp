@@ -1,6 +1,8 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { ADMIN_UI_COOKIE, verifyAdminUiSessionToken } from "@/lib/auth-admin-ui";
 
-/** CORS для статической админки (GitHub Pages): задайте ADMIN_CORS_ORIGIN=https://user.github.io */
+/** CORS для запросов к /api/admin/* с другого origin: ADMIN_CORS_ORIGIN (через запятую). С /admin на том же домене не нужен. */
 export function adminCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("origin");
   const headers: Record<string, string> = {
@@ -39,7 +41,11 @@ export function jsonWithCors(req: Request, data: unknown, init?: { status?: numb
 
 export function adminUnauthorized(req: Request): NextResponse {
   return NextResponse.json(
-    { error: "UNAUTHORIZED", message: "Нужен заголовок Authorization: Bearer и переменная ADMIN_API_SECRET на сервере." },
+    {
+      error: "UNAUTHORIZED",
+      message:
+        "Войдите на странице /admin или передайте Authorization: Bearer (ADMIN_API_SECRET). На сервере должны быть заданы ADMIN_API_SECRET и SESSION_SECRET.",
+    },
     { status: 401, headers: adminCorsHeaders(req) },
   );
 }
@@ -54,19 +60,26 @@ export function adminDisabled(req: Request): NextResponse {
   );
 }
 
-export function verifyAdminSecret(req: Request): boolean {
+function verifyAdminBearer(req: Request): boolean {
   const secret = process.env.ADMIN_API_SECRET?.trim();
   if (!secret) return false;
   const h = req.headers.get("authorization");
   return h === `Bearer ${secret}`;
 }
 
-export function requireAdmin(req: Request): NextResponse | null {
+async function verifyAdminCookie(): Promise<boolean> {
+  const jar = await cookies();
+  const raw = jar.get(ADMIN_UI_COOKIE)?.value;
+  if (!raw) return false;
+  return verifyAdminUiSessionToken(raw);
+}
+
+/** Bearer ADMIN_API_SECRET или cookie после входа на /admin */
+export async function requireAdmin(req: Request): Promise<NextResponse | null> {
   if (!process.env.ADMIN_API_SECRET?.trim()) {
     return adminDisabled(req);
   }
-  if (!verifyAdminSecret(req)) {
-    return adminUnauthorized(req);
-  }
-  return null;
+  if (verifyAdminBearer(req)) return null;
+  if (await verifyAdminCookie()) return null;
+  return adminUnauthorized(req);
 }

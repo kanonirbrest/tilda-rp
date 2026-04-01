@@ -1,38 +1,30 @@
-:root {
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+.admin-root {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   line-height: 1.45;
   color: #18181b;
   background: #fafafa;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
   min-height: 100vh;
 }
 
-#app {
+.admin-root .admin-inner {
   max-width: 1100px;
   margin: 0 auto;
   padding: 1.25rem 1rem 3rem;
 }
 
-h1 {
+.admin-root h1 {
   font-size: 1.35rem;
   font-weight: 600;
   margin: 0 0 0.75rem;
 }
 
-h2 {
+.admin-root h2 {
   font-size: 1.05rem;
   font-weight: 600;
   margin: 1.25rem 0 0.5rem;
 }
 
-.card {
+.admin-root .card {
   background: #fff;
   border: 1px solid #e4e4e7;
   border-radius: 10px;
@@ -40,19 +32,19 @@ h2 {
   margin-bottom: 1rem;
 }
 
-label {
+.admin-root label {
   display: block;
   font-size: 0.8rem;
   color: #52525b;
   margin-bottom: 0.2rem;
 }
 
-input[type="text"],
-input[type="password"],
-input[type="number"],
-input[type="datetime-local"],
-select,
-textarea {
+.admin-root input[type="text"],
+.admin-root input[type="password"],
+.admin-root input[type="number"],
+.admin-root input[type="datetime-local"],
+.admin-root select,
+.admin-root textarea {
   width: 100%;
   max-width: 420px;
   padding: 0.45rem 0.55rem;
@@ -61,12 +53,7 @@ textarea {
   font: inherit;
 }
 
-textarea {
-  max-width: 100%;
-  min-height: 2.5rem;
-}
-
-.row {
+.admin-root .row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem 1.25rem;
@@ -74,7 +61,7 @@ textarea {
   margin-bottom: 0.65rem;
 }
 
-button {
+.admin-root button {
   font: inherit;
   padding: 0.45rem 0.85rem;
   border-radius: 6px;
@@ -84,71 +71,71 @@ button {
   cursor: pointer;
 }
 
-button.secondary {
+.admin-root button.secondary {
   background: #fff;
   color: #27272a;
 }
 
-button:disabled {
+.admin-root button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-button.is-loading {
+.admin-root button.is-loading {
   opacity: 0.75;
   cursor: wait;
 }
 
-.tabs {
+.admin-root .tabs {
   display: flex;
   gap: 0.35rem;
   margin-bottom: 0.75rem;
 }
 
-.tabs button {
+.admin-root .tabs button {
   background: #e4e4e7;
   color: #27272a;
   border-color: #d4d4d8;
 }
 
-.tabs button.active {
+.admin-root .tabs button.active {
   background: #27272a;
   color: #fff;
   border-color: #27272a;
 }
 
-.err {
+.admin-root .err {
   color: #b91c1c;
   font-size: 0.9rem;
   margin: 0.35rem 0;
 }
 
-.ok {
+.admin-root .ok {
   color: #15803d;
   font-size: 0.9rem;
 }
 
-table {
+.admin-root table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
 }
 
-th,
-td {
+.admin-root th,
+.admin-root td {
   text-align: left;
   padding: 0.4rem 0.45rem;
   border-bottom: 1px solid #e4e4e7;
   vertical-align: top;
 }
 
-th {
+.admin-root th {
   font-weight: 600;
   color: #3f3f46;
   background: #f4f4f5;
 }
 
-.date-group {
+.admin-root .date-group {
   font-weight: 600;
   color: #0f172a;
   margin: 1rem 0 0.35rem;
@@ -156,23 +143,23 @@ th {
   border-top: 1px solid #e4e4e7;
 }
 
-.date-group:first-child {
+.admin-root .date-group:first-child {
   border-top: none;
   padding-top: 0;
   margin-top: 0;
 }
 
-.mono {
+.admin-root .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.8rem;
 }
 
-.small {
+.admin-root .small {
   font-size: 0.8rem;
   color: #52525b;
 }
 
-.pill {
+.admin-root .pill {
   display: inline-block;
   padding: 0.1rem 0.4rem;
   border-radius: 4px;
@@ -180,37 +167,37 @@ th {
   font-weight: 500;
 }
 
-.pill.paid {
+.admin-root .pill.paid {
   background: #dcfce7;
   color: #166534;
 }
 
-.pill.pending {
+.admin-root .pill.pending {
   background: #fef9c3;
   color: #854d0e;
 }
 
-.pill.failed {
+.admin-root .pill.failed {
   background: #fee2e2;
   color: #991b1b;
 }
 
-.pill.cancelled {
+.admin-root .pill.cancelled {
   background: #f4f4f5;
   color: #52525b;
 }
 
-.orders-wrap {
+.admin-root .orders-wrap {
   overflow-x: auto;
 }
 
-.inline {
+.admin-root .inline {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
 }
 
-.price-grid {
+.admin-root .price-grid {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 0.25rem 0.5rem;
@@ -218,8 +205,26 @@ th {
   max-width: 17rem;
 }
 
-.price-grid input {
+.admin-root .price-grid input {
   max-width: 6rem;
   padding: 0.25rem 0.35rem;
   font-size: 0.8rem;
+}
+
+.admin-root .admin-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.admin-root .link-btn {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
 }

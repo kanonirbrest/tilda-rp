@@ -35,7 +35,7 @@ async function slotStatsMap(slotIds: string[]) {
 }
 
 export async function GET(req: Request) {
-  const deny = requireAdmin(req);
+  const deny = await requireAdmin(req);
   if (deny) return deny;
 
   const url = new URL(req.url);
@@ -85,7 +85,7 @@ const createBody = z.object({
 });
 
 export async function POST(req: Request) {
-  const deny = requireAdmin(req);
+  const deny = await requireAdmin(req);
   if (deny) return deny;
 
   let body: z.infer<typeof createBody>;
