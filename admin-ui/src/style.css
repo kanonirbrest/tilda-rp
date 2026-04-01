@@ -94,6 +94,11 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button.is-loading {
+  opacity: 0.75;
+  cursor: wait;
+}
+
 .tabs {
   display: flex;
   gap: 0.35rem;

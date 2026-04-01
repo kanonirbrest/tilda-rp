@@ -154,7 +154,7 @@ function render(): void {
     tabBody.innerHTML = `
       <div class="card">
         <div class="row" style="align-items:center">
-          <button type="button" id="btn-refresh-slots" ${loading ? "disabled" : ""}>Обновить список</button>
+          <button type="button" id="btn-refresh-slots" ${loading ? 'class="is-loading"' : ""}>${loading ? "Загрузка…" : "Обновить список"}</button>
           <label class="inline"><input type="checkbox" id="chk-inactive" ${showInactive ? "checked" : ""} />
             показать неактивные</label>
           <span class="small">${slotsData ? `Часовой пояс списка дат: ${esc(slotsData.timezone)}` : ""}</span>
@@ -186,7 +186,7 @@ function render(): void {
     tabBody.innerHTML = `
       <div class="card">
         <div class="row">
-          <button type="button" id="btn-refresh-orders" ${loading ? "disabled" : ""}>Загрузить покупки</button>
+          <button type="button" id="btn-refresh-orders" ${loading ? 'class="is-loading"' : ""}>${loading ? "Загрузка…" : "Загрузить покупки"}</button>
           <span class="small">${ordersData ? `Всего в базе: ${ordersData.total}, показано: ${ordersData.orders.length}` : ""}</span>
         </div>
         <div id="orders-table" class="orders-wrap">${renderOrdersTable(ordersData)}</div>
@@ -402,10 +402,10 @@ async function loadSlots(options: { preserveMessage?: boolean } = {}): Promise<v
     return;
   }
   errMsg = "";
-  loading = true;
   if (!options.preserveMessage) statusMsg = "";
-  render();
+  loading = true;
   try {
+    render();
     const q = showInactive ? "?active=all" : "";
     slotsData = await apiFetch<SlotsResponse>(`/api/admin/slots${q}`);
     if (!options.preserveMessage) statusMsg = "Слоты загружены.";
@@ -426,10 +426,10 @@ async function loadOrders(): Promise<void> {
     return;
   }
   errMsg = "";
-  loading = true;
   statusMsg = "";
-  render();
+  loading = true;
   try {
+    render();
     ordersData = await apiFetch<OrdersResponse>("/api/admin/orders?limit=500");
     statusMsg = "Покупки загружены.";
   } catch (e: unknown) {
