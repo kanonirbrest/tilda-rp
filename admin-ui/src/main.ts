@@ -111,6 +111,14 @@ function money(cents: number, cur: string): string {
   return `${(cents / 100).toFixed(2)} ${cur}`;
 }
 
+/** Пусто → null (для типа = брать базовую цену слота). */
+function parseOptCents(raw: string): number | null {
+  const t = raw.trim();
+  if (t === "") return null;
+  const n = Number.parseInt(t, 10);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 let tab: "slots" | "orders" = "slots";
@@ -171,6 +179,7 @@ function render(): void {
           <span class="small">${slotsData ? `Часовой пояс списка дат: ${esc(slotsData.timezone)}` : ""}</span>
         </div>
         <h2>Новый сеанс</h2>
+        <p class="small">Цены в <strong>копейках</strong>. Для взрослый / детский / льготный пустое поле = для этого типа берётся <strong>базовая</strong> цена (как в оплате и на сайте).</p>
         <form id="form-new-slot">
           <div class="row">
             <div><label>Название</label><input name="title" required placeholder="Экскурсия" /></div>
@@ -180,6 +189,11 @@ function render(): void {
             <div><label>Лимит мест (пусто = без лимита)</label><input name="capacity" type="number" min="1" placeholder="200" /></div>
             <div><label>Базовая цена, коп.</label><input name="priceCents" type="number" min="0" value="1000" required /></div>
             <div><label>Валюта</label><input name="currency" value="BYN" maxlength="8" /></div>
+          </div>
+          <div class="row">
+            <div><label>Взрослый, коп. (опционально)</label><input name="priceAdultCents" type="number" min="0" placeholder="как база" /></div>
+            <div><label>Детский, коп.</label><input name="priceChildCents" type="number" min="0" placeholder="как база" /></div>
+            <div><label>Льготный, коп.</label><input name="priceConcessionCents" type="number" min="0" placeholder="как база" /></div>
           </div>
           <button type="submit" ${loading ? "disabled" : ""}>Создать</button>
         </form>
@@ -238,6 +252,9 @@ function render(): void {
     const capRaw = String(fd.get("capacity") || "").trim();
     const priceCents = Number.parseInt(String(fd.get("priceCents") || "0"), 10);
     const currency = String(fd.get("currency") || "BYN").trim() || "BYN";
+    const pa = parseOptCents(String(fd.get("priceAdultCents") ?? ""));
+    const pc = parseOptCents(String(fd.get("priceChildCents") ?? ""));
+    const pco = parseOptCents(String(fd.get("priceConcessionCents") ?? ""));
     if (!startsLocal) return;
     const startsAt = new Date(startsLocal).toISOString();
     const body: Record<string, unknown> = {
@@ -247,6 +264,9 @@ function render(): void {
       currency,
     };
     if (capRaw) body.capacity = Number.parseInt(capRaw, 10);
+    if (pa !== null) body.priceAdultCents = pa;
+    if (pc !== null) body.priceChildCents = pc;
+    if (pco !== null) body.priceConcessionCents = pco;
     errMsg = "";
     loading = true;
     render();
@@ -276,6 +296,19 @@ function render(): void {
     const startsLocal = (row.querySelector('[name="startsAt"]') as HTMLInputElement)?.value ?? "";
     const capRaw = (row.querySelector('[name="capacity"]') as HTMLInputElement)?.value?.trim() ?? "";
     const active = (row.querySelector('[name="active"]') as HTMLInputElement)?.checked ?? true;
+    const priceCents = Number.parseInt(
+      (row.querySelector('[name="priceCents"]') as HTMLInputElement)?.value ?? "0",
+      10,
+    );
+    const priceAdultCents = parseOptCents(
+      (row.querySelector('[name="priceAdultCents"]') as HTMLInputElement)?.value ?? "",
+    );
+    const priceChildCents = parseOptCents(
+      (row.querySelector('[name="priceChildCents"]') as HTMLInputElement)?.value ?? "",
+    );
+    const priceConcessionCents = parseOptCents(
+      (row.querySelector('[name="priceConcessionCents"]') as HTMLInputElement)?.value ?? "",
+    );
     errMsg = "";
     loading = true;
     render();
@@ -283,6 +316,10 @@ function render(): void {
       const patch: Record<string, unknown> = {
         title: title.trim(),
         active,
+        priceCents: Number.isFinite(priceCents) && priceCents >= 0 ? priceCents : 0,
+        priceAdultCents,
+        priceChildCents,
+        priceConcessionCents,
       };
       if (startsLocal) patch.startsAt = new Date(startsLocal).toISOString();
       patch.capacity = capRaw === "" ? null : Number.parseInt(capRaw, 10);
@@ -319,7 +356,7 @@ function renderSlotsTable(data: SlotsResponse | null): string {
   for (const d of dates) {
     html += `<div class="date-group">${esc(d)}</div>`;
     html += `<table><thead><tr>
-      <th>Время (календарь)</th><th>Название</th><th>Лимит</th><th>Оплачено</th><th>В ожидании</th><th>Активен</th><th></th>
+      <th>Время (календарь)</th><th>Название</th><th>Цены, коп. (база / типы)</th><th>Лимит</th><th>Оплачено</th><th>В ожидании</th><th>Активен</th><th></th>
     </tr></thead><tbody>`;
     for (const s of byDate.get(d)!) {
       const cap = s.capacity == null ? "∞" : String(s.capacity);
@@ -331,6 +368,14 @@ function renderSlotsTable(data: SlotsResponse | null): string {
           <div class="small mono">было: ${esc(s.timeKey)}</div>
         </td>
         <td><input name="title" value="${esc(s.title)}" style="max-width:14rem" /></td>
+        <td>
+          <div class="price-grid">
+            <span class="small">База</span><input name="priceCents" type="number" min="0" value="${s.priceCents}" />
+            <span class="small">Взр.</span><input name="priceAdultCents" type="number" min="0" placeholder="база" value="${s.priceAdultCents ?? ""}" />
+            <span class="small">Дет.</span><input name="priceChildCents" type="number" min="0" placeholder="база" value="${s.priceChildCents ?? ""}" />
+            <span class="small">Льг.</span><input name="priceConcessionCents" type="number" min="0" placeholder="база" value="${s.priceConcessionCents ?? ""}" />
+          </div>
+        </td>
         <td>
           <input name="capacity" type="number" min="1" placeholder="∞" value="${s.capacity ?? ""}" style="width:5rem" />
           <div class="small">свободно: ${esc(free)} / ${esc(cap)}</div>

@@ -204,3 +204,17 @@ th {
   align-items: center;
   gap: 0.35rem;
 }
+
+.price-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.5rem;
+  align-items: center;
+  max-width: 17rem;
+}
+
+.price-grid input {
+  max-width: 6rem;
+  padding: 0.25rem 0.35rem;
+  font-size: 0.8rem;
+}
