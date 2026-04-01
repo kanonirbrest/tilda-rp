@@ -23,11 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Без cache: npm — иначе setup-node падает, если lockfile не найден по пути (разные корни репо и т.п.)
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: admin-ui/package-lock.json
       - name: Install
         run: npm ci
         working-directory: admin-ui
