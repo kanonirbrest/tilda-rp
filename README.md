@@ -94,10 +94,8 @@ npm run dev
 
 Статический интерфейс в каталоге [`admin-ui/`](admin-ui/): собирается Vite и может публиковаться на **GitHub Pages**, а данные читает/меняет через **HTTPS API** вашего деплоя (Render и т.д.). База данных по-прежнему только на сервере Next.js.
 
-1. На сервере задайте переменные:
-   - **`ADMIN_API_SECRET`** — длинная случайная строка; её же вводите в форме «Секрет» в админке.
-   - **`ADMIN_CORS_ORIGIN`** — origin страницы админки, например `https://ваш-логин.github.io` (можно несколько через запятую). Иначе браузер заблокирует запросы с GitHub Pages.
-2. После деплоя API откройте собранную страницу, укажите **базовый URL** без слэша в конце (например `https://dei-tickets.onrender.com`) и секрет → «Сохранить в этом браузере».
+1. На сервере Next.js: **`ADMIN_API_SECRET`** (случайная строка) и **`ADMIN_CORS_ORIGIN`** — origin страницы админки, например `https://ваш-логин.github.io` (иначе браузер заблокирует запросы с GitHub Pages).
+2. При сборке **`admin-ui`** задайте в **`.env`** (или в Secrets/Variables CI, см. [`admin-ui/README.md`](admin-ui/README.md)) **`VITE_API_BASE`** (URL API без `/` в конце) и **`VITE_ADMIN_TOKEN`** (тот же секрет, что `ADMIN_API_SECRET` на сервере).
 3. Вкладки: **Слоты** — группировка по датам (`EXHIBITION_TIMEZONE`), лимит мест (`capacity`), сколько **оплачено** и сколько **в ожидании** (PENDING), создание и правка сеансов; **Все покупки** — список заказов с клиентом, сеансом и составом линий.
 
 Публикация на Pages: в репозитории включите **Settings → Pages → GitHub Actions**, при пуше в `main` с изменениями в `admin-ui/` сработает [`.github/workflows/deploy-admin-pages.yml`](.github/workflows/deploy-admin-pages.yml). Для **project site** (`https://user.github.io/<repo>/`) в workflow уже подставляется `VITE_BASE_PATH=/<имя репозитория>/`. Если Pages на корне пользовательского сайта (`username.github.io`), в workflow замените `VITE_BASE_PATH` на `/`.
