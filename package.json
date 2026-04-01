@@ -13,6 +13,7 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
+    "slots:generate": "tsx scripts/generate-slots.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {
