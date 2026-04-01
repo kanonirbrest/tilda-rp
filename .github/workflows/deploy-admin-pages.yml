@@ -36,6 +36,10 @@ jobs:
         env:
           # Project page: ассеты по пути /<имя-репоз>/ ; для user site (username.github.io) замените на /
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          # Опционально в Settings → Secrets and variables → Actions:
+          # VITE_API_BASE — URL Render; VITE_ADMIN_TOKEN — тот же, что на сервере (попадёт в JS!)
+          VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+          VITE_ADMIN_TOKEN: ${{ secrets.VITE_ADMIN_TOKEN }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: admin-ui/dist

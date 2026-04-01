@@ -3,6 +3,12 @@ import "./style.css";
 const LS_BASE = "dei_admin_api_base";
 const LS_SECRET = "dei_admin_api_secret";
 
+/** Значения из `.env` при `npm run build` / CI (попадают в JS-бандл). */
+const ENV_API_BASE = (import.meta.env.VITE_API_BASE ?? "").trim().replace(/\/$/, "");
+const ENV_ADMIN_TOKEN = (import.meta.env.VITE_ADMIN_TOKEN ?? "").trim();
+/** Оба заданы — можно не показывать форму подключения до «Изменить». */
+const BAKED_CONNECTION = Boolean(ENV_API_BASE && ENV_ADMIN_TOKEN);
+
 function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -12,11 +18,13 @@ function esc(s: string): string {
 }
 
 function getBase(): string {
-  return localStorage.getItem(LS_BASE)?.trim() || "";
+  const fromLs = localStorage.getItem(LS_BASE)?.trim();
+  if (fromLs) return fromLs.replace(/\/$/, "");
+  return ENV_API_BASE;
 }
 
 function getSecret(): string {
-  return localStorage.getItem(LS_SECRET) || "";
+  return localStorage.getItem(LS_SECRET) || ENV_ADMIN_TOKEN;
 }
 
 function setConn(base: string, secret: string): void {
@@ -128,17 +136,38 @@ let errMsg = "";
 let slotsData: SlotsResponse | null = null;
 let ordersData: OrdersResponse | null = null;
 let loading = false;
+/** Показать полную форму подключения (или сразу, если при сборке не заданы оба VITE_*). */
+let connFormExpanded = !BAKED_CONNECTION;
+
+function hasConnLocalOverride(): boolean {
+  return Boolean(localStorage.getItem(LS_BASE) || localStorage.getItem(LS_SECRET));
+}
 
 function render(): void {
   const baseVal = getBase();
-  const secretSet = Boolean(getSecret());
+  const secretFromLs = Boolean(localStorage.getItem(LS_SECRET));
 
-  app.innerHTML = `
-    <h1>DEI Tickets — админка</h1>
-    <p class="small">Статическая панель: данные берутся с вашего сервера (Render и т.д.) по секрету <code>ADMIN_API_SECRET</code>.</p>
-
+  const connBlock =
+    BAKED_CONNECTION && !connFormExpanded ?
+      `
     <div class="card">
       <h2>Подключение</h2>
+      <p class="small">Используются значения из сборки: <code>VITE_API_BASE</code> и <code>VITE_ADMIN_TOKEN</code>.</p>
+      <p class="small">URL: <strong>${esc(ENV_API_BASE)}</strong></p>
+      <p class="small err">Токен попадает в загружаемый JS — на публичном GitHub Pages это ослабляет защиту API. Для продакшена лучше не класть секрет в билд или ограничить доступ к сайту.</p>
+      ${hasConnLocalOverride() ? `<p class="small">Сейчас действует переопределение из браузера.</p>` : ""}
+      <div class="row">
+        <button type="button" class="secondary" id="btn-conn-expand">Задать URL или токен вручную</button>
+        ${hasConnLocalOverride() ? `<button type="button" class="secondary" id="btn-conn-reset-baked">Сбросить к значениям из сборки</button>` : ""}
+      </div>
+      ${errMsg ? `<p class="err">${esc(errMsg)}</p>` : ""}
+      ${statusMsg ? `<p class="ok">${esc(statusMsg)}</p>` : ""}
+    </div>
+  `
+    : `
+    <div class="card">
+      <h2>Подключение</h2>
+      <p class="small">Данные с сервера (Render и т.д.) по заголовку <code>Authorization: Bearer</code> = <code>ADMIN_API_SECRET</code>. Можно задать в <code>admin-ui/.env</code> как <code>VITE_API_BASE</code> и <code>VITE_ADMIN_TOKEN</code> при сборке.</p>
       <form id="conn-form">
         <div class="row">
           <div style="flex:1;min-width:220px">
@@ -148,16 +177,24 @@ function render(): void {
           </div>
           <div style="flex:1;min-width:220px">
             <label for="api-secret">Секрет (Bearer)</label>
-            <input type="password" id="api-secret" name="secret" placeholder="тот же, что ADMIN_API_SECRET на сервере"
+            <input type="password" id="api-secret" name="secret" placeholder="${BAKED_CONNECTION && !secretFromLs ? "задан при сборке — введите, чтобы сменить" : "тот же, что ADMIN_API_SECRET на сервере"}"
               value="" autocomplete="off" />
-            ${secretSet ? `<span class="small">секрет сохранён в браузере — введите снова, чтобы сменить</span>` : ""}
+            ${secretFromLs ? `<span class="small">секрет сохранён в браузере — введите снова, чтобы сменить</span>` : ""}
+            ${BAKED_CONNECTION && !secretFromLs ? `<span class="small">сейчас берётся из VITE_ADMIN_TOKEN</span>` : ""}
           </div>
         </div>
         <button type="submit">Сохранить в этом браузере</button>
+        ${BAKED_CONNECTION ? `<button type="button" class="secondary" id="btn-conn-collapse">Свернуть (использовать только сборку)</button>` : ""}
       </form>
       ${errMsg ? `<p class="err">${esc(errMsg)}</p>` : ""}
       ${statusMsg ? `<p class="ok">${esc(statusMsg)}</p>` : ""}
     </div>
+  `;
+
+  app.innerHTML = `
+    <h1>DEI Tickets — админка</h1>
+
+    ${connBlock}
 
     <div class="tabs">
       <button type="button" class="${tab === "slots" ? "active" : ""}" data-tab="slots">Слоты и лимиты</button>
@@ -166,6 +203,24 @@ function render(): void {
 
     <div id="tab-body"></div>
   `;
+
+  document.querySelector("#btn-conn-expand")?.addEventListener("click", () => {
+    connFormExpanded = true;
+    errMsg = "";
+    render();
+  });
+  document.querySelector("#btn-conn-reset-baked")?.addEventListener("click", () => {
+    localStorage.removeItem(LS_BASE);
+    localStorage.removeItem(LS_SECRET);
+    statusMsg = "Сброшено к значениям из сборки.";
+    errMsg = "";
+    render();
+  });
+  document.querySelector("#btn-conn-collapse")?.addEventListener("click", () => {
+    connFormExpanded = false;
+    errMsg = "";
+    render();
+  });
 
   const tabBody = document.querySelector("#tab-body")!;
 
