@@ -1,6 +1,31 @@
+import { DateTime } from "luxon";
+
 /** Часовой пояс выставления/сеансов (Тильда + БД). */
 export function getExhibitionTimezone(): string {
   return process.env.EXHIBITION_TIMEZONE?.trim() || "Europe/Minsk";
+}
+
+/**
+ * Календарная дата + время на стене выставки (например Europe/Minsk) → момент в UTC.
+ * Надёжнее, чем toLocaleTimeString/toLocaleDateString на сервере (ICU/образы Node).
+ */
+export function wallDateAndTimeToUtc(dateYmd: string, timeHhMm: string, timeZone: string): Date | null {
+  const dm = dateYmd.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!dm) return null;
+  const y = Number(dm[1]);
+  const mo = Number(dm[2]);
+  const d = Number(dm[3]);
+  const tm = timeHhMm.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!tm) return null;
+  const hh = Number(tm[1]);
+  const mi = Number(tm[2]);
+  if (![y, mo, d, hh, mi].every((n) => Number.isFinite(n))) return null;
+  const dt = DateTime.fromObject(
+    { year: y, month: mo, day: d, hour: hh, minute: mi, second: 0, millisecond: 0 },
+    { zone: timeZone },
+  );
+  if (!dt.isValid) return null;
+  return dt.toJSDate();
 }
 
 export function dateKeyInTz(iso: Date, tz: string): string {

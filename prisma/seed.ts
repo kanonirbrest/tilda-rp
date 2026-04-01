@@ -47,36 +47,77 @@ async function main() {
     console.info(`Активных слотов уже ${activeSlots}, демо не добавляем.`);
   }
 
-  /** Секции 02.04.2026, каждый час с 10:00 до 18:00 (Минск), по 200 мест. Цены: взр. 40 / дет. 30 / льг. 20 BYN. */
-  const dayStart = new Date("2026-04-02T00:00:00+03:00");
-  const dayEnd = new Date("2026-04-03T00:00:00+03:00");
-  const existingApr2 = await prisma.slot.count({
-    where: { startsAt: { gte: dayStart, lt: dayEnd } },
-  });
-  if (existingApr2 === 0) {
-    const priceAdultCents = 40 * 100;
-    const priceChildCents = 30 * 100;
-    const priceConcessionCents = 20 * 100;
-    const rows = [];
-    for (let h = 10; h <= 18; h++) {
-      const hh = String(h).padStart(2, "0");
-      rows.push({
-        title: `Секция · 02.04.2026 · ${hh}:00`,
-        startsAt: new Date(`2026-04-02T${hh}:00:00+03:00`),
-        priceCents: priceAdultCents,
-        priceAdultCents,
-        priceChildCents,
-        priceConcessionCents,
-        capacity: 200,
-        currency: "BYN",
-        active: true,
-      });
-    }
-    await prisma.slot.createMany({ data: rows });
-    console.info(`Добавлено ${rows.length} секций на 02.04.2026 (10:00–18:00, Europe/Minsk).`);
-  } else {
-    console.info(`На 02.04.2026 слотов уже ${existingApr2}, секции не дублируем.`);
+  /** Взрослый 40 / детский 30 / льготный 20 BYN; 20 мест на сеанс. Сеансы: 10–18 каждый час (+03:00, Europe/Minsk). */
+  const priceAdultCents = 40 * 100;
+  const priceChildCents = 30 * 100;
+  const priceConcessionCents = 20 * 100;
+  const slotCapacity = 20;
+
+  function hourStart2026(y: number, m: number, d: number, h: number): Date {
+    const mm = String(m).padStart(2, "0");
+    const dd = String(d).padStart(2, "0");
+    const hh = String(h).padStart(2, "0");
+    return new Date(`${y}-${mm}-${dd}T${hh}:00:00+03:00`);
   }
+
+  async function ensureHourlySlots(y: number, m: number, d: number): Promise<number> {
+    let added = 0;
+    for (let h = 10; h <= 18; h++) {
+      const from = hourStart2026(y, m, d, h);
+      const to = hourStart2026(y, m, d, h + 1);
+      const exists = await prisma.slot.count({
+        where: { startsAt: { gte: from, lt: to } },
+      });
+      if (exists > 0) continue;
+      const dd = String(d).padStart(2, "0");
+      const mm = String(m).padStart(2, "0");
+      await prisma.slot.create({
+        data: {
+          title: `Секция · ${dd}.${mm}.${y} · ${String(h).padStart(2, "0")}:00`,
+          startsAt: from,
+          priceCents: priceAdultCents,
+          priceAdultCents,
+          priceChildCents,
+          priceConcessionCents,
+          capacity: slotCapacity,
+          currency: "BYN",
+          active: true,
+        },
+      });
+      added += 1;
+    }
+    return added;
+  }
+
+  const addedApr1 = await ensureHourlySlots(2026, 4, 1);
+  if (addedApr1 > 0) {
+    console.info(`Добавлено ${addedApr1} секций на 01.04.2026 (10–18 ч, только недостающие).`);
+  } else {
+    console.info("На 01.04.2026 все слоты 10–18 ч уже есть.");
+  }
+
+  const addedApr2 = await ensureHourlySlots(2026, 4, 2);
+  if (addedApr2 > 0) {
+    console.info(`Добавлено ${addedApr2} секций на 02.04.2026 (10–18 ч, только недостающие).`);
+  } else {
+    console.info("На 02.04.2026 все слоты 10–18 ч уже есть.");
+  }
+
+  const rangeStart = new Date("2026-04-01T00:00:00+03:00");
+  const rangeEnd = new Date("2026-04-03T00:00:00+03:00");
+  const patched = await prisma.slot.updateMany({
+    where: { startsAt: { gte: rangeStart, lt: rangeEnd } },
+    data: {
+      priceCents: priceAdultCents,
+      priceAdultCents,
+      priceChildCents,
+      priceConcessionCents,
+      capacity: slotCapacity,
+    },
+  });
+  console.info(
+    `Обновлены цены (40/30/20 BYN) и ёмкость (${slotCapacity} мест) у ${patched.count} слотов за 01–02.04.2026.`,
+  );
 }
 
 main()

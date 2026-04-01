@@ -1,6 +1,6 @@
 import type { Slot } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { dateKeyInTz, getExhibitionTimezone, normalizeTimeInput, timeKeyInTz } from "@/lib/exhibition-time";
+import { getExhibitionTimezone, normalizeTimeInput, wallDateAndTimeToUtc } from "@/lib/exhibition-time";
 
 export async function resolveCheckoutSlot(params: {
   slotId?: string | null;
@@ -27,9 +27,22 @@ export async function resolveCheckoutSlot(params: {
   }
 
   const tz = getExhibitionTimezone();
-  const slots = await prisma.slot.findMany({ where: { active: true } });
-  const sameDay = slots.filter((s) => dateKeyInTz(s.startsAt, tz) === date);
-  const matched = sameDay.filter((s) => timeKeyInTz(s.startsAt, tz) === timeNorm);
+  const target = wallDateAndTimeToUtc(date, timeNorm, tz);
+  if (!target) {
+    return { ok: false, code: "DATE_REQUIRED" };
+  }
+
+  const t = target.getTime();
+  const windowMs = 90_000;
+  const matched = await prisma.slot.findMany({
+    where: {
+      active: true,
+      startsAt: {
+        gte: new Date(t - windowMs),
+        lte: new Date(t + windowMs),
+      },
+    },
+  });
 
   if (matched.length === 0) return { ok: false, code: "SLOT_NOT_FOUND" };
   if (matched.length > 1) return { ok: false, code: "AMBIGUOUS" };
