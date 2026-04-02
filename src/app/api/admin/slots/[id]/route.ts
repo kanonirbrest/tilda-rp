@@ -72,3 +72,29 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   return jsonWithCors(req, { ok: true });
 }
+
+export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const deny = await requireAdmin(req);
+  if (deny) return deny;
+
+  const { id } = await ctx.params;
+  const ordersCount = await prisma.order.count({ where: { slotId: id } });
+  if (ordersCount > 0) {
+    return jsonWithCors(
+      req,
+      {
+        error: "HAS_ORDERS",
+        message: `Нельзя удалить сеанс: к нему привязано заказов: ${ordersCount}. Снимите брони или деактивируйте слот.`,
+      },
+      { status: 409 },
+    );
+  }
+
+  try {
+    await prisma.slot.delete({ where: { id } });
+  } catch {
+    return jsonWithCors(req, { error: "NOT_FOUND", message: "Сеанс не найден" }, { status: 404 });
+  }
+
+  return jsonWithCors(req, { ok: true });
+}

@@ -130,6 +130,7 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState<TabId>("orders");
   const [showInactive, setShowInactive] = useState(false);
   const [errMsg, setErrMsg] = useState("");
+  const [infoMsg, setInfoMsg] = useState("");
   const [slotsData, setSlotsData] = useState<SlotsResponse | null>(null);
   const [ordersData, setOrdersData] = useState<OrdersResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -268,6 +269,89 @@ export default function AdminDashboard() {
     }
   }
 
+  async function deleteSlot(id: string) {
+    if (!window.confirm("Удалить этот сеанс? Доступно только если нет ни одного заказа.")) {
+      return;
+    }
+    setErrMsg("");
+    setInfoMsg("");
+    setLoading(true);
+    try {
+      await apiFetch(`/api/admin/slots/${encodeURIComponent(id)}`, { method: "DELETE" });
+      await loadSlots();
+    } catch (err: unknown) {
+      setErrMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onBulkDay(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!slotsData) return;
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const firstHour = Number.parseInt(String(fd.get("bulkFirstHour") ?? "10"), 10);
+    const lastHour = Number.parseInt(String(fd.get("bulkLastHour") ?? "19"), 10);
+    const title = String(fd.get("bulkTitle") ?? "").trim();
+    const priceCents = Number.parseInt(String(fd.get("bulkPriceCents") ?? "0"), 10);
+    const currency = String(fd.get("bulkCurrency") ?? "BYN").trim() || "BYN";
+    const capRaw = String(fd.get("bulkCapacity") ?? "").trim();
+    const skipExisting = (fd.get("bulkSkipExisting") as string | null) === "on";
+    const pa = parseOptCents(String(fd.get("bulkPriceAdultCents") ?? ""));
+    const pc = parseOptCents(String(fd.get("bulkPriceChildCents") ?? ""));
+    const pco = parseOptCents(String(fd.get("bulkPriceConcessionCents") ?? ""));
+
+    if (!title) {
+      setErrMsg("Укажите название сеанса.");
+      return;
+    }
+    if (
+      !Number.isFinite(firstHour) ||
+      !Number.isFinite(lastHour) ||
+      firstHour < 0 ||
+      firstHour > 23 ||
+      lastHour < 0 ||
+      lastHour > 23 ||
+      firstHour > lastHour
+    ) {
+      setErrMsg("Проверьте часы: с и по (0–23), с ≤ по.");
+      return;
+    }
+
+    const body: Record<string, unknown> = {
+      date: selectedDate,
+      firstHour,
+      lastHour,
+      title,
+      priceCents: Number.isFinite(priceCents) && priceCents >= 0 ? priceCents : 0,
+      currency,
+      skipExisting,
+    };
+    if (capRaw) body.capacity = Number.parseInt(capRaw, 10);
+    if (pa !== null) body.priceAdultCents = pa;
+    if (pc !== null) body.priceChildCents = pc;
+    if (pco !== null) body.priceConcessionCents = pco;
+
+    setErrMsg("");
+    setInfoMsg("");
+    setLoading(true);
+    try {
+      const res = await apiFetch<{ created: number; skipped: number }>(
+        "/api/admin/slots/bulk-day",
+        { method: "POST", body: JSON.stringify(body) },
+      );
+      setInfoMsg(
+        `Создано сеансов: ${res.created}. Пропущено (уже были на это время): ${res.skipped}. Часовой пояс: ${slotsData.timezone}.`,
+      );
+      await loadSlots();
+    } catch (err: unknown) {
+      setErrMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function saveSlot(e: React.MouseEvent<HTMLButtonElement>, id: string) {
     const row = e.currentTarget.closest("tr");
     if (!row) return;
@@ -379,6 +463,7 @@ export default function AdminDashboard() {
       </header>
 
       {errMsg ? <div className="admin-alert admin-alert--err">{errMsg}</div> : null}
+      {infoMsg ? <div className="admin-alert admin-alert--ok">{infoMsg}</div> : null}
 
       <div className="admin-tabs" role="tablist" aria-label="Разделы">
         <button
@@ -546,9 +631,100 @@ export default function AdminDashboard() {
           </div>
           {!slotsData ? (
             <div className="admin-empty">Загрузка…</div>
-          ) : slotsForSelectedDate.length === 0 ? (
-            <div className="admin-empty">На эту дату сеансов нет</div>
           ) : (
+            <>
+              <div className="admin-bulk-day">
+                <h3>Почасовые сеансы на день</h3>
+                <p className="admin-hint admin-hint--tight">
+                  Дата: <span className="mono">{selectedDate}</span> ({slotsData.timezone}). Создаётся слот на
+                  каждый час с <strong>первого</strong> по <strong>последний</strong> включительно (например
+                  10–19 → 10:00 … 19:00).
+                </p>
+                <form onSubmit={(e) => void onBulkDay(e)}>
+                  <div className="admin-row">
+                    <div className="admin-field admin-field-narrow">
+                      <label htmlFor="bulk-first-hour">С часа</label>
+                      <input
+                        id="bulk-first-hour"
+                        name="bulkFirstHour"
+                        type="number"
+                        min={0}
+                        max={23}
+                        defaultValue={10}
+                        required
+                      />
+                    </div>
+                    <div className="admin-field admin-field-narrow">
+                      <label htmlFor="bulk-last-hour">По час</label>
+                      <input
+                        id="bulk-last-hour"
+                        name="bulkLastHour"
+                        type="number"
+                        min={0}
+                        max={23}
+                        defaultValue={19}
+                        required
+                      />
+                    </div>
+                    <div className="admin-field">
+                      <label htmlFor="bulk-title">Название (одинаковое)</label>
+                      <input id="bulk-title" name="bulkTitle" required placeholder="Экскурсия" />
+                    </div>
+                  </div>
+                  <div className="admin-row">
+                    <div className="admin-field admin-field-narrow">
+                      <label htmlFor="bulk-cap">Лимит мест</label>
+                      <input id="bulk-cap" name="bulkCapacity" type="number" min={1} placeholder="∞" />
+                    </div>
+                    <div className="admin-field admin-field-narrow">
+                      <label htmlFor="bulk-price">База, коп.</label>
+                      <input
+                        id="bulk-price"
+                        name="bulkPriceCents"
+                        type="number"
+                        min={0}
+                        defaultValue={1000}
+                        required
+                      />
+                    </div>
+                    <div className="admin-field admin-field-narrow">
+                      <label htmlFor="bulk-cur">Валюта</label>
+                      <input id="bulk-cur" name="bulkCurrency" defaultValue="BYN" maxLength={8} />
+                    </div>
+                  </div>
+                  <div className="admin-row">
+                    <div className="admin-field admin-field-narrow">
+                      <label htmlFor="bulk-pa">Взрослый, коп.</label>
+                      <input id="bulk-pa" name="bulkPriceAdultCents" type="number" min={0} placeholder="база" />
+                    </div>
+                    <div className="admin-field admin-field-narrow">
+                      <label htmlFor="bulk-pc">Детский</label>
+                      <input id="bulk-pc" name="bulkPriceChildCents" type="number" min={0} placeholder="база" />
+                    </div>
+                    <div className="admin-field admin-field-narrow">
+                      <label htmlFor="bulk-pco">Льготный</label>
+                      <input
+                        id="bulk-pco"
+                        name="bulkPriceConcessionCents"
+                        type="number"
+                        min={0}
+                        placeholder="база"
+                      />
+                    </div>
+                  </div>
+                  <label className="admin-check" style={{ marginBottom: "0.75rem" }}>
+                    <input type="checkbox" name="bulkSkipExisting" defaultChecked />
+                    Не создавать, если на это время уже есть сеанс
+                  </label>
+                  <button type="submit" className="btn" disabled={loading}>
+                    Создать слоты на выбранную дату
+                  </button>
+                </form>
+              </div>
+
+              {slotsForSelectedDate.length === 0 ? (
+                <div className="admin-empty">На эту дату сеансов нет</div>
+              ) : (
             <div className="admin-table-wrap">
               <table>
                 <thead>
@@ -637,14 +813,25 @@ export default function AdminDashboard() {
                           </label>
                         </td>
                         <td>
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={(e) => void saveSlot(e, s.id)}
-                            disabled={loading}
-                          >
-                            Сохранить
-                          </button>
+                          <div className="admin-slot-actions">
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={(e) => void saveSlot(e, s.id)}
+                              disabled={loading}
+                            >
+                              Сохранить
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-danger"
+                              onClick={() => void deleteSlot(s.id)}
+                              disabled={loading}
+                              title="Только если нет заказов по сеансу"
+                            >
+                              Удалить
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -652,6 +839,8 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+              )}
+            </>
           )}
         </section>
       ) : null}

@@ -205,6 +205,37 @@
   border-color: #3d4558;
 }
 
+.admin-root .btn-danger {
+  background: #3d2024;
+  color: #fecaca;
+  border-color: #7f1d1d;
+}
+
+.admin-root .btn-danger:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.admin-root .admin-bulk-day {
+  margin-top: 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: var(--admin-radius);
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface2);
+}
+
+.admin-root .admin-bulk-day h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.admin-root .admin-slot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
 /* Form controls */
 .admin-root label {
   display: block;
@@ -291,6 +322,12 @@
   background: rgba(248, 113, 113, 0.1);
   border: 1px solid rgba(248, 113, 113, 0.25);
   color: var(--admin-danger);
+}
+
+.admin-root .admin-alert--ok {
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  color: #a7f3d0;
 }
 
 /* Tables */
