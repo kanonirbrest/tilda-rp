@@ -33,8 +33,9 @@ services:
         sync: false
       - key: BEPAID_SECRET_KEY
         sync: false
-      - key: BEPAID_API_URL
-        value: https://gateway.bepaid.by/beyag/payments
+      # Не подставляйте старый …/beyag/payments (404). Пусть приложение использует дефолт checkout.bepaid.by
+      # - key: BEPAID_API_URL
+      #   value: https://checkout.bepaid.by/ctp/api/checkouts
       # true — в запрос Beyag добавляется test: true (документация bePaid / тестовые карты)
       - key: BEPAID_TEST
         value: "false"

@@ -132,21 +132,34 @@ export async function createOrderCheckout(
     }
 
     try {
+      console.info("[checkout] вызов bePaid", {
+        orderId,
+        slotId: slot.id,
+        amountCents,
+        currency: slot.currency,
+        publicBaseUrl,
+      });
       const pay = await createBepaidPayment({
         orderId,
         amountCents,
         currency: slot.currency,
         description: `${slot.title} — ${slot.startsAt.toISOString()}`,
         customerEmail: email.trim(),
+        customerName: name,
         publicBaseUrl,
       });
       await prisma.order.update({
         where: { id: orderId },
         data: { bepaidUid: pay.bepaidUid },
       });
+      console.info("[checkout] bePaid ok, заказ обновлён bepaidUid", {
+        orderId,
+        bepaidUidLen: pay.bepaidUid.length,
+      });
       return { ok: true, orderId, redirectUrl: pay.redirectUrl };
     } catch (e) {
       if (e instanceof Error && e.message === "BEPAID_NOT_CONFIGURED") {
+        console.warn("[checkout] bePaid не сконфигурирован", { orderId });
         return {
           ok: false,
           status: 503,
@@ -154,7 +167,12 @@ export async function createOrderCheckout(
           hint: "Укажите BEPAID_SHOP_ID и BEPAID_SECRET_KEY или DEV_SKIP_PAYMENT=true",
         };
       }
-      console.error(e);
+      console.error("[checkout] bePaid исключение", {
+        orderId,
+        name: e instanceof Error ? e.name : typeof e,
+        message: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
+      });
       return { ok: false, status: 502, message: "Не удалось создать платёж" };
     }
   } catch (e) {

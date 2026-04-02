@@ -62,12 +62,12 @@ npm run dev
 ## Подключение bePaid
 
 1. Получите у bePaid `shop_id` и секрет, уточните **точный URL API** и формат тела запроса/ответа (они могут отличаться по продукту) — сверьте с [документацией bePaid](https://docs.bepaid.by/).
-2. В `.env` укажите `BEPAID_SHOP_ID`, `BEPAID_SECRET_KEY`, при необходимости `BEPAID_API_URL`.
+2. В `.env` укажите `BEPAID_SHOP_ID`, `BEPAID_SECRET_KEY`. **`BEPAID_API_URL`** задавайте только если менеджер bePaid дал другой endpoint; по умолчанию используется **Checkout API** `https://checkout.bepaid.by/ctp/api/checkouts` (старый `…/beyag/payments` на `gateway.bepaid.by` отвечает **404**).
 3. **Тест полного цикла без реального списания:** `BEPAID_TEST=true` — в запрос Beyag добавляется `test: true` ([тестовый режим](https://docs.bepaid.by/ru/using_api/testing/)), на странице bePaid используйте [тестовые карты](https://docs.bepaid.by/ru/integration/card_api/testing/). На приёме настоящих платежей задайте **`false`** или не указывайте переменную. Это не то же самое, что `DEV_SKIP_PAYMENT` (тот режим bePaid вообще не вызывает).
 4. Установите **`DEV_SKIP_PAYMENT=false`** (или удалите переменную).
 5. В личном кабинете bePaid укажите URL вебхука:  
    `https://<ваш-домен>/api/webhooks/bepaid`  
-6. Проверьте, что в ответе создания платежа действительно приходят `uid` и `redirect_url` — при отличии полей поправьте `src/lib/bepaid.ts` и при необходимости парсер в `src/app/api/webhooks/bepaid/route.ts`.
+6. Ответ Checkout: `checkout.token` и `checkout.redirect_url` — редирект покупателя на страницу оплаты bePaid. Вебхук сопоставляется с заказом по **токену**, `transaction.uid` или `order.tracking_id` (см. `src/app/api/webhooks/bepaid/route.ts`).
 7. Добавьте **проверку подписи** вебхука по документации bePaid (сейчас в коде её нет — только идемпотентность по `uid`).
 
 ## Почта (PDF на email)
