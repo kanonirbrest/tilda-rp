@@ -28,6 +28,24 @@ export function wallDateAndTimeToUtc(dateYmd: string, timeHhMm: string, timeZone
   return dt.toJSDate();
 }
 
+/** UTC-интервал [start, end], покрывающий календарные сутки dateYmd в timeZone (для выборки слотов за день). */
+export function wallDayUtcRange(dateYmd: string, timeZone: string): { start: Date; end: Date } | null {
+  const dm = dateYmd.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!dm) return null;
+  const y = Number(dm[1]);
+  const mo = Number(dm[2]);
+  const d = Number(dm[3]);
+  if (![y, mo, d].every((n) => Number.isFinite(n))) return null;
+  const base = DateTime.fromObject(
+    { year: y, month: mo, day: d, hour: 0, minute: 0, second: 0, millisecond: 0 },
+    { zone: timeZone },
+  );
+  if (!base.isValid) return null;
+  const start = base.startOf("day").toUTC();
+  const end = base.endOf("day").toUTC();
+  return { start: start.toJSDate(), end: end.toJSDate() };
+}
+
 export function dateKeyInTz(iso: Date, tz: string): string {
   return iso.toLocaleDateString("en-CA", { timeZone: tz });
 }

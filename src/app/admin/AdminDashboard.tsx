@@ -234,7 +234,8 @@ export default function AdminDashboard() {
 
   async function onNewSlot(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const title = String(fd.get("title") || "");
     const startsLocal = String(fd.get("startsAt") || "");
     const capRaw = String(fd.get("capacity") || "").trim();
@@ -254,7 +255,7 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       await apiFetch("/api/admin/slots", { method: "POST", body: JSON.stringify(body) });
-      e.currentTarget.reset();
+      form.reset();
       await loadSlots();
       setTab("schedule");
       const d = new Date(startsLocal);
