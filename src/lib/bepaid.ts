@@ -137,6 +137,7 @@ export async function createBepaidPayment(opts: {
 
   const base = opts.publicBaseUrl.replace(/\/$/, "");
   const notificationUrl = `${base}/api/webhooks/bepaid`;
+  /** После оплаты bePaid ведёт на success_url (не только return_url), см. customer_return в доке bePaid. */
   const returnUrl = `${base}/success?orderId=${encodeURIComponent(opts.orderId)}`;
 
   const credentials = Buffer.from(`${shopId}:${secret}`).toString("base64");
@@ -167,7 +168,13 @@ export async function createBepaidPayment(opts: {
       settings: {
         notification_url: notificationUrl,
         return_url: returnUrl,
+        success_url: returnUrl,
+        decline_url: `${returnUrl}&bepaid=declined`,
+        fail_url: `${returnUrl}&bepaid=fail`,
+        cancel_url: `${returnUrl}&bepaid=cancel`,
         language: "ru",
+        /** секунды до авто-редиректа на success_url после успеха (документация checkout) */
+        auto_return: 3,
       },
       /** Без способов оплаты часть витрин отклоняет сессию; карта — универсальный минимум */
       payment_method: {
