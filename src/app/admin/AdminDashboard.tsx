@@ -582,8 +582,8 @@ export default function AdminDashboard() {
                             {s.timeKey} · {slotsData.timezone}
                           </div>
                         </td>
-                        <td>
-                          <input name="title" defaultValue={s.title} />
+                        <td className="admin-cell-title">
+                          <input name="title" className="admin-input-title" defaultValue={s.title} />
                         </td>
                         <td>
                           <div className="price-grid">

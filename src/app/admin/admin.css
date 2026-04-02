@@ -520,8 +520,16 @@
   max-width: 100%;
 }
 
-.admin-root td input[name="title"] {
-  max-width: 12rem;
+.admin-root .admin-cell-title {
+  min-width: min(100%, 16rem);
+  width: 18%;
+}
+
+.admin-root .admin-input-title {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .admin-root td input[name="capacity"] {
