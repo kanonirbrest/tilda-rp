@@ -17,7 +17,8 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
     if (order.status === "PAID") {
       return;
     }
-    if (order.status !== "PENDING") {
+    // CANCELLED после ленивого TTL — редкий поздний вебхук bePaid всё равно должен выдать билет.
+    if (order.status !== "PENDING" && order.status !== "CANCELLED") {
       throw new Error("ORDER_BAD_STATE");
     }
 

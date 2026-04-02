@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
 import { getExhibitionTimezone, dateKeyInTz, timeKeyInTz } from "@/lib/exhibition-time";
+import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
@@ -37,6 +38,8 @@ async function slotStatsMap(slotIds: string[]) {
 export async function GET(req: Request) {
   const deny = await requireAdmin(req);
   if (deny) return deny;
+
+  await expireStalePendingOrders();
 
   const url = new URL(req.url);
   const activeOnly = url.searchParams.get("active") !== "all";

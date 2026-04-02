@@ -9,6 +9,7 @@ import {
   unitPriceCents,
   type LineInput,
 } from "@/lib/slot-pricing";
+import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
 
 export class CapacityExceededError extends Error {
   constructor() {
@@ -41,7 +42,7 @@ export type CreateOrderCheckoutErr = {
 /**
  * Создание заказа и редирект на success или bePaid. Общая логика для POST /api/orders и GET /pay.
  * Лимит мест: сумма quantity по OrderLine заказов со статусом PENDING и PAID для этого слота.
- * PENDING удерживает место до оплаты или отмены (зависшие заказы можно чистить отдельно).
+ * Просроченные PENDING (см. PENDING_ORDER_TTL_MINUTES) переводятся в CANCELLED лениво при этом запросе.
  */
 export async function createOrderCheckout(
   input: CreateOrderCheckoutInput,
@@ -55,6 +56,8 @@ export async function createOrderCheckout(
   const { name, email, phone } = input;
 
   try {
+    await expireStalePendingOrders();
+
     const slot = await prisma.slot.findFirst({
       where: { id: input.slotId, active: true },
     });
