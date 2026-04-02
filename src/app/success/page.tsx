@@ -1,12 +1,31 @@
 import { SuccessClient } from "./ui";
 
+function parseBepaidReturn(
+  raw: string | string[] | undefined,
+): "declined" | "fail" | "cancel" | null {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  const s = v?.trim().toLowerCase();
+  if (s === "declined" || s === "fail" || s === "cancel") return s;
+  return null;
+}
+
 export default async function SuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ orderId?: string }>;
+  searchParams: Promise<{
+    orderId?: string;
+    /** наши URL decline/fail/cancel */
+    bepaid?: string;
+    /** bePaid дописывает к return (successful / failed и т.д.) */
+    status?: string;
+  }>;
 }) {
-  const { orderId } = await searchParams;
-  const supportEmail = process.env.SUPPORT_EMAIL || "support@example.com";
+  const sp = await searchParams;
+  const { orderId } = sp;
+  const supportEmail = process.env.SUPPORT_EMAIL || "support@dei.by";
+  const bepaidReturn = parseBepaidReturn(sp.bepaid);
+  const gatewayStatusParam =
+    typeof sp.status === "string" && sp.status.trim() !== "" ? sp.status.trim() : null;
 
   if (!orderId) {
     return (
@@ -16,5 +35,12 @@ export default async function SuccessPage({
     );
   }
 
-  return <SuccessClient orderId={orderId} supportEmail={supportEmail} />;
+  return (
+    <SuccessClient
+      orderId={orderId}
+      supportEmail={supportEmail}
+      bepaidReturn={bepaidReturn}
+      gatewayStatusParam={gatewayStatusParam}
+    />
+  );
 }
