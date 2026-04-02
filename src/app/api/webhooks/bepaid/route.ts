@@ -3,15 +3,29 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fulfillPaidOrder } from "@/lib/fulfill-order";
 
+/**
+ * Checkout API иногда кладёт полезную нагрузку во вложенный `checkout`;
+ * плюс `tracking_id` может быть в `transaction`, а не только в `order`.
+ */
+function normalizeBepaidWebhookBody(raw: Record<string, unknown>): Record<string, unknown> {
+  const checkout = raw.checkout as Record<string, unknown> | undefined;
+  if (checkout && typeof checkout === "object") {
+    return { ...checkout, ...raw };
+  }
+  return raw;
+}
+
 /** Идемпотентность вебхука: стабильный внешний id */
 function pickWebhookExternalId(body: Record<string, unknown>): string | undefined {
   const transaction = body.transaction as Record<string, unknown> | undefined;
   const txUid = (transaction?.uid ?? transaction?.id) as string | undefined;
   const token = typeof body.token === "string" ? body.token : undefined;
   const orderBlock = body.order as Record<string, unknown> | undefined;
-  const tracking =
+  const trackingOrder =
     typeof orderBlock?.tracking_id === "string" ? orderBlock.tracking_id : undefined;
-  return txUid || token || tracking || (body.uid as string | undefined);
+  const trackingTx =
+    typeof transaction?.tracking_id === "string" ? transaction.tracking_id : undefined;
+  return txUid || token || trackingOrder || trackingTx || (body.uid as string | undefined);
 }
 
 function orderWhereFromWebhook(body: Record<string, unknown>): Prisma.OrderWhereInput {
@@ -27,6 +41,9 @@ function orderWhereFromWebhook(body: Record<string, unknown>): Prisma.OrderWhere
   const orderBlock = body.order as Record<string, unknown> | undefined;
   const trackingId = orderBlock?.tracking_id as string | undefined;
   if (trackingId) or.push({ id: trackingId });
+  const trackingFromTx =
+    typeof transaction?.tracking_id === "string" ? transaction.tracking_id : undefined;
+  if (trackingFromTx) or.push({ id: trackingFromTx });
   return or.length ? { OR: or } : {};
 }
 
@@ -45,13 +62,20 @@ function pickStatus(body: Record<string, unknown>): string | undefined {
 function isPaidStatus(status: string | undefined): boolean {
   if (!status) return false;
   const s = status.toLowerCase();
-  return s === "successful" || s === "success" || s === "paid" || s === "completed";
+  return (
+    s === "successful" ||
+    s === "success" ||
+    s === "paid" ||
+    s === "completed" ||
+    s === "complete" ||
+    s === "ok"
+  );
 }
 
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
   try {
-    body = (await req.json()) as Record<string, unknown>;
+    body = normalizeBepaidWebhookBody((await req.json()) as Record<string, unknown>);
   } catch {
     console.warn("[bePaid webhook] невалидный JSON");
     return new NextResponse("bad json", { status: 400 });
