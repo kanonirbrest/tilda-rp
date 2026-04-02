@@ -35,6 +35,9 @@ services:
         sync: false
       - key: BEPAID_API_URL
         value: https://gateway.bepaid.by/beyag/payments
+      # true — в запрос Beyag добавляется test: true (документация bePaid / тестовые карты)
+      - key: BEPAID_TEST
+        value: "false"
       # POST /api/orders с Тильды (origin через запятую)
       # - key: PUBLIC_ORDERS_CORS_ORIGIN
       #   sync: false

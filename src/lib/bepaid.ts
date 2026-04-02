@@ -31,6 +31,9 @@ export async function createBepaidPayment(opts: {
 
   const credentials = Buffer.from(`${shopId}:${secret}`).toString("base64");
 
+  /** https://docs.bepaid.by/ru/using_api/testing/ — без списания в процессинге, нужны тестовые карты */
+  const bepaidTest = process.env.BEPAID_TEST === "true";
+
   const body = {
     request: {
       amount: opts.amountCents,
@@ -40,6 +43,7 @@ export async function createBepaidPayment(opts: {
       notification_url: notificationUrl,
       return_url: returnUrl,
       email: opts.customerEmail,
+      ...(bepaidTest ? { test: true } : {}),
     },
   };
 
