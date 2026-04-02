@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { StaffLoginForm } from "./ui";
 
 export default async function StaffLoginPage({
@@ -17,11 +16,6 @@ export default async function StaffLoginPage({
         <p className="mt-1 text-sm text-zinc-600">Вход по логину и паролю</p>
       </div>
       <StaffLoginForm nextPath={safeNext} />
-      <p className="text-center text-xs text-zinc-500">
-        <Link href="/tickets" className="underline">
-          К покупке билетов
-        </Link>
-      </p>
     </div>
   );
 }

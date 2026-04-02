@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type Status = "loading" | "paid" | "pending" | "other" | "error";
@@ -115,10 +114,6 @@ export function SuccessClient({
           и укажите номер заказа: <span className="font-mono text-xs">{orderId}</span>
         </p>
       </div>
-
-      <Link href="/tickets" className="text-center text-sm text-zinc-500 underline">
-        Купить ещё билет
-      </Link>
     </div>
   );
 }

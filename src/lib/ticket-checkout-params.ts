@@ -1,4 +1,4 @@
-/** Параметры adult/child/concession из query (Тильда, /pay, /checkout). */
+/** Параметры adult/child/concession из query (Тильда, /pay). */
 export function parseTicketCountParam(v: string | null | undefined): number {
   if (v == null || v === "") return 0;
   const n = Number.parseInt(String(v), 10);
@@ -16,7 +16,7 @@ export function hasDateAndTimeInQuery(
 export type TicketCounts = { adult: number; child: number; concession: number };
 
 /**
- * Если количества не заданы: при ссылке с date+time — ошибка; иначе по умолчанию 1 взрослый (выбор слота на /tickets).
+ * Если количества не заданы: при ссылке с date+time — ошибка; иначе по умолчанию 1 взрослый (например только slotId).
  */
 export function normalizeTicketCounts(
   adult: number,

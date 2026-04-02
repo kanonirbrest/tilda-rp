@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Билеты",
-  description: "Покупка билетов и контроль входа",
+  title: "DEI Tickets",
+  description: "Оплата билетов, админка сеансов и контроль входа",
 };
 
 export default function RootLayout({
