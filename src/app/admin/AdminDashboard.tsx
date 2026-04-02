@@ -59,10 +59,29 @@ function parseOptCents(raw: string): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+/** Для datetime-local и для вырезки локальной даты/времени (календарь браузера). */
 function isoToDatetimeLocal(iso: string): string {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function isoToTimeLocalHHmm(iso: string): string {
+  const s = isoToDatetimeLocal(iso);
+  const t = s.split("T")[1];
+  return t ?? "";
+}
+
+/** Подпись кнопки даты: 2026-04-03 → «3 апр.» без сдвига по TZ */
+function formatDateKeyShort(dateKey: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!m) return dateKey;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.toLocaleDateString("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
 function todayDateKey(): string {
@@ -251,8 +270,10 @@ export default function AdminDashboard() {
   async function saveSlot(e: React.MouseEvent<HTMLButtonElement>, id: string) {
     const row = e.currentTarget.closest("tr");
     if (!row) return;
+    const slot = slotsData?.slots.find((x) => x.id === id);
     const title = (row.querySelector('[name="title"]') as HTMLInputElement)?.value ?? "";
-    const startsLocal = (row.querySelector('[name="startsAt"]') as HTMLInputElement)?.value ?? "";
+    const timePart = (row.querySelector('[name="slotTime"]') as HTMLInputElement)?.value ?? "";
+    const datePart = slot ? isoToDatetimeLocal(slot.startsAt).split("T")[0] : "";
     const capRaw = (row.querySelector('[name="capacity"]') as HTMLInputElement)?.value?.trim() ?? "";
     const active = (row.querySelector('[name="active"]') as HTMLInputElement)?.checked ?? true;
     const priceCents = Number.parseInt(
@@ -279,7 +300,9 @@ export default function AdminDashboard() {
         priceChildCents,
         priceConcessionCents,
       };
-      if (startsLocal) patch.startsAt = new Date(startsLocal).toISOString();
+      if (datePart && timePart) {
+        patch.startsAt = new Date(`${datePart}T${timePart}:00`).toISOString();
+      }
       patch.capacity = capRaw === "" ? null : Number.parseInt(capRaw, 10);
       await apiFetch(`/api/admin/slots/${encodeURIComponent(id)}`, {
         method: "PATCH",
@@ -460,7 +483,7 @@ export default function AdminDashboard() {
 
       {tab === "schedule" ? (
         <section className="admin-panel" id="tab-schedule" aria-label="Сеансы по дате">
-          <div className="admin-panel-head">
+          <div className="admin-panel-head admin-panel-head--stack">
             <div className="admin-toolbar-row">
               <button
                 type="button"
@@ -484,9 +507,9 @@ export default function AdminDashboard() {
               </label>
               {slotsData ? <span className="admin-hint mono">{slotsData.timezone}</span> : null}
             </div>
-            <div className="admin-row" style={{ marginBottom: 0 }}>
-              <div className="admin-field" style={{ maxWidth: "14rem" }}>
-                <label htmlFor="slot-date">Дата</label>
+            <div className="admin-field admin-field--dateblock">
+              <label htmlFor="slot-date">Дата</label>
+              <div className="admin-date-row">
                 <input
                   id="slot-date"
                   className="admin-date-input"
@@ -494,13 +517,30 @@ export default function AdminDashboard() {
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
                 />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-compact"
+                  onClick={() => setSelectedDate(todayDateKey())}
+                >
+                  Сегодня
+                </button>
               </div>
               {dateOptions.length > 0 ? (
-                <span className="admin-hint" style={{ alignSelf: "flex-end", paddingBottom: "0.35rem" }}>
-                  Есть сеансы: {dateOptions.slice(0, 5).join(", ")}
-                  {dateOptions.length > 5 ? "…" : ""}
-                </span>
-              ) : null}
+                <div className="admin-date-chips" role="group" aria-label="Даты с сеансами">
+                  {dateOptions.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      className={`admin-chip ${d === selectedDate ? "admin-chip--on" : ""}`}
+                      onClick={() => setSelectedDate(d)}
+                    >
+                      {formatDateKeyShort(d)}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="admin-hint admin-hint--tight">Загрузите список — появятся быстрые переходы по датам.</p>
+              )}
             </div>
           </div>
           {!slotsData ? (
@@ -529,13 +569,18 @@ export default function AdminDashboard() {
                       s.capacity == null ? "—" : String(Math.max(0, s.capacity - s.soldPaid - s.pendingReserved));
                     return (
                       <tr key={s.id}>
-                        <td>
+                        <td className="admin-cell-time">
                           <input
-                            name="startsAt"
-                            type="datetime-local"
-                            defaultValue={isoToDatetimeLocal(s.startsAt)}
+                            name="slotTime"
+                            type="time"
+                            step={60}
+                            className="admin-input-time"
+                            defaultValue={isoToTimeLocalHHmm(s.startsAt)}
+                            aria-label={`Время сеанса, строка ${s.timeKey}`}
                           />
-                          <div className="admin-muted-text mono">{s.timeKey}</div>
+                          <div className="admin-muted-text mono">
+                            {s.timeKey} · {slotsData.timezone}
+                          </div>
                         </td>
                         <td>
                           <input name="title" defaultValue={s.title} />

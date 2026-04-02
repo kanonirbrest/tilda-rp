@@ -144,6 +144,15 @@
   border-bottom: 1px solid var(--admin-border);
 }
 
+.admin-root .admin-panel-head--stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.admin-root .admin-panel-head--stack .admin-toolbar-row {
+  width: 100%;
+}
+
 .admin-root .admin-toolbar-row {
   display: flex;
   flex-wrap: wrap;
@@ -211,19 +220,22 @@
 .admin-root input[type="password"],
 .admin-root input[type="number"],
 .admin-root input[type="date"],
+.admin-root input[type="time"],
 .admin-root input[type="datetime-local"],
 .admin-root select,
 .admin-root textarea {
   width: 100%;
   max-width: 420px;
   padding: 0.5rem 0.65rem;
+  min-height: 2.35rem;
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius-sm);
   font: inherit;
   font-size: 0.9rem;
   color: var(--admin-text);
-  background: var(--admin-bg);
+  background: var(--admin-surface2);
   transition: border-color 0.15s, box-shadow 0.15s;
+  font-variant-numeric: tabular-nums;
 }
 
 .admin-root input:focus {
@@ -429,21 +441,87 @@
 }
 
 .admin-root .admin-date-input {
-  max-width: 11rem;
+  max-width: 12rem;
+  flex: 0 0 auto;
+}
+
+.admin-root .admin-field--dateblock {
+  flex: 1 1 100%;
+  min-width: min(100%, 280px);
+  margin-bottom: 0;
+}
+
+.admin-root .admin-date-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.65rem;
+}
+
+.admin-root .btn-compact {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8rem;
+  min-height: 2.35rem;
+}
+
+.admin-root .admin-date-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+}
+
+.admin-root .admin-chip {
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface2);
+  color: var(--admin-muted);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.admin-root .admin-chip:hover {
+  color: var(--admin-text);
+  border-color: var(--admin-muted);
+  background: var(--admin-surface);
+}
+
+.admin-root .admin-chip--on {
+  color: var(--admin-bg);
+  background: var(--admin-accent);
+  border-color: rgba(196, 163, 90, 0.6);
+}
+
+.admin-root .admin-hint--tight {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+}
+
+.admin-root .admin-cell-time {
+  min-width: 6.5rem;
+}
+
+.admin-root .admin-input-time {
+  max-width: 7.5rem;
+  min-width: 6.5rem;
 }
 
 .admin-root td input[type="datetime-local"],
 .admin-root td input[type="text"],
-.admin-root td input[type="number"] {
+.admin-root td input[type="number"],
+.admin-root td input[type="time"] {
   max-width: 100%;
 }
 
 .admin-root td input[name="title"] {
   max-width: 12rem;
-}
-
-.admin-root td input[name="startsAt"] {
-  max-width: 10.5rem;
 }
 
 .admin-root td input[name="capacity"] {
