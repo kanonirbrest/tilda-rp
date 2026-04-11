@@ -165,6 +165,8 @@ export async function createBepaidPayment(opts: {
   const body = {
     checkout: {
       transaction_type: "payment" as const,
+      /** См. https://docs.bepaid.by/ru/using_api/testing/ — снимает фильтр «Duplicate transaction» при повторных тестах. */
+      duplicate_check: false,
       ...(bepaidTest ? { test: true } : {}),
       settings: {
         notification_url: notificationUrl,
