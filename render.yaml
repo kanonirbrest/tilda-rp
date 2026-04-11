@@ -39,6 +39,17 @@ services:
       # true — в запрос Beyag добавляется test: true (документация bePaid / тестовые карты)
       - key: BEPAID_TEST
         value: "false"
+      # Почта с билетом (Gmail: smtp.gmail.com, порт 587, пароль приложения). Без SMTP — только лог в консоль.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
       # POST /api/orders с Тильды (origin через запятую)
       # - key: PUBLIC_ORDERS_CORS_ORIGIN
       #   sync: false

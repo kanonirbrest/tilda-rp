@@ -108,7 +108,7 @@ npm run dev
 
 1. Создайте приёмник (вебхук формы, Make-сценарий и т.д.) и вставьте URL в `TILDA_CRM_WEBHOOK_URL`.
 2. При необходимости задайте `TILDA_CRM_WEBHOOK_SECRET` — тогда запрос уйдёт с заголовком `Authorization: Bearer <секрет>`.
-3. Тело JSON описано в `src/lib/crm.ts` (`ticket_paid` и `ticket_used`). Подстройте маппинг полей под вашу воронку.
+3. Тело JSON описано в `src/lib/crm.ts` (`ticket_paid` и `ticket_used`): есть `amountCents` (копейки) и `amountDisplay` (например `208.00 BYN`). Подстройте маппинг полей под вашу воронку.
 
 ## Продакшен
 

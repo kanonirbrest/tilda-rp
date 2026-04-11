@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getStaffFromCookies } from "@/lib/auth-staff";
 import { sendCrmWebhook } from "@/lib/crm";
+import { formatMinorUnits } from "@/lib/money";
 
 const schema = z.object({
   token: z.string().min(10).max(200),
@@ -72,6 +73,7 @@ export async function POST(req: Request) {
       email: t.order.customer.email,
       phone: t.order.customer.phone,
       amountCents: t.order.amountCents,
+      amountDisplay: formatMinorUnits(t.order.amountCents, t.order.currency),
       currency: t.order.currency,
       orderId: t.order.id,
       ticketToken: t.publicToken,

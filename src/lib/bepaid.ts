@@ -118,6 +118,7 @@ function splitCustomerName(full: string): { first: string; last: string } {
 
 export async function createBepaidPayment(opts: {
   orderId: string;
+  /** Сумма в минимальных единицах валюты (копейки для BYN) — то же, что `checkout.order.amount` в API bePaid. */
   amountCents: number;
   currency: string;
   description: string;

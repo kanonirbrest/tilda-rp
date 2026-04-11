@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { formatMinorUnits } from "@/lib/money";
 
 type VerifyOk = {
   found: true;
@@ -14,6 +15,8 @@ type VerifyOk = {
   slotTitle: string;
   startsAt: string;
   amountCents: number;
+  /** Сумма для отображения, например «208.00 BYN». */
+  amountDisplay?: string;
   currency: string;
   orderId: string;
 };
@@ -131,7 +134,7 @@ export function QuickClient({ token }: { token: string }) {
             })}
           </div>
           <div className="text-zinc-600">
-            {(data.amountCents / 100).toFixed(2)} {data.currency}
+            {data.amountDisplay ?? formatMinorUnits(data.amountCents, data.currency)}
           </div>
           <div className="text-xs text-zinc-500">
             {data.email} · {data.phone}

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getStaffFromCookies } from "@/lib/auth-staff";
+import { formatMinorUnits } from "@/lib/money";
 
 const schema = z.object({
   token: z.string().min(10).max(200),
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
     slotTitle: ticket.order.slot.title,
     startsAt: ticket.order.slot.startsAt.toISOString(),
     amountCents: ticket.order.amountCents,
+    amountDisplay: formatMinorUnits(ticket.order.amountCents, ticket.order.currency),
     currency: ticket.order.currency,
     orderId: ticket.order.id,
     admissionCount: ticket.admissionCount,

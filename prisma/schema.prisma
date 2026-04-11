@@ -11,9 +11,9 @@ model Slot {
   id         String   @id @default(cuid())
   title      String
   startsAt   DateTime
-  /// Базовая цена (если цена по типу не задана)
+  /// Базовая цена в копейках (минорные единицы BYN; в админке ввод в рублях → ×100).
   priceCents Int
-  /// Опционально: разные цены для Тильды (взрослый / детский / льготный). Иначе везде priceCents.
+  /// В копейках. Опционально: разные цены для Тильды (взрослый / детский / льготный). Иначе везде priceCents.
   priceAdultCents      Int?
   priceChildCents      Int?
   priceConcessionCents Int?
@@ -54,6 +54,7 @@ model Order {
   customerId   String
   customer     Customer    @relation(fields: [customerId], references: [id])
   status       OrderStatus @default(PENDING)
+  /// Сумма заказа в копейках (как в bePaid `order.amount`).
   amountCents  Int
   currency     String      @default("BYN")
   bepaidUid    String?     @unique
@@ -69,6 +70,7 @@ model OrderLine {
   order          Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
   tier           TicketTier
   quantity       Int
+  /// Цена строки в копейках за единицу.
   unitPriceCents Int
 }
 

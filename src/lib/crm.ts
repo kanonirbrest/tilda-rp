@@ -3,8 +3,11 @@ type CrmPayload = {
   customerName: string;
   email: string;
   phone: string;
+  /** Сумма в копейках (минорные единицы), как в БД. */
   amountCents: number;
   currency: string;
+  /** Та же сумма для воронок: «208.00 BYN». */
+  amountDisplay: string;
   orderId: string;
   ticketToken: string;
   slotTitle: string;

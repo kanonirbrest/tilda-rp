@@ -1,3 +1,7 @@
+/**
+ * Цены слота в БД — в минимальных единицах валюты (копейки для BYN). Итог заказа = Σ qty × цена
+ * в копейках; в bePaid уходит та же сумма в копейках.
+ */
 import type { Slot, TicketTier } from "@prisma/client";
 
 export function unitPriceCents(slot: Slot, tier: TicketTier): number {

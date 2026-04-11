@@ -3,6 +3,7 @@ import { buildTicketPdf } from "./pdf-ticket";
 import { sendTicketEmail } from "./mail";
 import { sendCrmWebhook } from "./crm";
 import { getPublicAppBaseUrl } from "./request-origin";
+import { formatMinorUnits } from "./money";
 import { linesSummaryRu } from "./slot-pricing";
 
 export async function fulfillPaidOrder(orderId: string): Promise<void> {
@@ -66,6 +67,7 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
     email: full.customer.email,
     phone: full.customer.phone,
     amountCents: full.amountCents,
+    amountDisplay: formatMinorUnits(full.amountCents, full.currency),
     currency: full.currency,
     orderId: full.id,
     ticketToken: full.ticket.publicToken,

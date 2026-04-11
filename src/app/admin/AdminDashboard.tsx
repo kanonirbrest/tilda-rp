@@ -1,6 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  formatMinorUnits,
+  minorToMajorNumber,
+  parseMajorUnitsToMinor,
+  parseOptionalMajorUnitsToMinor,
+} from "@/lib/money";
 
 type SlotRow = {
   id: string;
@@ -46,31 +52,6 @@ function tierRu(t: string): string {
   if (t === "ADULT") return "взр.";
   if (t === "CHILD") return "дет.";
   return "льг.";
-}
-
-function money(cents: number, cur: string): string {
-  return `${(cents / 100).toFixed(2)} ${cur}`;
-}
-
-/** В БД и в bePaid — копейки; в полях админки вводятся рубли (основные единицы), например 30 → 3000 коп. */
-function centsToMajorForInput(cents: number): number {
-  return cents / 100;
-}
-
-function parseMajorUnitsToCents(raw: string): number {
-  const t = raw.trim().replace(",", ".");
-  if (t === "") return 0;
-  const n = Number.parseFloat(t);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.round(n * 100);
-}
-
-function parseOptMajorToCents(raw: string): number | null {
-  const t = raw.trim().replace(",", ".");
-  if (t === "") return null;
-  const n = Number.parseFloat(t);
-  if (!Number.isFinite(n) || n < 0) return null;
-  return Math.round(n * 100);
 }
 
 /** Для datetime-local и для вырезки локальной даты/времени (календарь браузера). */
@@ -254,11 +235,11 @@ export default function AdminDashboard() {
     const title = String(fd.get("title") || "");
     const startsLocal = String(fd.get("startsAt") || "");
     const capRaw = String(fd.get("capacity") || "").trim();
-    const priceCents = parseMajorUnitsToCents(String(fd.get("priceCents") || "0"));
+    const priceCents = parseMajorUnitsToMinor(String(fd.get("priceCents") || "0"));
     const currency = String(fd.get("currency") || "BYN").trim() || "BYN";
-    const pa = parseOptMajorToCents(String(fd.get("priceAdultCents") ?? ""));
-    const pc = parseOptMajorToCents(String(fd.get("priceChildCents") ?? ""));
-    const pco = parseOptMajorToCents(String(fd.get("priceConcessionCents") ?? ""));
+    const pa = parseOptionalMajorUnitsToMinor(String(fd.get("priceAdultCents") ?? ""));
+    const pc = parseOptionalMajorUnitsToMinor(String(fd.get("priceChildCents") ?? ""));
+    const pco = parseOptionalMajorUnitsToMinor(String(fd.get("priceConcessionCents") ?? ""));
     if (!startsLocal) return;
     const startsAt = new Date(startsLocal).toISOString();
     const body: Record<string, unknown> = { title, startsAt, priceCents, currency };
@@ -308,13 +289,13 @@ export default function AdminDashboard() {
     const firstHour = Number.parseInt(String(fd.get("bulkFirstHour") ?? "10"), 10);
     const lastHour = Number.parseInt(String(fd.get("bulkLastHour") ?? "19"), 10);
     const title = String(fd.get("bulkTitle") ?? "").trim();
-    const priceCents = parseMajorUnitsToCents(String(fd.get("bulkPriceCents") ?? "0"));
+    const priceCents = parseMajorUnitsToMinor(String(fd.get("bulkPriceCents") ?? "0"));
     const currency = String(fd.get("bulkCurrency") ?? "BYN").trim() || "BYN";
     const capRaw = String(fd.get("bulkCapacity") ?? "").trim();
     const skipExisting = (fd.get("bulkSkipExisting") as string | null) === "on";
-    const pa = parseOptMajorToCents(String(fd.get("bulkPriceAdultCents") ?? ""));
-    const pc = parseOptMajorToCents(String(fd.get("bulkPriceChildCents") ?? ""));
-    const pco = parseOptMajorToCents(String(fd.get("bulkPriceConcessionCents") ?? ""));
+    const pa = parseOptionalMajorUnitsToMinor(String(fd.get("bulkPriceAdultCents") ?? ""));
+    const pc = parseOptionalMajorUnitsToMinor(String(fd.get("bulkPriceChildCents") ?? ""));
+    const pco = parseOptionalMajorUnitsToMinor(String(fd.get("bulkPriceConcessionCents") ?? ""));
 
     if (!title) {
       setErrMsg("Укажите название сеанса.");
@@ -375,16 +356,16 @@ export default function AdminDashboard() {
     const datePart = slot ? isoToDatetimeLocal(slot.startsAt).split("T")[0] : "";
     const capRaw = (row.querySelector('[name="capacity"]') as HTMLInputElement)?.value?.trim() ?? "";
     const active = (row.querySelector('[name="active"]') as HTMLInputElement)?.checked ?? true;
-    const priceCents = parseMajorUnitsToCents(
+    const priceCents = parseMajorUnitsToMinor(
       (row.querySelector('[name="priceCents"]') as HTMLInputElement)?.value ?? "0",
     );
-    const priceAdultCents = parseOptMajorToCents(
+    const priceAdultCents = parseOptionalMajorUnitsToMinor(
       (row.querySelector('[name="priceAdultCents"]') as HTMLInputElement)?.value ?? "",
     );
-    const priceChildCents = parseOptMajorToCents(
+    const priceChildCents = parseOptionalMajorUnitsToMinor(
       (row.querySelector('[name="priceChildCents"]') as HTMLInputElement)?.value ?? "",
     );
-    const priceConcessionCents = parseOptMajorToCents(
+    const priceConcessionCents = parseOptionalMajorUnitsToMinor(
       (row.querySelector('[name="priceConcessionCents"]') as HTMLInputElement)?.value ?? "",
     );
     setErrMsg("");
@@ -556,7 +537,7 @@ export default function AdminDashboard() {
                         <td>
                           <span className={`pill ${pillClass}`}>{o.status}</span>
                         </td>
-                        <td>{money(o.amountCents, o.currency)}</td>
+                        <td>{formatMinorUnits(o.amountCents, o.currency)}</td>
                         <td>
                           {o.customer.name}
                           <div className="admin-muted-text">
@@ -651,8 +632,8 @@ export default function AdminDashboard() {
                 <p className="admin-hint admin-hint--tight">
                   Дата: <span className="mono">{selectedDate}</span> ({slotsData.timezone}). Создаётся слот на
                   каждый час с <strong>первого</strong> по <strong>последний</strong> включительно (например
-                  10–19 → 10:00 … 19:00). Цены в полях — в <strong>BYN</strong> (30 = 30 рублей), в базе хранятся
-                  копейки.
+                  10–19 → 10:00 … 19:00). Цены в полях — в <strong>BYN</strong> (30 = 30,00 BYN); в базе и для bePaid
+                  хранятся копейки (см. <code>src/lib/money.ts</code>).
                 </p>
                 <form onSubmit={(e) => void onBulkDay(e)}>
                   <div className="admin-row">
@@ -800,7 +781,7 @@ export default function AdminDashboard() {
                               type="number"
                               min={0}
                               step={0.01}
-                              defaultValue={centsToMajorForInput(s.priceCents)}
+                              defaultValue={minorToMajorNumber(s.priceCents)}
                             />
                             <span className="admin-muted-text">Взр.</span>
                             <input
@@ -810,7 +791,7 @@ export default function AdminDashboard() {
                               step={0.01}
                               placeholder="—"
                               defaultValue={
-                                s.priceAdultCents != null ? centsToMajorForInput(s.priceAdultCents) : ""
+                                s.priceAdultCents != null ? minorToMajorNumber(s.priceAdultCents) : ""
                               }
                             />
                             <span className="admin-muted-text">Дет.</span>
@@ -821,7 +802,7 @@ export default function AdminDashboard() {
                               step={0.01}
                               placeholder="—"
                               defaultValue={
-                                s.priceChildCents != null ? centsToMajorForInput(s.priceChildCents) : ""
+                                s.priceChildCents != null ? minorToMajorNumber(s.priceChildCents) : ""
                               }
                             />
                             <span className="admin-muted-text">Льг.</span>
@@ -833,7 +814,7 @@ export default function AdminDashboard() {
                               placeholder="—"
                               defaultValue={
                                 s.priceConcessionCents != null ?
-                                  centsToMajorForInput(s.priceConcessionCents)
+                                  minorToMajorNumber(s.priceConcessionCents)
                                 : ""
                               }
                             />
