@@ -52,11 +52,25 @@ function money(cents: number, cur: string): string {
   return `${(cents / 100).toFixed(2)} ${cur}`;
 }
 
-function parseOptCents(raw: string): number | null {
-  const t = raw.trim();
+/** В БД и в bePaid — копейки; в полях админки вводятся рубли (основные единицы), например 30 → 3000 коп. */
+function centsToMajorForInput(cents: number): number {
+  return cents / 100;
+}
+
+function parseMajorUnitsToCents(raw: string): number {
+  const t = raw.trim().replace(",", ".");
+  if (t === "") return 0;
+  const n = Number.parseFloat(t);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100);
+}
+
+function parseOptMajorToCents(raw: string): number | null {
+  const t = raw.trim().replace(",", ".");
   if (t === "") return null;
-  const n = Number.parseInt(t, 10);
-  return Number.isFinite(n) && n >= 0 ? n : null;
+  const n = Number.parseFloat(t);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 100);
 }
 
 /** Для datetime-local и для вырезки локальной даты/времени (календарь браузера). */
@@ -240,11 +254,11 @@ export default function AdminDashboard() {
     const title = String(fd.get("title") || "");
     const startsLocal = String(fd.get("startsAt") || "");
     const capRaw = String(fd.get("capacity") || "").trim();
-    const priceCents = Number.parseInt(String(fd.get("priceCents") || "0"), 10);
+    const priceCents = parseMajorUnitsToCents(String(fd.get("priceCents") || "0"));
     const currency = String(fd.get("currency") || "BYN").trim() || "BYN";
-    const pa = parseOptCents(String(fd.get("priceAdultCents") ?? ""));
-    const pc = parseOptCents(String(fd.get("priceChildCents") ?? ""));
-    const pco = parseOptCents(String(fd.get("priceConcessionCents") ?? ""));
+    const pa = parseOptMajorToCents(String(fd.get("priceAdultCents") ?? ""));
+    const pc = parseOptMajorToCents(String(fd.get("priceChildCents") ?? ""));
+    const pco = parseOptMajorToCents(String(fd.get("priceConcessionCents") ?? ""));
     if (!startsLocal) return;
     const startsAt = new Date(startsLocal).toISOString();
     const body: Record<string, unknown> = { title, startsAt, priceCents, currency };
@@ -294,13 +308,13 @@ export default function AdminDashboard() {
     const firstHour = Number.parseInt(String(fd.get("bulkFirstHour") ?? "10"), 10);
     const lastHour = Number.parseInt(String(fd.get("bulkLastHour") ?? "19"), 10);
     const title = String(fd.get("bulkTitle") ?? "").trim();
-    const priceCents = Number.parseInt(String(fd.get("bulkPriceCents") ?? "0"), 10);
+    const priceCents = parseMajorUnitsToCents(String(fd.get("bulkPriceCents") ?? "0"));
     const currency = String(fd.get("bulkCurrency") ?? "BYN").trim() || "BYN";
     const capRaw = String(fd.get("bulkCapacity") ?? "").trim();
     const skipExisting = (fd.get("bulkSkipExisting") as string | null) === "on";
-    const pa = parseOptCents(String(fd.get("bulkPriceAdultCents") ?? ""));
-    const pc = parseOptCents(String(fd.get("bulkPriceChildCents") ?? ""));
-    const pco = parseOptCents(String(fd.get("bulkPriceConcessionCents") ?? ""));
+    const pa = parseOptMajorToCents(String(fd.get("bulkPriceAdultCents") ?? ""));
+    const pc = parseOptMajorToCents(String(fd.get("bulkPriceChildCents") ?? ""));
+    const pco = parseOptMajorToCents(String(fd.get("bulkPriceConcessionCents") ?? ""));
 
     if (!title) {
       setErrMsg("Укажите название сеанса.");
@@ -324,7 +338,7 @@ export default function AdminDashboard() {
       firstHour,
       lastHour,
       title,
-      priceCents: Number.isFinite(priceCents) && priceCents >= 0 ? priceCents : 0,
+      priceCents: priceCents >= 0 ? priceCents : 0,
       currency,
       skipExisting,
     };
@@ -361,17 +375,16 @@ export default function AdminDashboard() {
     const datePart = slot ? isoToDatetimeLocal(slot.startsAt).split("T")[0] : "";
     const capRaw = (row.querySelector('[name="capacity"]') as HTMLInputElement)?.value?.trim() ?? "";
     const active = (row.querySelector('[name="active"]') as HTMLInputElement)?.checked ?? true;
-    const priceCents = Number.parseInt(
+    const priceCents = parseMajorUnitsToCents(
       (row.querySelector('[name="priceCents"]') as HTMLInputElement)?.value ?? "0",
-      10,
     );
-    const priceAdultCents = parseOptCents(
+    const priceAdultCents = parseOptMajorToCents(
       (row.querySelector('[name="priceAdultCents"]') as HTMLInputElement)?.value ?? "",
     );
-    const priceChildCents = parseOptCents(
+    const priceChildCents = parseOptMajorToCents(
       (row.querySelector('[name="priceChildCents"]') as HTMLInputElement)?.value ?? "",
     );
-    const priceConcessionCents = parseOptCents(
+    const priceConcessionCents = parseOptMajorToCents(
       (row.querySelector('[name="priceConcessionCents"]') as HTMLInputElement)?.value ?? "",
     );
     setErrMsg("");
@@ -380,7 +393,7 @@ export default function AdminDashboard() {
       const patch: Record<string, unknown> = {
         title: title.trim(),
         active,
-        priceCents: Number.isFinite(priceCents) && priceCents >= 0 ? priceCents : 0,
+        priceCents: priceCents >= 0 ? priceCents : 0,
         priceAdultCents,
         priceChildCents,
         priceConcessionCents,
@@ -638,7 +651,8 @@ export default function AdminDashboard() {
                 <p className="admin-hint admin-hint--tight">
                   Дата: <span className="mono">{selectedDate}</span> ({slotsData.timezone}). Создаётся слот на
                   каждый час с <strong>первого</strong> по <strong>последний</strong> включительно (например
-                  10–19 → 10:00 … 19:00).
+                  10–19 → 10:00 … 19:00). Цены в полях — в <strong>BYN</strong> (30 = 30 рублей), в базе хранятся
+                  копейки.
                 </p>
                 <form onSubmit={(e) => void onBulkDay(e)}>
                   <div className="admin-row">
@@ -677,13 +691,14 @@ export default function AdminDashboard() {
                       <input id="bulk-cap" name="bulkCapacity" type="number" min={1} placeholder="∞" />
                     </div>
                     <div className="admin-field admin-field-narrow">
-                      <label htmlFor="bulk-price">База, коп.</label>
+                      <label htmlFor="bulk-price">База, BYN</label>
                       <input
                         id="bulk-price"
                         name="bulkPriceCents"
                         type="number"
                         min={0}
-                        defaultValue={1000}
+                        step={0.01}
+                        defaultValue={10}
                         required
                       />
                     </div>
@@ -694,20 +709,35 @@ export default function AdminDashboard() {
                   </div>
                   <div className="admin-row">
                     <div className="admin-field admin-field-narrow">
-                      <label htmlFor="bulk-pa">Взрослый, коп.</label>
-                      <input id="bulk-pa" name="bulkPriceAdultCents" type="number" min={0} placeholder="база" />
+                      <label htmlFor="bulk-pa">Взрослый, BYN</label>
+                      <input
+                        id="bulk-pa"
+                        name="bulkPriceAdultCents"
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        placeholder="база"
+                      />
                     </div>
                     <div className="admin-field admin-field-narrow">
-                      <label htmlFor="bulk-pc">Детский</label>
-                      <input id="bulk-pc" name="bulkPriceChildCents" type="number" min={0} placeholder="база" />
+                      <label htmlFor="bulk-pc">Детский, BYN</label>
+                      <input
+                        id="bulk-pc"
+                        name="bulkPriceChildCents"
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        placeholder="база"
+                      />
                     </div>
                     <div className="admin-field admin-field-narrow">
-                      <label htmlFor="bulk-pco">Льготный</label>
+                      <label htmlFor="bulk-pco">Льготный, BYN</label>
                       <input
                         id="bulk-pco"
                         name="bulkPriceConcessionCents"
                         type="number"
                         min={0}
+                        step={0.01}
                         placeholder="база"
                       />
                     </div>
@@ -731,7 +761,7 @@ export default function AdminDashboard() {
                   <tr>
                     <th>Время</th>
                     <th>Название</th>
-                    <th>Цены, коп.</th>
+                    <th>Цены, BYN</th>
                     <th>Места</th>
                     <th>Оплач.</th>
                     <th>Ожид.</th>
@@ -765,30 +795,47 @@ export default function AdminDashboard() {
                         <td>
                           <div className="price-grid">
                             <span className="admin-muted-text">База</span>
-                            <input name="priceCents" type="number" min={0} defaultValue={s.priceCents} />
+                            <input
+                              name="priceCents"
+                              type="number"
+                              min={0}
+                              step={0.01}
+                              defaultValue={centsToMajorForInput(s.priceCents)}
+                            />
                             <span className="admin-muted-text">Взр.</span>
                             <input
                               name="priceAdultCents"
                               type="number"
                               min={0}
+                              step={0.01}
                               placeholder="—"
-                              defaultValue={s.priceAdultCents ?? ""}
+                              defaultValue={
+                                s.priceAdultCents != null ? centsToMajorForInput(s.priceAdultCents) : ""
+                              }
                             />
                             <span className="admin-muted-text">Дет.</span>
                             <input
                               name="priceChildCents"
                               type="number"
                               min={0}
+                              step={0.01}
                               placeholder="—"
-                              defaultValue={s.priceChildCents ?? ""}
+                              defaultValue={
+                                s.priceChildCents != null ? centsToMajorForInput(s.priceChildCents) : ""
+                              }
                             />
                             <span className="admin-muted-text">Льг.</span>
                             <input
                               name="priceConcessionCents"
                               type="number"
                               min={0}
+                              step={0.01}
                               placeholder="—"
-                              defaultValue={s.priceConcessionCents ?? ""}
+                              defaultValue={
+                                s.priceConcessionCents != null ?
+                                  centsToMajorForInput(s.priceConcessionCents)
+                                : ""
+                              }
                             />
                           </div>
                         </td>
@@ -864,8 +911,8 @@ export default function AdminDashboard() {
                 <input name="capacity" type="number" min={1} placeholder="∞" />
               </div>
               <div className="admin-field admin-field-narrow">
-                <label>База, коп.</label>
-                <input name="priceCents" type="number" min={0} defaultValue={1000} required />
+                <label>База, BYN</label>
+                <input name="priceCents" type="number" min={0} step={0.01} defaultValue={10} required />
               </div>
               <div className="admin-field admin-field-narrow">
                 <label>Валюта</label>
@@ -874,16 +921,16 @@ export default function AdminDashboard() {
             </div>
             <div className="admin-row">
               <div className="admin-field admin-field-narrow">
-                <label>Взрослый, коп.</label>
-                <input name="priceAdultCents" type="number" min={0} placeholder="база" />
+                <label>Взрослый, BYN</label>
+                <input name="priceAdultCents" type="number" min={0} step={0.01} placeholder="база" />
               </div>
               <div className="admin-field admin-field-narrow">
-                <label>Детский</label>
-                <input name="priceChildCents" type="number" min={0} placeholder="база" />
+                <label>Детский, BYN</label>
+                <input name="priceChildCents" type="number" min={0} step={0.01} placeholder="база" />
               </div>
               <div className="admin-field admin-field-narrow">
-                <label>Льготный</label>
-                <input name="priceConcessionCents" type="number" min={0} placeholder="база" />
+                <label>Льготный, BYN</label>
+                <input name="priceConcessionCents" type="number" min={0} step={0.01} placeholder="база" />
               </div>
             </div>
             <button type="submit" className="btn" disabled={loading}>
