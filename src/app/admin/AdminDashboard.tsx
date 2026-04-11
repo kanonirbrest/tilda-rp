@@ -46,7 +46,14 @@ type OrdersResponse = {
   orders: OrderRow[];
 };
 
-type TabId = "orders" | "schedule" | "create";
+type TabId = "orders" | "schedule";
+
+type AdminModal =
+  | { type: "none" }
+  | { type: "order"; order: OrderRow }
+  | { type: "slot-single" }
+  | { type: "slot-bulk" }
+  | { type: "slot-edit"; slot: SlotRow };
 
 function tierRu(t: string): string {
   if (t === "ADULT") return "взр.";
@@ -90,6 +97,65 @@ function isActiveOrderStatus(status: string): boolean {
   return s === "pending" || s === "paid";
 }
 
+function truncateText(s: string, max: number): string {
+  const t = s.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, Math.max(0, max - 1))}…`;
+}
+
+function AdminModalFrame({
+  title,
+  onClose,
+  children,
+  size = "default",
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  size?: "default" | "wide";
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="admin-modal-backdrop"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className={`admin-modal${size === "wide" ? " admin-modal--wide" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-modal-title"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="admin-modal-head">
+          <h2 id="admin-modal-title" className="admin-modal-title">
+            {title}
+          </h2>
+          <button type="button" className="admin-modal-close" onClick={onClose} aria-label="Закрыть">
+            ×
+          </button>
+        </div>
+        <div className="admin-modal-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(path, {
     ...init,
@@ -123,6 +189,7 @@ export default function AdminDashboard() {
   const [loginErr, setLoginErr] = useState("");
 
   const [tab, setTab] = useState<TabId>("orders");
+  const [modal, setModal] = useState<AdminModal>({ type: "none" });
   const [showInactive, setShowInactive] = useState(false);
   const [errMsg, setErrMsg] = useState("");
   const [infoMsg, setInfoMsg] = useState("");
@@ -252,6 +319,7 @@ export default function AdminDashboard() {
     try {
       await apiFetch("/api/admin/slots", { method: "POST", body: JSON.stringify(body) });
       form.reset();
+      setModal({ type: "none" });
       await loadSlots();
       setTab("schedule");
       const d = new Date(startsLocal);
@@ -274,6 +342,7 @@ export default function AdminDashboard() {
     try {
       await apiFetch(`/api/admin/slots/${encodeURIComponent(id)}`, { method: "DELETE" });
       await loadSlots();
+      setModal((m) => (m.type === "slot-edit" && m.slot.id === id ? { type: "none" } : m));
     } catch (err: unknown) {
       setErrMsg(err instanceof Error ? err.message : String(err));
     } finally {
@@ -339,6 +408,8 @@ export default function AdminDashboard() {
       setInfoMsg(
         `Создано сеансов: ${res.created}. Пропущено (уже были на это время): ${res.skipped}. Часовой пояс: ${slotsData.timezone}.`,
       );
+      setModal({ type: "none" });
+      form.reset();
       await loadSlots();
     } catch (err: unknown) {
       setErrMsg(err instanceof Error ? err.message : String(err));
@@ -347,28 +418,27 @@ export default function AdminDashboard() {
     }
   }
 
-  async function saveSlot(e: React.MouseEvent<HTMLButtonElement>, id: string) {
-    const row = e.currentTarget.closest("tr");
-    if (!row) return;
-    const slot = slotsData?.slots.find((x) => x.id === id);
-    const title = (row.querySelector('[name="title"]') as HTMLInputElement)?.value ?? "";
-    const timePart = (row.querySelector('[name="slotTime"]') as HTMLInputElement)?.value ?? "";
-    const datePart = slot ? isoToDatetimeLocal(slot.startsAt).split("T")[0] : "";
-    const capRaw = (row.querySelector('[name="capacity"]') as HTMLInputElement)?.value?.trim() ?? "";
-    const active = (row.querySelector('[name="active"]') as HTMLInputElement)?.checked ?? true;
-    const priceCents = parseMajorUnitsToMinor(
-      (row.querySelector('[name="priceCents"]') as HTMLInputElement)?.value ?? "0",
-    );
-    const priceAdultCents = parseOptionalMajorUnitsToMinor(
-      (row.querySelector('[name="priceAdultCents"]') as HTMLInputElement)?.value ?? "",
-    );
-    const priceChildCents = parseOptionalMajorUnitsToMinor(
-      (row.querySelector('[name="priceChildCents"]') as HTMLInputElement)?.value ?? "",
-    );
+  async function saveSlotFromForm(e: React.FormEvent<HTMLFormElement>, slotId: string) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const slot = slotsData?.slots.find((x) => x.id === slotId);
+    const title = String(fd.get("title") ?? "");
+    const timePart = String(fd.get("slotTime") ?? "");
+    const dateFromForm = String(fd.get("slotDate") ?? "").trim();
+    const datePart =
+      dateFromForm || (slot ? (isoToDatetimeLocal(slot.startsAt).split("T")[0] ?? "") : "");
+    const capRaw = String(fd.get("capacity") ?? "").trim();
+    const activeEl = form.elements.namedItem("active");
+    const active = activeEl instanceof HTMLInputElement ? activeEl.checked : true;
+    const priceCents = parseMajorUnitsToMinor(String(fd.get("priceCents") ?? "0"));
+    const priceAdultCents = parseOptionalMajorUnitsToMinor(String(fd.get("priceAdultCents") ?? ""));
+    const priceChildCents = parseOptionalMajorUnitsToMinor(String(fd.get("priceChildCents") ?? ""));
     const priceConcessionCents = parseOptionalMajorUnitsToMinor(
-      (row.querySelector('[name="priceConcessionCents"]') as HTMLInputElement)?.value ?? "",
+      String(fd.get("priceConcessionCents") ?? ""),
     );
     setErrMsg("");
+    setInfoMsg("");
     setLoading(true);
     try {
       const patch: Record<string, unknown> = {
@@ -383,11 +453,13 @@ export default function AdminDashboard() {
         patch.startsAt = new Date(`${datePart}T${timePart}:00`).toISOString();
       }
       patch.capacity = capRaw === "" ? null : Number.parseInt(capRaw, 10);
-      await apiFetch(`/api/admin/slots/${encodeURIComponent(id)}`, {
+      await apiFetch(`/api/admin/slots/${encodeURIComponent(slotId)}`, {
         method: "PATCH",
         body: JSON.stringify(patch),
       });
       await loadSlots();
+      setInfoMsg("Сеанс сохранён.");
+      setModal({ type: "none" });
     } catch (err: unknown) {
       setErrMsg(err instanceof Error ? err.message : String(err));
     } finally {
@@ -474,21 +546,13 @@ export default function AdminDashboard() {
           aria-selected={tab === "schedule"}
           onClick={() => setTab("schedule")}
         >
-          Сеансы по дате
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "create"}
-          onClick={() => setTab("create")}
-        >
-          Новый сеанс
+          Сеансы
         </button>
       </div>
 
       {tab === "orders" ? (
-        <section className="admin-panel" id="tab-orders" aria-label="Заявки">
-          <div className="admin-panel-head">
+        <section className="admin-panel admin-panel--tight" id="tab-orders" aria-label="Заявки">
+          <div className="admin-panel-head admin-panel-head--tight">
             <div className="admin-toolbar-row">
               <button
                 type="button"
@@ -500,70 +564,63 @@ export default function AdminDashboard() {
               </button>
               {ordersData ? (
                 <span className="admin-hint">
-                  Активных: {activeOrders.length} · всего в выборке: {ordersData.orders.length}
+                  Активных: {activeOrders.length} · в выборке: {ordersData.orders.length}
                 </span>
               ) : null}
             </div>
+            <p className="admin-hint admin-hint--inline">Строка — кратко; полные данные по нажатию.</p>
           </div>
-          <div className="admin-table-wrap">
-            {!ordersData ? (
-              <div className="admin-empty">Загрузка…</div>
-            ) : activeOrders.length === 0 ? (
-              <div className="admin-empty">Нет активных заявок</div>
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Дата</th>
-                    <th>Статус</th>
-                    <th>Сумма</th>
-                    <th>Клиент</th>
-                    <th>Сеанс</th>
-                    <th>Состав</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeOrders.map((o) => {
-                    const st = o.status.toLowerCase();
-                    const pillClass =
-                      st === "paid" ? "paid"
-                      : st === "pending" ? "pending"
-                      : st === "failed" ? "failed"
-                      : "cancelled";
-                    const lines = o.lines.map((l) => `${tierRu(l.tier)} ×${l.quantity}`).join(", ");
-                    return (
-                      <tr key={o.id}>
-                        <td className="mono">{o.createdAt.slice(0, 19).replace("T", " ")}</td>
-                        <td>
-                          <span className={`pill ${pillClass}`}>{o.status}</span>
-                        </td>
-                        <td>{formatMinorUnits(o.amountCents, o.currency)}</td>
-                        <td>
-                          {o.customer.name}
-                          <div className="admin-muted-text">
-                            {o.customer.email}
-                            <br />
-                            {o.customer.phone}
-                          </div>
-                        </td>
-                        <td>
-                          {o.slot.title}
-                          <div className="admin-muted-text mono">{o.slot.startsAt.slice(0, 16).replace("T", " ")}</div>
-                        </td>
-                        <td className="admin-muted-text">{lines}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
+          {!ordersData ? (
+            <div className="admin-empty admin-empty--compact">Загрузка…</div>
+          ) : activeOrders.length === 0 ? (
+            <div className="admin-empty admin-empty--compact">Нет активных заявок</div>
+          ) : (
+            <div className="admin-order-list" role="list">
+              {activeOrders.map((o) => {
+                const st = o.status.toLowerCase();
+                const pillClass =
+                  st === "paid" ? "paid"
+                  : st === "pending" ? "pending"
+                  : st === "failed" ? "failed"
+                  : "cancelled";
+                const createdShort = o.createdAt.slice(0, 16).replace("T", " ");
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    className="admin-order-row"
+                    role="listitem"
+                    onClick={() => setModal({ type: "order", order: o })}
+                  >
+                    <div className="admin-order-row__left">
+                      <span className="mono admin-order-row__time">{createdShort}</span>
+                      <span className={`pill ${pillClass}`}>{o.status}</span>
+                    </div>
+                    <div className="admin-order-row__mid">
+                      <span className="admin-order-row__name">{truncateText(o.customer.name, 28)}</span>
+                      <span className="admin-order-row__email mono">{truncateText(o.customer.email, 36)}</span>
+                    </div>
+                    <div className="admin-order-row__sum mono">{formatMinorUnits(o.amountCents, o.currency)}</div>
+                    <div className="admin-order-row__slot">
+                      <span className="admin-order-row__slot-title">{truncateText(o.slot.title, 40)}</span>
+                      <span className="admin-order-row__slot-time mono">
+                        {o.slot.startsAt.slice(0, 16).replace("T", " ")}
+                      </span>
+                    </div>
+                    <span className="admin-order-row__chev" aria-hidden>
+                      →
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </section>
       ) : null}
 
       {tab === "schedule" ? (
-        <section className="admin-panel" id="tab-schedule" aria-label="Сеансы по дате">
-          <div className="admin-panel-head admin-panel-head--stack">
+        <section className="admin-panel admin-panel--tight" id="tab-schedule" aria-label="Сеансы по дате">
+          <div className="admin-panel-head admin-panel-head--stack admin-panel-head--tight">
             <div className="admin-toolbar-row">
               <button
                 type="button"
@@ -622,261 +679,144 @@ export default function AdminDashboard() {
                 <p className="admin-hint admin-hint--tight">Загрузите список — появятся быстрые переходы по датам.</p>
               )}
             </div>
+            <div className="admin-schedule-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "slot-single" })}>
+                + Один сеанс
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setModal({ type: "slot-bulk" })}
+                disabled={!slotsData}
+              >
+                + Группа на день
+              </button>
+            </div>
+            <p className="admin-hint admin-hint--inline">Сеанс — строка; изменения и удаление в окне.</p>
           </div>
           {!slotsData ? (
-            <div className="admin-empty">Загрузка…</div>
+            <div className="admin-empty admin-empty--compact">Загрузка…</div>
           ) : (
             <>
-              <div className="admin-bulk-day">
-                <h3>Почасовые сеансы на день</h3>
-                <p className="admin-hint admin-hint--tight">
-                  Дата: <span className="mono">{selectedDate}</span> ({slotsData.timezone}). Создаётся слот на
-                  каждый час с <strong>первого</strong> по <strong>последний</strong> включительно (например
-                  10–19 → 10:00 … 19:00). Цены в полях — в <strong>BYN</strong> (30 = 30,00 BYN); в базе и для bePaid
-                  хранятся копейки (см. <code>src/lib/money.ts</code>).
-                </p>
-                <form onSubmit={(e) => void onBulkDay(e)}>
-                  <div className="admin-row">
-                    <div className="admin-field admin-field-narrow">
-                      <label htmlFor="bulk-first-hour">С часа</label>
-                      <input
-                        id="bulk-first-hour"
-                        name="bulkFirstHour"
-                        type="number"
-                        min={0}
-                        max={23}
-                        defaultValue={10}
-                        required
-                      />
-                    </div>
-                    <div className="admin-field admin-field-narrow">
-                      <label htmlFor="bulk-last-hour">По час</label>
-                      <input
-                        id="bulk-last-hour"
-                        name="bulkLastHour"
-                        type="number"
-                        min={0}
-                        max={23}
-                        defaultValue={19}
-                        required
-                      />
-                    </div>
-                    <div className="admin-field">
-                      <label htmlFor="bulk-title">Название (одинаковое)</label>
-                      <input id="bulk-title" name="bulkTitle" required placeholder="Экскурсия" />
-                    </div>
-                  </div>
-                  <div className="admin-row">
-                    <div className="admin-field admin-field-narrow">
-                      <label htmlFor="bulk-cap">Лимит мест</label>
-                      <input id="bulk-cap" name="bulkCapacity" type="number" min={1} placeholder="∞" />
-                    </div>
-                    <div className="admin-field admin-field-narrow">
-                      <label htmlFor="bulk-price">База, BYN</label>
-                      <input
-                        id="bulk-price"
-                        name="bulkPriceCents"
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        defaultValue={10}
-                        required
-                      />
-                    </div>
-                    <div className="admin-field admin-field-narrow">
-                      <label htmlFor="bulk-cur">Валюта</label>
-                      <input id="bulk-cur" name="bulkCurrency" defaultValue="BYN" maxLength={8} />
-                    </div>
-                  </div>
-                  <div className="admin-row">
-                    <div className="admin-field admin-field-narrow">
-                      <label htmlFor="bulk-pa">Взрослый, BYN</label>
-                      <input
-                        id="bulk-pa"
-                        name="bulkPriceAdultCents"
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        placeholder="база"
-                      />
-                    </div>
-                    <div className="admin-field admin-field-narrow">
-                      <label htmlFor="bulk-pc">Детский, BYN</label>
-                      <input
-                        id="bulk-pc"
-                        name="bulkPriceChildCents"
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        placeholder="база"
-                      />
-                    </div>
-                    <div className="admin-field admin-field-narrow">
-                      <label htmlFor="bulk-pco">Льготный, BYN</label>
-                      <input
-                        id="bulk-pco"
-                        name="bulkPriceConcessionCents"
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        placeholder="база"
-                      />
-                    </div>
-                  </div>
-                  <label className="admin-check" style={{ marginBottom: "0.75rem" }}>
-                    <input type="checkbox" name="bulkSkipExisting" defaultChecked />
-                    Не создавать, если на это время уже есть сеанс
-                  </label>
-                  <button type="submit" className="btn" disabled={loading}>
-                    Создать слоты на выбранную дату
-                  </button>
-                </form>
-              </div>
-
               {slotsForSelectedDate.length === 0 ? (
-                <div className="admin-empty">На эту дату сеансов нет</div>
+                <div className="admin-empty admin-empty--compact">На эту дату сеансов нет</div>
               ) : (
-            <div className="admin-table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Время</th>
-                    <th>Название</th>
-                    <th>Цены, BYN</th>
-                    <th>Места</th>
-                    <th>Оплач.</th>
-                    <th>Ожид.</th>
-                    <th>Акт.</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
+                <div className="admin-slot-list" role="list">
                   {slotsForSelectedDate.map((s) => {
                     const cap = s.capacity == null ? "∞" : String(s.capacity);
                     const free =
-                      s.capacity == null ? "—" : String(Math.max(0, s.capacity - s.soldPaid - s.pendingReserved));
+                      s.capacity == null ?
+                        "—"
+                      : String(Math.max(0, s.capacity - s.soldPaid - s.pendingReserved));
                     return (
-                      <tr key={s.id}>
-                        <td className="admin-cell-time">
-                          <input
-                            name="slotTime"
-                            type="time"
-                            step={60}
-                            className="admin-input-time"
-                            defaultValue={isoToTimeLocalHHmm(s.startsAt)}
-                            aria-label={`Время сеанса, строка ${s.timeKey}`}
-                          />
-                          <div className="admin-muted-text mono">
-                            {s.timeKey} · {slotsData.timezone}
-                          </div>
-                        </td>
-                        <td className="admin-cell-title">
-                          <input name="title" className="admin-input-title" defaultValue={s.title} />
-                        </td>
-                        <td>
-                          <div className="price-grid">
-                            <span className="admin-muted-text">База</span>
-                            <input
-                              name="priceCents"
-                              type="number"
-                              min={0}
-                              step={0.01}
-                              defaultValue={minorToMajorNumber(s.priceCents)}
-                            />
-                            <span className="admin-muted-text">Взр.</span>
-                            <input
-                              name="priceAdultCents"
-                              type="number"
-                              min={0}
-                              step={0.01}
-                              placeholder="—"
-                              defaultValue={
-                                s.priceAdultCents != null ? minorToMajorNumber(s.priceAdultCents) : ""
-                              }
-                            />
-                            <span className="admin-muted-text">Дет.</span>
-                            <input
-                              name="priceChildCents"
-                              type="number"
-                              min={0}
-                              step={0.01}
-                              placeholder="—"
-                              defaultValue={
-                                s.priceChildCents != null ? minorToMajorNumber(s.priceChildCents) : ""
-                              }
-                            />
-                            <span className="admin-muted-text">Льг.</span>
-                            <input
-                              name="priceConcessionCents"
-                              type="number"
-                              min={0}
-                              step={0.01}
-                              placeholder="—"
-                              defaultValue={
-                                s.priceConcessionCents != null ?
-                                  minorToMajorNumber(s.priceConcessionCents)
-                                : ""
-                              }
-                            />
-                          </div>
-                        </td>
-                        <td>
-                          <input
-                            name="capacity"
-                            type="number"
-                            min={1}
-                            placeholder="∞"
-                            title="Лимит билетов"
-                            defaultValue={s.capacity ?? ""}
-                          />
-                          <div className="admin-muted-text">
-                            своб.: {free} / {cap}
-                          </div>
-                        </td>
-                        <td>{s.soldPaid}</td>
-                        <td>{s.pendingReserved}</td>
-                        <td>
-                          <label className="admin-check">
-                            <input type="checkbox" name="active" defaultChecked={s.active} />
-                          </label>
-                        </td>
-                        <td>
-                          <div className="admin-slot-actions">
-                            <button
-                              type="button"
-                              className="btn btn-secondary"
-                              onClick={(e) => void saveSlot(e, s.id)}
-                              disabled={loading}
-                            >
-                              Сохранить
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-danger"
-                              onClick={() => void deleteSlot(s.id)}
-                              disabled={loading}
-                              title="Только если нет заказов по сеансу"
-                            >
-                              Удалить
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                      <button
+                        key={s.id}
+                        type="button"
+                        className="admin-slot-row"
+                        role="listitem"
+                        onClick={() => setModal({ type: "slot-edit", slot: s })}
+                      >
+                        <div className="admin-slot-row__time mono">{s.timeKey}</div>
+                        <div className="admin-slot-row__main">
+                          <span className="admin-slot-row__title">{truncateText(s.title, 48)}</span>
+                          <span className="admin-slot-row__meta mono">
+                            {formatMinorUnits(s.priceCents, s.currency)} · опл. {s.soldPaid} · ожид.{" "}
+                            {s.pendingReserved} · места {free}/{cap}
+                          </span>
+                        </div>
+                        <span className={`pill ${s.active ? "slot-on" : "slot-off"}`}>
+                          {s.active ? "активен" : "выкл"}
+                        </span>
+                        <span className="admin-order-row__chev" aria-hidden>
+                          →
+                        </span>
+                      </button>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </div>
               )}
             </>
           )}
         </section>
       ) : null}
 
-      {tab === "create" ? (
-        <section className="admin-panel" id="tab-create" aria-label="Новый сеанс">
-          <form onSubmit={(e) => void onNewSlot(e)}>
-            <div className="admin-row">
+      {modal.type === "order" ? (
+        <AdminModalFrame title="Заявка" onClose={() => setModal({ type: "none" })}>
+          {(() => {
+            const o = modal.order;
+            const st = o.status.toLowerCase();
+            const pillClass =
+              st === "paid" ? "paid"
+              : st === "pending" ? "pending"
+              : st === "failed" ? "failed"
+              : "cancelled";
+            return (
+              <div className="admin-detail">
+                <div className="admin-detail__row">
+                  <span className="admin-detail__k">Статус</span>
+                  <span className={`pill ${pillClass}`}>{o.status}</span>
+                </div>
+                <div className="admin-detail__row">
+                  <span className="admin-detail__k">Сумма</span>
+                  <span className="mono">{formatMinorUnits(o.amountCents, o.currency)}</span>
+                </div>
+                <div className="admin-detail__row">
+                  <span className="admin-detail__k">Создан</span>
+                  <span className="mono">{o.createdAt}</span>
+                </div>
+                <div className="admin-detail__row">
+                  <span className="admin-detail__k">Оплачен</span>
+                  <span className="mono">{o.paidAt ?? "—"}</span>
+                </div>
+                <div className="admin-detail__row admin-detail__row--block">
+                  <span className="admin-detail__k">Заказ</span>
+                  <code className="admin-detail__code">{o.id}</code>
+                </div>
+                <div className="admin-detail__row admin-detail__row--block">
+                  <span className="admin-detail__k">Клиент</span>
+                  <div className="admin-detail__block">
+                    <div>{o.customer.name}</div>
+                    <div className="mono">{o.customer.email}</div>
+                    <div className="mono">{o.customer.phone}</div>
+                  </div>
+                </div>
+                <div className="admin-detail__row admin-detail__row--block">
+                  <span className="admin-detail__k">Сеанс</span>
+                  <div className="admin-detail__block">
+                    <div>{o.slot.title}</div>
+                    <div className="mono">{o.slot.startsAt}</div>
+                    <div className="mono admin-muted-text">slotId: {o.slot.id}</div>
+                  </div>
+                </div>
+                <div className="admin-detail__row admin-detail__row--block">
+                  <span className="admin-detail__k">Состав</span>
+                  <ul className="admin-detail-lines">
+                    {o.lines.map((l, i) => (
+                      <li key={i}>
+                        <span className="mono">{tierRu(l.tier)}</span> ×{l.quantity} ·{" "}
+                        {formatMinorUnits(l.unitPriceCents, o.currency)} за ед.
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="admin-modal-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "none" })}>
+                    Закрыть
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+        </AdminModalFrame>
+      ) : null}
+
+      {modal.type === "slot-single" ? (
+        <AdminModalFrame title="Новый сеанс" onClose={() => setModal({ type: "none" })}>
+          <form key="slot-single-form" onSubmit={(e) => void onNewSlot(e)} className="admin-modal-form">
+            <p className="admin-hint admin-hint--tight">
+              Суммы в BYN как на сайте (10 = 10,00); в API уходят копейки.
+            </p>
+            <div className="admin-row admin-row--modal">
               <div className="admin-field">
                 <label>Название</label>
                 <input name="title" required placeholder="Сеанс" />
@@ -886,7 +826,7 @@ export default function AdminDashboard() {
                 <input name="startsAt" type="datetime-local" required />
               </div>
             </div>
-            <div className="admin-row">
+            <div className="admin-row admin-row--modal">
               <div className="admin-field admin-field-narrow">
                 <label>Лимит мест</label>
                 <input name="capacity" type="number" min={1} placeholder="∞" />
@@ -900,7 +840,7 @@ export default function AdminDashboard() {
                 <input name="currency" defaultValue="BYN" maxLength={8} />
               </div>
             </div>
-            <div className="admin-row">
+            <div className="admin-row admin-row--modal">
               <div className="admin-field admin-field-narrow">
                 <label>Взрослый, BYN</label>
                 <input name="priceAdultCents" type="number" min={0} step={0.01} placeholder="база" />
@@ -914,11 +854,261 @@ export default function AdminDashboard() {
                 <input name="priceConcessionCents" type="number" min={0} step={0.01} placeholder="база" />
               </div>
             </div>
-            <button type="submit" className="btn" disabled={loading}>
-              Создать
-            </button>
+            <div className="admin-modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "none" })}>
+                Отмена
+              </button>
+              <button type="submit" className="btn" disabled={loading}>
+                Создать
+              </button>
+            </div>
           </form>
-        </section>
+        </AdminModalFrame>
+      ) : null}
+
+      {modal.type === "slot-edit" && slotsData ? (
+        <AdminModalFrame
+          size="wide"
+          title="Редактирование сеанса"
+          onClose={() => setModal({ type: "none" })}
+        >
+          {(() => {
+            const s = modal.slot;
+            return (
+              <form
+                key={`slot-edit-${s.id}`}
+                className="admin-modal-form"
+                onSubmit={(e) => void saveSlotFromForm(e, s.id)}
+              >
+                <p className="admin-hint admin-hint--tight mono">id: {s.id}</p>
+                <p className="admin-hint admin-hint--tight">Часовой пояс: {slotsData.timezone}</p>
+                <div className="admin-row admin-row--modal">
+                  <div className="admin-field admin-field-narrow">
+                    <label htmlFor="edit-slot-date">Дата</label>
+                    <input
+                      id="edit-slot-date"
+                      name="slotDate"
+                      type="date"
+                      required
+                      defaultValue={s.dateKey}
+                    />
+                  </div>
+                  <div className="admin-field admin-field-narrow">
+                    <label htmlFor="edit-slot-time">Время</label>
+                    <input
+                      id="edit-slot-time"
+                      name="slotTime"
+                      type="time"
+                      step={60}
+                      required
+                      defaultValue={isoToTimeLocalHHmm(s.startsAt)}
+                    />
+                  </div>
+                  <div className="admin-field">
+                    <label htmlFor="edit-slot-title">Название</label>
+                    <input id="edit-slot-title" name="title" required defaultValue={s.title} />
+                  </div>
+                </div>
+                <div className="admin-field admin-field--full">
+                  <label>Цены, BYN</label>
+                  <div className="price-grid price-grid--modal">
+                    <span className="admin-muted-text">База</span>
+                    <input
+                      name="priceCents"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      required
+                      defaultValue={minorToMajorNumber(s.priceCents)}
+                    />
+                    <span className="admin-muted-text">Взр.</span>
+                    <input
+                      name="priceAdultCents"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      placeholder="—"
+                      defaultValue={
+                        s.priceAdultCents != null ? minorToMajorNumber(s.priceAdultCents) : ""
+                      }
+                    />
+                    <span className="admin-muted-text">Дет.</span>
+                    <input
+                      name="priceChildCents"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      placeholder="—"
+                      defaultValue={
+                        s.priceChildCents != null ? minorToMajorNumber(s.priceChildCents) : ""
+                      }
+                    />
+                    <span className="admin-muted-text">Льг.</span>
+                    <input
+                      name="priceConcessionCents"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      placeholder="—"
+                      defaultValue={
+                        s.priceConcessionCents != null ?
+                          minorToMajorNumber(s.priceConcessionCents)
+                        : ""
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="admin-row admin-row--modal">
+                  <div className="admin-field admin-field-narrow">
+                    <label htmlFor="edit-slot-cap">Лимит мест</label>
+                    <input
+                      id="edit-slot-cap"
+                      name="capacity"
+                      type="number"
+                      min={1}
+                      placeholder="∞"
+                      defaultValue={s.capacity ?? ""}
+                    />
+                  </div>
+                  <div className="admin-field admin-field--grow admin-field--check">
+                    <label className="admin-check admin-check--modal">
+                      <input type="checkbox" name="active" defaultChecked={s.active} />
+                      Сеанс активен (виден на сайте)
+                    </label>
+                  </div>
+                </div>
+                <div className="admin-modal-actions admin-modal-actions--split">
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    disabled={loading}
+                    onClick={() => void deleteSlot(s.id)}
+                  >
+                    Удалить
+                  </button>
+                  <div className="admin-modal-actions__end">
+                    <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "none" })}>
+                      Отмена
+                    </button>
+                    <button type="submit" className="btn" disabled={loading}>
+                      Сохранить
+                    </button>
+                  </div>
+                </div>
+              </form>
+            );
+          })()}
+        </AdminModalFrame>
+      ) : null}
+
+      {modal.type === "slot-bulk" && slotsData ? (
+        <AdminModalFrame title="Группа сеансов на день" onClose={() => setModal({ type: "none" })}>
+          <form key={`bulk-${selectedDate}`} onSubmit={(e) => void onBulkDay(e)} className="admin-modal-form">
+            <p className="admin-hint admin-hint--tight">
+              Дата: <span className="mono">{selectedDate}</span> ({slotsData.timezone}). Один слот на каждый час от
+              «с» до «по» включительно. Цены — в BYN.
+            </p>
+            <div className="admin-row admin-row--modal">
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="bulk-first-hour">С часа</label>
+                <input
+                  id="bulk-first-hour"
+                  name="bulkFirstHour"
+                  type="number"
+                  min={0}
+                  max={23}
+                  defaultValue={10}
+                  required
+                />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="bulk-last-hour">По час</label>
+                <input
+                  id="bulk-last-hour"
+                  name="bulkLastHour"
+                  type="number"
+                  min={0}
+                  max={23}
+                  defaultValue={19}
+                  required
+                />
+              </div>
+              <div className="admin-field">
+                <label htmlFor="bulk-title">Название</label>
+                <input id="bulk-title" name="bulkTitle" required placeholder="Экскурсия" />
+              </div>
+            </div>
+            <div className="admin-row admin-row--modal">
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="bulk-cap">Лимит мест</label>
+                <input id="bulk-cap" name="bulkCapacity" type="number" min={1} placeholder="∞" />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="bulk-price">База, BYN</label>
+                <input
+                  id="bulk-price"
+                  name="bulkPriceCents"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  defaultValue={10}
+                  required
+                />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="bulk-cur">Валюта</label>
+                <input id="bulk-cur" name="bulkCurrency" defaultValue="BYN" maxLength={8} />
+              </div>
+            </div>
+            <div className="admin-row admin-row--modal">
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="bulk-pa">Взрослый, BYN</label>
+                <input
+                  id="bulk-pa"
+                  name="bulkPriceAdultCents"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="база"
+                />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="bulk-pc">Детский, BYN</label>
+                <input
+                  id="bulk-pc"
+                  name="bulkPriceChildCents"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="база"
+                />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="bulk-pco">Льготный, BYN</label>
+                <input
+                  id="bulk-pco"
+                  name="bulkPriceConcessionCents"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="база"
+                />
+              </div>
+            </div>
+            <label className="admin-check admin-check--modal">
+              <input type="checkbox" name="bulkSkipExisting" defaultChecked />
+              Не создавать, если на это время уже есть сеанс
+            </label>
+            <div className="admin-modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "none" })}>
+                Отмена
+              </button>
+              <button type="submit" className="btn" disabled={loading}>
+                Создать слоты
+              </button>
+            </div>
+          </form>
+        </AdminModalFrame>
       ) : null}
     </div>
   );

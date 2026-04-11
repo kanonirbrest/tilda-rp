@@ -158,6 +158,8 @@ export async function createOrderCheckout(
       console.info("[checkout] bePaid ok, заказ обновлён bepaidUid", {
         orderId,
         bepaidUidLen: pay.bepaidUid.length,
+        bepaidUidHead: pay.bepaidUid.slice(0, 8),
+        bepaidUidTail: pay.bepaidUid.slice(-8),
       });
       return { ok: true, orderId, redirectUrl: pay.redirectUrl };
     } catch (e) {
