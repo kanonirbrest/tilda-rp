@@ -54,27 +54,45 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
     admissionCount: full.ticket.admissionCount,
   });
 
-  await sendTicketEmail({
-    to: full.customer.email,
-    customerName: full.customer.name,
-    pdfBuffer: Buffer.from(pdfBytes),
-    downloadUrl,
-  });
+  /**
+   * Почта и CRM не должны ронять вебхук bePaid: оплата уже зафиксирована как PAID.
+   * Иначе 500 уведомления → повторы вебхука и ощущение «ошибки оплаты» у пользователя.
+   */
+  try {
+    await sendTicketEmail({
+      to: full.customer.email,
+      customerName: full.customer.name,
+      pdfBuffer: Buffer.from(pdfBytes),
+      downloadUrl,
+    });
+  } catch (err) {
+    console.error("[fulfill] sendTicketEmail", {
+      orderId: full.id,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
 
-  await sendCrmWebhook({
-    event: "ticket_paid",
-    customerName: full.customer.name,
-    email: full.customer.email,
-    phone: full.customer.phone,
-    amountCents: full.amountCents,
-    amountDisplay: formatMinorUnits(full.amountCents, full.currency),
-    currency: full.currency,
-    orderId: full.id,
-    ticketToken: full.ticket.publicToken,
-    slotTitle: full.slot.title,
-    slotStartsAt: full.slot.startsAt.toISOString(),
-    usedAt: full.ticket.usedAt?.toISOString() ?? null,
-    linesSummary: linesSummary ?? null,
-    admissionCount: full.ticket.admissionCount,
-  });
+  try {
+    await sendCrmWebhook({
+      event: "ticket_paid",
+      customerName: full.customer.name,
+      email: full.customer.email,
+      phone: full.customer.phone,
+      amountCents: full.amountCents,
+      amountDisplay: formatMinorUnits(full.amountCents, full.currency),
+      currency: full.currency,
+      orderId: full.id,
+      ticketToken: full.ticket.publicToken,
+      slotTitle: full.slot.title,
+      slotStartsAt: full.slot.startsAt.toISOString(),
+      usedAt: full.ticket.usedAt?.toISOString() ?? null,
+      linesSummary: linesSummary ?? null,
+      admissionCount: full.ticket.admissionCount,
+    });
+  } catch (err) {
+    console.error("[fulfill] sendCrmWebhook", {
+      orderId: full.id,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
