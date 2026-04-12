@@ -1,6 +1,7 @@
 import dns from "node:dns/promises";
 import net from "node:net";
 import nodemailer from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
 
 /** На Render исходящий IPv6 часто недоступен; Gmail отдаёт AAAA → nodemailer ходит в ENETUNREACH. */
 async function smtpConnectTarget(hostname: string): Promise<{
@@ -43,13 +44,14 @@ export async function sendTicketEmail(opts: {
   const from = process.env.SMTP_FROM || user;
 
   const { host: connectHost, servername } = await smtpConnectTarget(host);
+  /** Явный тип — иначе TS выбирает перегрузку `TransportOptions` без поля `host` (падает `next build`). */
   const transporter = nodemailer.createTransport({
     host: connectHost,
     port,
     secure: port === 465,
-    servername,
     auth: user ? { user, pass } : undefined,
-  });
+    ...(servername ? { servername } : {}),
+  } as SMTPTransport.Options);
 
   await transporter.sendMail({
     from,
