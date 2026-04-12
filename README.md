@@ -73,6 +73,7 @@ npm run dev
 ## Почта (PDF на email)
 
 Заполните `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`.  
+Для **Gmail с облака** (например Render) чаще стабильнее порт **465** (implicit TLS), чем **587** — см. `render.yaml` / `.env.example`.  
 Если SMTP не задан, содержимое письма и ссылка на PDF **логируются в консоль** сервера.
 
 ## Tilda и сайт dei.by
