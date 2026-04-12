@@ -44,11 +44,25 @@ export async function sendTicketEmail(opts: {
   const from = process.env.SMTP_FROM || user;
 
   const { host: connectHost, servername } = await smtpConnectTarget(host);
+  const connectionTimeout = Number(
+    process.env.SMTP_CONNECTION_TIMEOUT_MS ?? "120000",
+  );
+  const greetingTimeout = Number(
+    process.env.SMTP_GREETING_TIMEOUT_MS ?? "30000",
+  );
+  console.info("[mail] отправка", {
+    port,
+    viaIpv4: connectHost !== host,
+    connectionTimeoutMs: connectionTimeout,
+  });
   /** Явный тип — иначе TS выбирает перегрузку `TransportOptions` без поля `host` (падает `next build`). */
   const transporter = nodemailer.createTransport({
     host: connectHost,
     port,
     secure: port === 465,
+    requireTLS: port === 587,
+    connectionTimeout,
+    greetingTimeout,
     auth: user ? { user, pass } : undefined,
     ...(servername ? { servername } : {}),
   } as SMTPTransport.Options);
