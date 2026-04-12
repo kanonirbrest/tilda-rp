@@ -209,24 +209,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, ignored: true });
   }
 
-  try {
-    await prisma.webhookReceipt.create({
-      data: { provider: "bepaid", externalId },
-    });
-  } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      console.info("[bePaid webhook] дубликат externalId (идемпотентность)", {
-        externalIdSource,
-        externalIdPreview: idPreview(externalId),
-      });
-      return NextResponse.json({ ok: true, duplicate: true });
-    }
-    console.error("[bePaid webhook] ошибка записи WebhookReceipt", {
+  /** Идемпотентность без P2002 в логах: повторный вебхук от bePaid — норма. */
+  const inserted = await prisma.webhookReceipt.createMany({
+    data: [{ provider: "bepaid", externalId }],
+    skipDuplicates: true,
+  });
+  if (inserted.count === 0) {
+    console.info("[bePaid webhook] дубликат externalId (идемпотентность)", {
+      externalIdSource,
       externalIdPreview: idPreview(externalId),
-      code: e instanceof Prisma.PrismaClientKnownRequestError ? e.code : undefined,
-      err: e,
     });
-    throw e;
+    return NextResponse.json({ ok: true, duplicate: true });
   }
 
   const branches = orderLookupBranches(body);

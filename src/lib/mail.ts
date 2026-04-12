@@ -1,4 +1,27 @@
+import dns from "node:dns/promises";
+import net from "node:net";
 import nodemailer from "nodemailer";
+
+/** На Render исходящий IPv6 часто недоступен; Gmail отдаёт AAAA → nodemailer ходит в ENETUNREACH. */
+async function smtpConnectTarget(hostname: string): Promise<{
+  host: string;
+  servername?: string;
+}> {
+  const h = hostname.trim();
+  if (!h || net.isIP(h)) return { host: h };
+  if (process.env.SMTP_IPV4_ONLY === "false") return { host: h };
+
+  try {
+    const { address } = await dns.lookup(h, { family: 4 });
+    return { host: address, servername: h };
+  } catch (err) {
+    console.warn("[mail] IPv4 lookup не удался, подключаемся к исходному хосту", {
+      host: h,
+      err: String(err),
+    });
+    return { host: h };
+  }
+}
 
 export async function sendTicketEmail(opts: {
   to: string;
@@ -19,10 +42,12 @@ export async function sendTicketEmail(opts: {
   const pass = process.env.SMTP_PASS || "";
   const from = process.env.SMTP_FROM || user;
 
+  const { host: connectHost, servername } = await smtpConnectTarget(host);
   const transporter = nodemailer.createTransport({
-    host,
+    host: connectHost,
     port,
     secure: port === 465,
+    servername,
     auth: user ? { user, pass } : undefined,
   });
 
