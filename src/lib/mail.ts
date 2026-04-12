@@ -116,6 +116,11 @@ export async function sendTicketEmail(opts: {
       port,
       tlsServername: servername ?? null,
     });
+    if (e.code === "ETIMEDOUT" && e.command === "CONN") {
+      console.warn(
+        "[mail] ETIMEDOUT CONN: TCP до SMTP не доходит (часто блокировка/фильтр с облака вроде Render до почты в BY). Попробуйте: SMTP_PORT другой (465↔587), SMTP_IPV4_ONLY=false, другой SMTP_HOST по доке хостера; иначе внешний SMTP (Resend и т.д.) или приложение на VPS у того же провайдера, что почта. Уточните у поддержки хостинга доступ к SMTP с внешних IP.",
+      );
+    }
     throw err;
   }
 }
