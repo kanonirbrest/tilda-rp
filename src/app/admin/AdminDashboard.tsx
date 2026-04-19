@@ -302,18 +302,29 @@ export default function AdminDashboard() {
     const title = String(fd.get("title") || "");
     const startsLocal = String(fd.get("startsAt") || "");
     const capRaw = String(fd.get("capacity") || "").trim();
-    const priceCents = parseMajorUnitsToMinor(String(fd.get("priceCents") || "0"));
     const currency = String(fd.get("currency") || "BYN").trim() || "BYN";
-    const pa = parseOptionalMajorUnitsToMinor(String(fd.get("priceAdultCents") ?? ""));
-    const pc = parseOptionalMajorUnitsToMinor(String(fd.get("priceChildCents") ?? ""));
-    const pco = parseOptionalMajorUnitsToMinor(String(fd.get("priceConcessionCents") ?? ""));
+    const pa =
+      parseOptionalMajorUnitsToMinor(String(fd.get("priceAdultCents") ?? "")) ??
+      parseMajorUnitsToMinor("58");
+    const pc =
+      parseOptionalMajorUnitsToMinor(String(fd.get("priceChildCents") ?? "")) ??
+      parseMajorUnitsToMinor("30");
+    const pco =
+      parseOptionalMajorUnitsToMinor(String(fd.get("priceConcessionCents") ?? "")) ??
+      parseMajorUnitsToMinor("30");
+    const priceCents = pa;
     if (!startsLocal) return;
     const startsAt = new Date(startsLocal).toISOString();
-    const body: Record<string, unknown> = { title, startsAt, priceCents, currency };
+    const body: Record<string, unknown> = {
+      title,
+      startsAt,
+      priceCents,
+      currency,
+      priceAdultCents: pa,
+      priceChildCents: pc,
+      priceConcessionCents: pco,
+    };
     if (capRaw) body.capacity = Number.parseInt(capRaw, 10);
-    if (pa !== null) body.priceAdultCents = pa;
-    if (pc !== null) body.priceChildCents = pc;
-    if (pco !== null) body.priceConcessionCents = pco;
     setErrMsg("");
     setLoading(true);
     try {
@@ -358,13 +369,19 @@ export default function AdminDashboard() {
     const firstHour = Number.parseInt(String(fd.get("bulkFirstHour") ?? "10"), 10);
     const lastHour = Number.parseInt(String(fd.get("bulkLastHour") ?? "19"), 10);
     const title = String(fd.get("bulkTitle") ?? "").trim();
-    const priceCents = parseMajorUnitsToMinor(String(fd.get("bulkPriceCents") ?? "0"));
     const currency = String(fd.get("bulkCurrency") ?? "BYN").trim() || "BYN";
     const capRaw = String(fd.get("bulkCapacity") ?? "").trim();
     const skipExisting = (fd.get("bulkSkipExisting") as string | null) === "on";
-    const pa = parseOptionalMajorUnitsToMinor(String(fd.get("bulkPriceAdultCents") ?? ""));
-    const pc = parseOptionalMajorUnitsToMinor(String(fd.get("bulkPriceChildCents") ?? ""));
-    const pco = parseOptionalMajorUnitsToMinor(String(fd.get("bulkPriceConcessionCents") ?? ""));
+    const pa =
+      parseOptionalMajorUnitsToMinor(String(fd.get("bulkPriceAdultCents") ?? "")) ??
+      parseMajorUnitsToMinor("58");
+    const pc =
+      parseOptionalMajorUnitsToMinor(String(fd.get("bulkPriceChildCents") ?? "")) ??
+      parseMajorUnitsToMinor("30");
+    const pco =
+      parseOptionalMajorUnitsToMinor(String(fd.get("bulkPriceConcessionCents") ?? "")) ??
+      parseMajorUnitsToMinor("30");
+    const priceCents = pa;
 
     if (!title) {
       setErrMsg("Укажите название сеанса.");
@@ -393,9 +410,9 @@ export default function AdminDashboard() {
       skipExisting,
     };
     if (capRaw) body.capacity = Number.parseInt(capRaw, 10);
-    if (pa !== null) body.priceAdultCents = pa;
-    if (pc !== null) body.priceChildCents = pc;
-    if (pco !== null) body.priceConcessionCents = pco;
+    body.priceAdultCents = pa;
+    body.priceChildCents = pc;
+    body.priceConcessionCents = pco;
 
     setErrMsg("");
     setInfoMsg("");
@@ -431,12 +448,12 @@ export default function AdminDashboard() {
     const capRaw = String(fd.get("capacity") ?? "").trim();
     const activeEl = form.elements.namedItem("active");
     const active = activeEl instanceof HTMLInputElement ? activeEl.checked : true;
-    const priceCents = parseMajorUnitsToMinor(String(fd.get("priceCents") ?? "0"));
     const priceAdultCents = parseOptionalMajorUnitsToMinor(String(fd.get("priceAdultCents") ?? ""));
     const priceChildCents = parseOptionalMajorUnitsToMinor(String(fd.get("priceChildCents") ?? ""));
     const priceConcessionCents = parseOptionalMajorUnitsToMinor(
       String(fd.get("priceConcessionCents") ?? ""),
     );
+    const priceCents = priceAdultCents ?? (slot ? (slot.priceAdultCents ?? slot.priceCents) : 0);
     setErrMsg("");
     setInfoMsg("");
     setLoading(true);
@@ -812,9 +829,13 @@ export default function AdminDashboard() {
 
       {modal.type === "slot-single" ? (
         <AdminModalFrame title="Новый сеанс" onClose={() => setModal({ type: "none" })}>
-          <form key="slot-single-form" onSubmit={(e) => void onNewSlot(e)} className="admin-modal-form">
+          <form
+            key={`slot-single-${selectedDate}`}
+            onSubmit={(e) => void onNewSlot(e)}
+            className="admin-modal-form"
+          >
             <p className="admin-hint admin-hint--tight">
-              Суммы в BYN как на сайте (10 = 10,00); в API уходят копейки.
+              Суммы в BYN как на сайте (58 = 58,00); в API уходят копейки. Базовая цена в БД = взрослый.
             </p>
             <div className="admin-row admin-row--modal">
               <div className="admin-field">
@@ -823,17 +844,18 @@ export default function AdminDashboard() {
               </div>
               <div className="admin-field">
                 <label>Дата и время</label>
-                <input name="startsAt" type="datetime-local" required />
+                <input
+                  name="startsAt"
+                  type="datetime-local"
+                  required
+                  defaultValue={`${selectedDate}T10:00`}
+                />
               </div>
             </div>
             <div className="admin-row admin-row--modal">
               <div className="admin-field admin-field-narrow">
                 <label>Лимит мест</label>
-                <input name="capacity" type="number" min={1} placeholder="∞" />
-              </div>
-              <div className="admin-field admin-field-narrow">
-                <label>База, BYN</label>
-                <input name="priceCents" type="number" min={0} step={0.01} defaultValue={10} required />
+                <input name="capacity" type="number" min={1} defaultValue={1000} placeholder="∞" />
               </div>
               <div className="admin-field admin-field-narrow">
                 <label>Валюта</label>
@@ -843,15 +865,15 @@ export default function AdminDashboard() {
             <div className="admin-row admin-row--modal">
               <div className="admin-field admin-field-narrow">
                 <label>Взрослый, BYN</label>
-                <input name="priceAdultCents" type="number" min={0} step={0.01} placeholder="база" />
+                <input name="priceAdultCents" type="number" min={0} step={0.01} defaultValue={58} />
               </div>
               <div className="admin-field admin-field-narrow">
                 <label>Детский, BYN</label>
-                <input name="priceChildCents" type="number" min={0} step={0.01} placeholder="база" />
+                <input name="priceChildCents" type="number" min={0} step={0.01} defaultValue={30} />
               </div>
               <div className="admin-field admin-field-narrow">
                 <label>Льготный, BYN</label>
-                <input name="priceConcessionCents" type="number" min={0} step={0.01} placeholder="база" />
+                <input name="priceConcessionCents" type="number" min={0} step={0.01} defaultValue={30} />
               </div>
             </div>
             <div className="admin-modal-actions">
@@ -912,15 +934,6 @@ export default function AdminDashboard() {
                 <div className="admin-field admin-field--full">
                   <label>Цены, BYN</label>
                   <div className="price-grid price-grid--modal">
-                    <span className="admin-muted-text">База</span>
-                    <input
-                      name="priceCents"
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      required
-                      defaultValue={minorToMajorNumber(s.priceCents)}
-                    />
                     <span className="admin-muted-text">Взр.</span>
                     <input
                       name="priceAdultCents"
@@ -1041,18 +1054,13 @@ export default function AdminDashboard() {
             <div className="admin-row admin-row--modal">
               <div className="admin-field admin-field-narrow">
                 <label htmlFor="bulk-cap">Лимит мест</label>
-                <input id="bulk-cap" name="bulkCapacity" type="number" min={1} placeholder="∞" />
-              </div>
-              <div className="admin-field admin-field-narrow">
-                <label htmlFor="bulk-price">База, BYN</label>
                 <input
-                  id="bulk-price"
-                  name="bulkPriceCents"
+                  id="bulk-cap"
+                  name="bulkCapacity"
                   type="number"
-                  min={0}
-                  step={0.01}
-                  defaultValue={10}
-                  required
+                  min={1}
+                  defaultValue={1000}
+                  placeholder="∞"
                 />
               </div>
               <div className="admin-field admin-field-narrow">
@@ -1069,7 +1077,7 @@ export default function AdminDashboard() {
                   type="number"
                   min={0}
                   step={0.01}
-                  placeholder="база"
+                  defaultValue={58}
                 />
               </div>
               <div className="admin-field admin-field-narrow">
@@ -1080,7 +1088,7 @@ export default function AdminDashboard() {
                   type="number"
                   min={0}
                   step={0.01}
-                  placeholder="база"
+                  defaultValue={30}
                 />
               </div>
               <div className="admin-field admin-field-narrow">
@@ -1091,7 +1099,7 @@ export default function AdminDashboard() {
                   type="number"
                   min={0}
                   step={0.01}
-                  placeholder="база"
+                  defaultValue={30}
                 />
               </div>
             </div>
