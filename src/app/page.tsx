@@ -11,6 +11,12 @@ export default function Home() {
       </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
         <Link
+          href="/buy-tickets"
+          className="rounded-xl bg-emerald-800 px-6 py-3 text-sm font-medium text-white hover:bg-emerald-900"
+        >
+          Купить билет
+        </Link>
+        <Link
           href="/staff/login"
           className="rounded-xl border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-800"
         >

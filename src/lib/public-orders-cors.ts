@@ -36,3 +36,39 @@ export function jsonOrdersResponse(req: Request, data: unknown, status: number):
     headers: publicOrdersCorsHeaders(req),
   });
 }
+
+/**
+ * CORS для публичных GET (календарь слотов с Тильды / страницы buy-tickets).
+ * Список origin тот же, что у POST заказов: PUBLIC_ORDERS_CORS_ORIGIN.
+ */
+export function publicReadCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin");
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    Vary: "Origin",
+  };
+
+  if (process.env.NODE_ENV === "development") {
+    headers["Access-Control-Allow-Origin"] = origin || "*";
+    return headers;
+  }
+
+  const allowed =
+    process.env.PUBLIC_ORDERS_CORS_ORIGIN?.split(",")
+      .map((s) => s.trim())
+      .filter(Boolean) ?? [];
+
+  if (origin && allowed.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+
+  return headers;
+}
+
+export function jsonPublicReadResponse(req: Request, data: unknown, status: number): NextResponse {
+  return NextResponse.json(data, {
+    status,
+    headers: publicReadCorsHeaders(req),
+  });
+}

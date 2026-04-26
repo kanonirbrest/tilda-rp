@@ -23,6 +23,24 @@ function allowedDevOriginsFromEnv(): string[] {
 const nextConfig: NextConfig = {
   output: "standalone",
   allowedDevOrigins: allowedDevOriginsFromEnv(),
+  /** В `next dev` не показывать меню в углу (Route / Bundler / Preferences). На прод не влияет. */
+  devIndicators: false,
+  /** С Тильды и старых ссылок часто ведут на `/tickets`, а приложение — `/buy-tickets`. */
+  async redirects() {
+    return [{ source: "/tickets", destination: "/buy-tickets", permanent: true }];
+  },
+  /**
+   * Билеты — полный HTML Тильды из `public/` без iframe (высота = документ).
+   * beforeFiles: раньше матчинга App Router, иначе сработал бы пустой сегмент.
+   */
+  async rewrites() {
+    return {
+      beforeFiles: [
+        { source: "/buy-tickets", destination: "/buy-tickets/calendar.html" },
+        { source: "/buy-tickets/select", destination: "/buy-tickets/slot.html" },
+      ],
+    };
+  },
 };
 
 export default nextConfig;
