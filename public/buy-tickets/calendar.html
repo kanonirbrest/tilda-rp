@@ -969,11 +969,23 @@ background-image: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
 }
+#rec1961440851 .t1093 {
+  position: relative;
+  z-index: 2147482000;
+  isolation: isolate;
+}
+#rec1961440851 .t1093 .t-popup {
+  z-index: 2147482001 !important;
+}
 #rec1961440851 .t1093 .t-popup__bg {
   -webkit-backdrop-filter: blur(18px) saturate(1.12);
   backdrop-filter: blur(18px) saturate(1.12);
   background-color: rgba(12, 6, 32, 0.45) !important;
   transform: translateZ(0);
+  pointer-events: auto !important;
+}
+#rec1961440851 .t1093 .t-popup__container {
+  pointer-events: auto !important;
 }
 #rec1961449631,
 #rec1961449631 .tn-atom {
@@ -1495,8 +1507,14 @@ background-image: none !important;
       var p = shell && shell.querySelector(".t1093 .t-popup");
       if (!p || typeof MutationObserver === "undefined") return;
       window.__deiTicketPopupCloseResetInstalled = true;
+      function deiSetTicketPopupUnderlayersBlocked(on) {
+        document.body.classList.toggle("dei-ticket-popup-open", Boolean(on));
+      }
+      deiSetTicketPopupUnderlayersBlocked(p.classList.contains("t-popup_show"));
       new MutationObserver(function () {
-        if (p.classList.contains("t-popup_show")) return;
+        var open = p.classList.contains("t-popup_show");
+        deiSetTicketPopupUnderlayersBlocked(open);
+        if (open) return;
         deiResetTicketPopupExceptDate();
       }).observe(p, { attributes: true, attributeFilter: ["class"] });
     }
@@ -2082,6 +2100,14 @@ a.tn-atom.tn-atom__vector.dei-cal-day--disabled.dei-cal-day-selected svg[role="i
 }
 #allrecords .t396:has(.t396__artboard.scrollbooster-viewport) {
   overflow: hidden !important;
+}
+/* Пока открыт попап билетов — не даём нижним горизонтальным календарям ловить hover/click */
+body.dei-ticket-popup-open #allrecords .t396__artboard.scrollbooster-viewport {
+  pointer-events: none !important;
+}
+body.dei-ticket-popup-open #rec1961440851 .t1093,
+body.dei-ticket-popup-open #rec1961440851 .t1093 * {
+  pointer-events: auto !important;
 }
 a.tn-atom.tn-atom__vector.dei-cal-day--disabled svg[role="img"] {
   pointer-events: auto !important;
