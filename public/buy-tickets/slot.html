@@ -1017,6 +1017,26 @@ background-image: none !important;
   -webkit-user-select: none !important;
   -webkit-tap-highlight-color: transparent;
 }
+/* Минус в Zero Block — vector с высотой ~3px; без слоя клик почти невозможен */
+#rec1961449631 .tn-elem.minus,
+#rec1961449631 .tn-elem.minus1,
+#rec1961449631 .tn-elem.minus2 {
+  position: relative !important;
+  z-index: 3 !important;
+  overflow: visible !important;
+}
+#rec1961449631 .tn-elem.minus::after,
+#rec1961449631 .tn-elem.minus1::after,
+#rec1961449631 .tn-elem.minus2::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 44px !important;
+  height: 44px !important;
+  box-sizing: border-box !important;
+}
 </style> <!-- nominify end --> </div> </div> </div> </div> <div id="rec2107752611" class="r t-rec" style=" " data-animationappear="off" data-record-type="131"> <!-- T123 --> <div class="t123"> <div class="t-container_100 "> <div class="t-width t-width_100 "> <!-- nominify begin --> <script>
 (function () {
   if (typeof jQuery !== "undefined") {
@@ -1026,37 +1046,37 @@ background-image: none !important;
         var f = document.getElementById(FORM_ID);
         if (f && typeof deiRefreshOrderTotal === "function") deiRefreshOrderTotal(f);
       }
-      $pop.find(".plus").on("click", function () {
+      $pop.on("click", ".tn-elem.plus", function () {
         var $inner = $pop.find(".count").children("div").first();
         var count = parseInt($inner.text(), 10) || 0;
         $inner.text(count + 1);
         deiAfterTicketCountChange();
       });
-      $pop.find(".minus").on("click", function () {
+      $pop.on("click", ".tn-elem.minus", function () {
         var $inner = $pop.find(".count").children("div").first();
         var count = parseInt($inner.text(), 10) || 0;
         if (count > 0) $inner.text(count - 1);
         deiAfterTicketCountChange();
       });
-      $pop.find(".plus1").on("click", function () {
+      $pop.on("click", ".tn-elem.plus1", function () {
         var $inner = $pop.find(".count1").children("div").first();
         var count = parseInt($inner.text(), 10) || 0;
         $inner.text(count + 1);
         deiAfterTicketCountChange();
       });
-      $pop.find(".minus1").on("click", function () {
+      $pop.on("click", ".tn-elem.minus1", function () {
         var $inner = $pop.find(".count1").children("div").first();
         var count = parseInt($inner.text(), 10) || 0;
         if (count > 0) $inner.text(count - 1);
         deiAfterTicketCountChange();
       });
-      $pop.find(".plus2").on("click", function () {
+      $pop.on("click", ".tn-elem.plus2", function () {
         var $inner = $pop.find(".count2").children("div").first();
         var count = parseInt($inner.text(), 10) || 0;
         $inner.text(count + 1);
         deiAfterTicketCountChange();
       });
-      $pop.find(".minus2").on("click", function () {
+      $pop.on("click", ".tn-elem.minus2", function () {
         var $inner = $pop.find(".count2").children("div").first();
         var count = parseInt($inner.text(), 10) || 0;
         if (count > 0) $inner.text(count - 1);
