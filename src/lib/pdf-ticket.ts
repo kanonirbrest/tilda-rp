@@ -134,6 +134,8 @@ export async function buildTicketPdf(opts: {
   /** Состав билетов с Тильды */
   linesSummary?: string;
   admissionCount?: number;
+  /** Нумерация при нескольких отдельных билетах в одном заказе (например 2 из 4). */
+  ticketOrdinal?: { index: number; total: number };
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
@@ -277,6 +279,25 @@ export async function buildTicketPdf(opts: {
       fontBold,
       labelSize: 9,
       valueSize: 11,
+      muted,
+      dark,
+      maxValueWidth: textBlockW,
+    });
+  }
+
+  if (
+    opts.ticketOrdinal != null &&
+    opts.ticketOrdinal.total > 1
+  ) {
+    rowY = drawLabelRow(page, {
+      x: padX,
+      yBaseline: rowY,
+      label: "Билет",
+      value: `${opts.ticketOrdinal.index} из ${opts.ticketOrdinal.total}`,
+      font,
+      fontBold,
+      labelSize: 9,
+      valueSize: 12,
       muted,
       dark,
       maxValueWidth: textBlockW,

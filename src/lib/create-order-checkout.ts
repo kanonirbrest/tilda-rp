@@ -115,13 +115,15 @@ export async function createOrderCheckout(
           },
         });
       }
-      await tx.ticket.create({
-        data: {
-          orderId: o.id,
-          publicToken: createPublicTicketToken(),
-          admissionCount: admissions,
-        },
-      });
+      for (let i = 0; i < admissions; i++) {
+        await tx.ticket.create({
+          data: {
+            orderId: o.id,
+            publicToken: createPublicTicketToken(),
+            admissionCount: 1,
+          },
+        });
+      }
       return o.id;
     });
 

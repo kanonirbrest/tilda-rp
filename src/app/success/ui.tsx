@@ -47,7 +47,7 @@ export function SuccessClient({
     if (gatewayIndicatesFailure(gatewayStatusParam)) return "payment_incomplete";
     return "loading";
   });
-  const [ticketToken, setTicketToken] = useState<string | null>(null);
+  const [ticketTokens, setTicketTokens] = useState<string[]>([]);
   const [slotTitle, setSlotTitle] = useState<string>("");
 
   useEffect(() => {
@@ -64,6 +64,7 @@ export function SuccessClient({
         const data = (await res.json()) as {
           status?: string;
           ticketToken?: string | null;
+          ticketTokens?: string[];
           slotTitle?: string;
         };
         if (cancelled) return;
@@ -73,7 +74,13 @@ export function SuccessClient({
         }
         setSlotTitle(data.slotTitle || "");
         if (data.status === "PAID") {
-          setTicketToken(data.ticketToken ?? null);
+          const tokens =
+            data.ticketTokens?.length ?
+              data.ticketTokens
+            : data.ticketToken ?
+              [data.ticketToken]
+            : [];
+          setTicketTokens(tokens);
           setStatus("paid");
           return;
         }
@@ -98,9 +105,6 @@ export function SuccessClient({
       cancelled = true;
     };
   }, [orderId, bepaidReturn, gatewayStatusParam]);
-
-  const pdfHref =
-    ticketToken != null ? `/api/tickets/${encodeURIComponent(ticketToken)}/pdf` : null;
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col gap-6 px-4 py-10 sm:px-6">
@@ -149,16 +153,40 @@ export function SuccessClient({
         <div className="flex flex-col gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
           <p className="font-medium">Оплата прошла успешно.</p>
           {slotTitle ? <p className="text-sm">{slotTitle}</p> : null}
-          {pdfHref ? (
-            <a
-              href={pdfHref}
-              className="inline-flex w-fit items-center rounded-lg bg-emerald-800 px-4 py-2 text-sm font-medium text-white"
-            >
-              Скачать билет (PDF)
-            </a>
+          {ticketTokens.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {ticketTokens.length === 1 ? (
+                <a
+                  href={`/api/tickets/${encodeURIComponent(ticketTokens[0]!)}/pdf`}
+                  className="inline-flex w-fit items-center rounded-lg bg-emerald-800 px-4 py-2 text-sm font-medium text-white"
+                >
+                  Скачать билет (PDF)
+                </a>
+              ) : (
+                <>
+                  <p className="text-sm text-emerald-900">
+                    У вас {ticketTokens.length} отдельных билета — у каждого свой QR:
+                  </p>
+                  <ul className="flex flex-col gap-2">
+                    {ticketTokens.map((tok, i) => (
+                      <li key={tok}>
+                        <a
+                          href={`/api/tickets/${encodeURIComponent(tok)}/pdf`}
+                          className="inline-flex w-fit items-center rounded-lg bg-emerald-800 px-4 py-2 text-sm font-medium text-white"
+                        >
+                          Скачать билет {i + 1} из {ticketTokens.length} (PDF)
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
           ) : null}
           <p className="text-sm text-emerald-900">
-            Копия билета также отправлена на указанный email (проверьте папку «Спам»).
+            {ticketTokens.length > 1 ?
+              "Копии билетов также отправлены на указанный email (проверьте папку «Спам»)."
+            : "Копия билета также отправлена на указанный email (проверьте папку «Спам»)."}
           </p>
         </div>
       ) : null}

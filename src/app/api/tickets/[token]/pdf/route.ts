@@ -11,7 +11,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     where: { publicToken: token },
     include: {
       order: {
-        include: { customer: true, slot: true, lines: true },
+        include: {
+          customer: true,
+          slot: true,
+          lines: true,
+          tickets: { orderBy: { createdAt: "asc" }, select: { publicToken: true } },
+        },
       },
     },
   });
@@ -19,6 +24,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   if (!ticket || ticket.order.status !== "PAID") {
     return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
   }
+
+  const ordered = ticket.order.tickets;
+  const idx = ordered.findIndex((t) => t.publicToken === ticket.publicToken);
+  const multiPdf = ordered.length > 1;
 
   const base = getPublicAppBaseUrl();
   const qrUrl = `${base}/staff/quick?t=${ticket.publicToken}`;
@@ -34,14 +43,18 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     orderId: ticket.order.id,
     qrUrl,
     linesSummary,
-    admissionCount: ticket.admissionCount,
+    admissionCount: multiPdf ? 1 : ticket.admissionCount,
+    ticketOrdinal:
+      multiPdf && idx >= 0
+        ? { index: idx + 1, total: ordered.length }
+        : undefined,
   });
 
   return new NextResponse(Buffer.from(pdfBytes), {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="ticket-${ticket.order.id.slice(0, 8)}.pdf"`,
+      "Content-Disposition": `attachment; filename="ticket-${ticket.order.id.slice(0, 8)}-${ticket.publicToken.slice(0, 6)}.pdf"`,
       "Cache-Control": "private, no-store",
     },
   });

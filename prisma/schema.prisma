@@ -60,7 +60,7 @@ model Order {
   bepaidUid    String?     @unique
   createdAt    DateTime    @default(now())
   paidAt       DateTime?
-  ticket       Ticket?
+  tickets      Ticket[]
   lines        OrderLine[]
 }
 
@@ -76,7 +76,7 @@ model OrderLine {
 
 model Ticket {
   id          String    @id @default(cuid())
-  orderId     String    @unique
+  orderId     String
   order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   publicToken String    @unique
   /// Сколько человек по этому QR (вся группа за раз)
@@ -85,6 +85,8 @@ model Ticket {
   usedById    String?
   usedBy      StaffUser? @relation(fields: [usedById], references: [id])
   createdAt   DateTime  @default(now())
+
+  @@index([orderId])
 }
 
 model StaffUser {

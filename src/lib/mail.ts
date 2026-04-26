@@ -35,13 +35,14 @@ async function smtpConnectTarget(hostname: string): Promise<{
 export async function sendTicketEmail(opts: {
   to: string;
   customerName: string;
-  pdfBuffer: Buffer;
-  downloadUrl: string;
+  /** Один или несколько PDF — по одному файлу на билет. */
+  pdfAttachments: { filename: string; content: Buffer }[];
+  downloadUrls: string[];
 }): Promise<void> {
   const host = process.env.SMTP_HOST;
   if (!host) {
     console.info(
-      `[mail] SMTP не настроен. Письмо для ${opts.to} не отправлено. Ссылка на билет: ${opts.downloadUrl}`,
+      `[mail] SMTP не настроен. Письмо для ${opts.to} не отправлено. Ссылки: ${opts.downloadUrls.join(" ")}`,
     );
     return;
   }
@@ -72,7 +73,7 @@ export async function sendTicketEmail(opts: {
     viaIpv4: connectHost !== host.trim(),
     connectionTimeoutMs: connectionTimeout,
     greetingTimeoutMs: greetingTimeout,
-    attachmentBytes: opts.pdfBuffer.length,
+    attachmentBytes: opts.pdfAttachments.reduce((n, a) => n + a.content.length, 0),
     smtpDebug,
   });
   /** Явный тип — иначе TS выбирает перегрузку `TransportOptions` без поля `host` (падает `next build`). */
@@ -89,18 +90,24 @@ export async function sendTicketEmail(opts: {
   } as SMTPTransport.Options);
 
   try {
+    const linksBlock =
+      opts.downloadUrls.length > 1
+        ? opts.downloadUrls.map((u, i) => `${i + 1}. ${u}`).join("\n")
+        : opts.downloadUrls[0] ?? "";
     const info = await transporter.sendMail({
       from,
       to: opts.to,
-      subject: "Ваш билет",
-      text: `Здравствуйте, ${opts.customerName}.\n\nБилет во вложении. Также можно скачать по ссылке: ${opts.downloadUrl}\n`,
-      attachments: [
-        {
-          filename: "ticket.pdf",
-          content: opts.pdfBuffer,
-          contentType: "application/pdf",
-        },
-      ],
+      subject: opts.pdfAttachments.length > 1 ? "Ваши билеты" : "Ваш билет",
+      text: `Здравствуйте, ${opts.customerName}.\n\n${
+        opts.pdfAttachments.length > 1
+          ? `Билеты во вложении (${opts.pdfAttachments.length} файла). Также можно скачать по ссылкам:\n${linksBlock}\n`
+          : `Билет во вложении. Также можно скачать по ссылке: ${linksBlock}\n`
+      }`,
+      attachments: opts.pdfAttachments.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+        contentType: "application/pdf" as const,
+      })),
     });
     console.info("[mail] отправлено", {
       messageId: info.messageId,

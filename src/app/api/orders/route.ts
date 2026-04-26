@@ -159,12 +159,15 @@ export async function POST(req: Request) {
   }
 
   let ticketToken: string | undefined;
+  let ticketTokens: string[] | undefined;
   if (process.env.DEV_SKIP_PAYMENT === "true") {
-    const t = await prisma.ticket.findUnique({
+    const rows = await prisma.ticket.findMany({
       where: { orderId: result.orderId },
       select: { publicToken: true },
+      orderBy: { createdAt: "asc" },
     });
-    ticketToken = t?.publicToken;
+    ticketTokens = rows.map((r) => r.publicToken);
+    ticketToken = ticketTokens[0];
   }
 
   return jsonOrdersResponse(
@@ -172,6 +175,7 @@ export async function POST(req: Request) {
     {
       orderId: result.orderId,
       ticketToken,
+      ticketTokens,
       redirectUrl: absoluteRedirectUrl(req, result.redirectUrl),
     },
     200,

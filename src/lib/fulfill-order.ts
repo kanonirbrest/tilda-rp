@@ -7,16 +7,16 @@ import { formatMinorUnits } from "./money";
 import { linesSummaryRu } from "./slot-pricing";
 
 export async function fulfillPaidOrder(orderId: string): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+  const transitioned = await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
       where: { id: orderId },
-      include: { customer: true, slot: true, ticket: true },
+      include: { tickets: true },
     });
-    if (!order || !order.ticket) {
+    if (!order || order.tickets.length === 0) {
       throw new Error("ORDER_NOT_FOUND");
     }
     if (order.status === "PAID") {
-      return;
+      return { alreadyPaid: true as const };
     }
     // CANCELLED после ленивого TTL — редкий поздний вебхук bePaid всё равно должен выдать билет.
     if (order.status !== "PENDING" && order.status !== "CANCELLED") {
@@ -27,32 +27,63 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
       where: { id: orderId },
       data: { status: "PAID", paidAt: new Date() },
     });
+    return { alreadyPaid: false as const };
   });
+
+  if (transitioned.alreadyPaid) {
+    return;
+  }
 
   const full = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { customer: true, slot: true, ticket: true, lines: true },
+    include: {
+      customer: true,
+      slot: true,
+      tickets: { orderBy: { createdAt: "asc" } },
+      lines: true,
+    },
   });
-  if (!full?.ticket) return;
+  if (!full?.tickets.length) return;
 
+  const tickets = full.tickets;
   const linesSummary =
     full.lines.length > 0 ? linesSummaryRu(full.lines) : undefined;
 
   const base = getPublicAppBaseUrl();
-  const qrUrl = `${base}/staff/quick?t=${full.ticket.publicToken}`;
-  const downloadUrl = `${base}/api/tickets/${full.ticket.publicToken}/pdf`;
+  const downloadUrls = tickets.map(
+    (t) => `${base}/api/tickets/${t.publicToken}/pdf`,
+  );
 
-  const pdfBytes = await buildTicketPdf({
-    title: full.slot.title,
-    customerName: full.customer.name,
-    startsAt: full.slot.startsAt,
-    amountCents: full.amountCents,
-    currency: full.currency,
-    orderId: full.id,
-    qrUrl,
-    linesSummary,
-    admissionCount: full.ticket.admissionCount,
-  });
+  const multiPdf = tickets.length > 1;
+  const pdfAttachments: { filename: string; content: Buffer }[] = [];
+
+  for (let i = 0; i < tickets.length; i++) {
+    const t = tickets[i]!;
+    const qrUrl = `${base}/staff/quick?t=${t.publicToken}`;
+    const pdfBytes = await buildTicketPdf({
+      title: full.slot.title,
+      customerName: full.customer.name,
+      startsAt: full.slot.startsAt,
+      amountCents: full.amountCents,
+      currency: full.currency,
+      orderId: full.id,
+      qrUrl,
+      linesSummary,
+      admissionCount: multiPdf ? 1 : t.admissionCount,
+      ticketOrdinal: multiPdf
+        ? { index: i + 1, total: tickets.length }
+        : undefined,
+    });
+    pdfAttachments.push({
+      filename: multiPdf
+        ? `ticket-${i + 1}-of-${tickets.length}.pdf`
+        : "ticket.pdf",
+      content: Buffer.from(pdfBytes),
+    });
+  }
+
+  const admissionTotal = tickets.reduce((s, x) => s + x.admissionCount, 0);
+  const ticketTokens = tickets.map((x) => x.publicToken);
 
   /**
    * Почта и CRM не должны ронять вебхук bePaid: оплата уже зафиксирована как PAID.
@@ -62,8 +93,8 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
     await sendTicketEmail({
       to: full.customer.email,
       customerName: full.customer.name,
-      pdfBuffer: Buffer.from(pdfBytes),
-      downloadUrl,
+      pdfAttachments,
+      downloadUrls,
     });
   } catch (err) {
     console.error("[fulfill] sendTicketEmail", {
@@ -82,12 +113,13 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
       amountDisplay: formatMinorUnits(full.amountCents, full.currency),
       currency: full.currency,
       orderId: full.id,
-      ticketToken: full.ticket.publicToken,
+      ticketToken: ticketTokens[0]!,
+      ticketTokens: ticketTokens.length > 1 ? ticketTokens : undefined,
       slotTitle: full.slot.title,
       slotStartsAt: full.slot.startsAt.toISOString(),
-      usedAt: full.ticket.usedAt?.toISOString() ?? null,
+      usedAt: null,
       linesSummary: linesSummary ?? null,
-      admissionCount: full.ticket.admissionCount,
+      admissionCount: admissionTotal,
     });
   } catch (err) {
     console.error("[fulfill] sendCrmWebhook", {

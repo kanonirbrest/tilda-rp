@@ -10,6 +10,8 @@ type CrmPayload = {
   amountDisplay: string;
   orderId: string;
   ticketToken: string;
+  /** Все токены заказа, если билетов несколько (обратная совместимость: ticketToken = первый). */
+  ticketTokens?: string[];
   slotTitle: string;
   slotStartsAt: string;
   usedAt?: string | null;
