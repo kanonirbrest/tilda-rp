@@ -47,6 +47,27 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum PromoDiscountKind {
+  PERCENT
+  FIXED_CENTS
+}
+
+model PromoCode {
+  id             String            @id @default(cuid())
+  /// Нормализованный код (верхний регистр), уникальный
+  code           String            @unique
+  active         Boolean           @default(true)
+  discountKind   PromoDiscountKind
+  /// PERCENT: 1–100. FIXED_CENTS: вычитаемые копейки (не больше суммы заказа).
+  discountValue  Int
+  /// Лимит одновременных заявок PENDING+PAID с этим промо; null = без лимита
+  maxUses        Int?
+  validFrom      DateTime?
+  validUntil     DateTime?
+  createdAt      DateTime          @default(now())
+  orders         Order[]
+}
+
 model Order {
   id           String      @id @default(cuid())
   slotId       String
@@ -54,14 +75,22 @@ model Order {
   customerId   String
   customer     Customer    @relation(fields: [customerId], references: [id])
   status       OrderStatus @default(PENDING)
-  /// Сумма заказа в копейках (как в bePaid `order.amount`).
+  /// Сумма до скидки по промокоду (копейки).
+  subtotalCents Int
+  /// Скидка по промокоду, копейки (0 если промо нет).
+  discountCents Int        @default(0)
+  /// Сумма к оплате (как в bePaid `order.amount`).
   amountCents  Int
   currency     String      @default("BYN")
   bepaidUid    String?     @unique
   createdAt    DateTime    @default(now())
   paidAt       DateTime?
+  promoCodeId  String?
+  promoCode    PromoCode?  @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
   tickets      Ticket[]
   lines        OrderLine[]
+
+  @@index([promoCodeId])
 }
 
 model OrderLine {

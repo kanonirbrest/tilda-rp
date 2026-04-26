@@ -33,6 +33,7 @@ const bodySchema = z
       .min(6, "телефон слишком короткий")
       .max(40, "телефон слишком длинный"),
     lines: z.array(lineSchema).optional(),
+    promoCode: z.string().trim().max(64).optional(),
   })
   .refine(
     (d) =>
@@ -120,8 +121,17 @@ export async function POST(req: Request) {
     lines = buildLinesFromCounts(resolved.slot, { adult: a, child: c, concession: co });
   }
 
+  const promoRaw = d.promoCode?.trim() ? d.promoCode : undefined;
+
   const result = await createOrderCheckout(
-    { slotId: resolved.slot.id, name, email, phone, lines },
+    {
+      slotId: resolved.slot.id,
+      name,
+      email,
+      phone,
+      lines,
+      promoCode: promoRaw,
+    },
     getRequestOrigin(req),
   );
 
@@ -130,7 +140,18 @@ export async function POST(req: Request) {
       return jsonOrdersResponse(req, { error: "SLOT_NOT_FOUND" }, 404);
     }
     if (result.status === 400) {
-      return jsonOrdersResponse(req, { error: "INVALID_LINES", hint: result.message }, 400);
+      const errKey =
+        result.error === "INVALID_PROMO" ||
+        result.error === "PROMO_INACTIVE" ||
+        result.error === "PROMO_EXHAUSTED" ||
+        result.error === "PROMO_ZERO_PAYMENT" ?
+          result.error
+        : "INVALID_LINES";
+      return jsonOrdersResponse(
+        req,
+        { error: errKey, hint: result.message },
+        400,
+      );
     }
     if (result.status === 409) {
       return jsonOrdersResponse(req, { error: "CAPACITY_EXCEEDED", hint: result.message }, 409);

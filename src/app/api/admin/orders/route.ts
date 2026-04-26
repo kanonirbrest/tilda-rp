@@ -23,6 +23,7 @@ export async function GET(req: Request) {
         customer: true,
         slot: true,
         lines: true,
+        promoCode: { select: { code: true } },
       },
     }),
   ]);
@@ -32,8 +33,11 @@ export async function GET(req: Request) {
     status: o.status,
     createdAt: o.createdAt.toISOString(),
     paidAt: o.paidAt?.toISOString() ?? null,
+    subtotalCents: o.subtotalCents,
+    discountCents: o.discountCents,
     amountCents: o.amountCents,
     currency: o.currency,
+    promoCode: o.promoCode?.code ?? null,
     customer: {
       name: o.customer.name,
       email: o.customer.email,

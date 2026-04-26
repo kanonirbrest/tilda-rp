@@ -15,9 +15,12 @@ import {
  * Прямой переход с Тильды: проверка слота в БД → заказ → редирект на bePaid или /success.
  * Пример:
  * /pay?date=2026-04-15&time=14:00&adult=2&child=0&concession=0&name=...&email=...&phone=...
+ * Опционально: promo=КОД или promoCode=КОД
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
+  const promoCode =
+    searchParams.get("promo")?.trim() || searchParams.get("promoCode")?.trim() || undefined;
   const name = searchParams.get("name")?.trim() ?? "";
   const email = searchParams.get("email")?.trim() ?? "";
   const phone = searchParams.get("phone")?.trim() ?? "";
@@ -67,6 +70,7 @@ export async function GET(req: Request) {
       email,
       phone,
       lines,
+      promoCode,
     },
     getRequestOrigin(req),
   );

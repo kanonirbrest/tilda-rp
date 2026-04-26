@@ -32,11 +32,27 @@ type OrderRow = {
   status: string;
   createdAt: string;
   paidAt: string | null;
+  subtotalCents: number;
+  discountCents: number;
   amountCents: number;
   currency: string;
+  promoCode: string | null;
   customer: { name: string; email: string; phone: string };
   slot: { id: string; title: string; startsAt: string };
   lines: { tier: string; quantity: number; unitPriceCents: number }[];
+};
+
+type PromoRow = {
+  id: string;
+  code: string;
+  active: boolean;
+  discountKind: "PERCENT" | "FIXED_CENTS";
+  discountValue: number;
+  maxUses: number | null;
+  validFrom: string | null;
+  validUntil: string | null;
+  createdAt: string;
+  reservedOrders: number;
 };
 
 type OrdersResponse = {
@@ -46,14 +62,16 @@ type OrdersResponse = {
   orders: OrderRow[];
 };
 
-type TabId = "orders" | "schedule";
+type TabId = "orders" | "schedule" | "promos";
 
 type AdminModal =
   | { type: "none" }
   | { type: "order"; order: OrderRow }
   | { type: "slot-single" }
   | { type: "slot-bulk" }
-  | { type: "slot-edit"; slot: SlotRow };
+  | { type: "slot-edit"; slot: SlotRow }
+  | { type: "promo-new" }
+  | { type: "promo-edit"; promo: PromoRow };
 
 function tierRu(t: string): string {
   if (t === "ADULT") return "взр.";
@@ -195,6 +213,7 @@ export default function AdminDashboard() {
   const [infoMsg, setInfoMsg] = useState("");
   const [slotsData, setSlotsData] = useState<SlotsResponse | null>(null);
   const [ordersData, setOrdersData] = useState<OrdersResponse | null>(null);
+  const [promosData, setPromosData] = useState<PromoRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(todayDateKey);
 
@@ -248,6 +267,20 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const loadPromos = useCallback(async () => {
+    setErrMsg("");
+    setLoading(true);
+    try {
+      const data = await apiFetch<PromoRow[]>("/api/admin/promo-codes");
+      setPromosData(data);
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
+      setPromosData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!authChecked || !authed) return;
     void loadOrders();
@@ -257,6 +290,11 @@ export default function AdminDashboard() {
     if (!authed || tab !== "schedule") return;
     void loadSlots();
   }, [authed, tab, loadSlots]);
+
+  useEffect(() => {
+    if (!authed || tab !== "promos") return;
+    void loadPromos();
+  }, [authed, tab, loadPromos]);
 
   async function onLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -292,7 +330,102 @@ export default function AdminDashboard() {
     setAuthed(false);
     setSlotsData(null);
     setOrdersData(null);
+    setPromosData(null);
     setErrMsg("");
+  }
+
+  async function onCreatePromo(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const code = String(fd.get("code") ?? "").trim();
+    const discountKind = String(fd.get("discountKind") ?? "PERCENT") as "PERCENT" | "FIXED_CENTS";
+    let discountValue: number;
+    if (discountKind === "PERCENT") {
+      discountValue = Number.parseInt(String(fd.get("discountPercent") ?? ""), 10);
+    } else {
+      discountValue = parseMajorUnitsToMinor(String(fd.get("discountFixedMajor") ?? "0"));
+    }
+    const maxUsesRaw = String(fd.get("maxUses") ?? "").trim();
+    const maxUses =
+      maxUsesRaw === "" || !Number.isFinite(Number.parseInt(maxUsesRaw, 10)) ?
+        null
+      : Number.parseInt(maxUsesRaw, 10);
+    const validFromLocal = String(fd.get("validFrom") ?? "").trim();
+    const validUntilLocal = String(fd.get("validUntil") ?? "").trim();
+    const activeEl = form.elements.namedItem("active");
+    const active = activeEl instanceof HTMLInputElement ? activeEl.checked : true;
+    const body = {
+      code,
+      discountKind,
+      discountValue,
+      maxUses,
+      validFrom: validFromLocal ? new Date(validFromLocal).toISOString() : null,
+      validUntil: validUntilLocal ? new Date(validUntilLocal).toISOString() : null,
+      active,
+    };
+    setErrMsg("");
+    setInfoMsg("");
+    setLoading(true);
+    try {
+      await apiFetch("/api/admin/promo-codes", { method: "POST", body: JSON.stringify(body) });
+      form.reset();
+      setModal({ type: "none" });
+      setInfoMsg("Промокод создан.");
+      await loadPromos();
+    } catch (err: unknown) {
+      setErrMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onPatchPromo(e: React.FormEvent<HTMLFormElement>, promoId: string) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const code = String(fd.get("code") ?? "").trim();
+    const discountKind = String(fd.get("discountKind") ?? "PERCENT") as "PERCENT" | "FIXED_CENTS";
+    let discountValue: number;
+    if (discountKind === "PERCENT") {
+      discountValue = Number.parseInt(String(fd.get("discountPercent") ?? ""), 10);
+    } else {
+      discountValue = parseMajorUnitsToMinor(String(fd.get("discountFixedMajor") ?? "0"));
+    }
+    const maxUsesRaw = String(fd.get("maxUses") ?? "").trim();
+    const maxUses =
+      maxUsesRaw === "" || !Number.isFinite(Number.parseInt(maxUsesRaw, 10)) ?
+        null
+      : Number.parseInt(maxUsesRaw, 10);
+    const validFromLocal = String(fd.get("validFrom") ?? "").trim();
+    const validUntilLocal = String(fd.get("validUntil") ?? "").trim();
+    const activeEl = form.elements.namedItem("active");
+    const active = activeEl instanceof HTMLInputElement ? activeEl.checked : true;
+    const patch = {
+      code,
+      discountKind,
+      discountValue,
+      maxUses,
+      validFrom: validFromLocal ? new Date(validFromLocal).toISOString() : null,
+      validUntil: validUntilLocal ? new Date(validUntilLocal).toISOString() : null,
+      active,
+    };
+    setErrMsg("");
+    setInfoMsg("");
+    setLoading(true);
+    try {
+      await apiFetch(`/api/admin/promo-codes/${encodeURIComponent(promoId)}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      });
+      setModal({ type: "none" });
+      setInfoMsg("Промокод сохранён.");
+      await loadPromos();
+    } catch (err: unknown) {
+      setErrMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function onNewSlot(e: React.FormEvent<HTMLFormElement>) {
@@ -565,6 +698,14 @@ export default function AdminDashboard() {
         >
           Сеансы
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "promos"}
+          onClick={() => setTab("promos")}
+        >
+          Промокоды
+        </button>
       </div>
 
       {tab === "orders" ? (
@@ -757,6 +898,74 @@ export default function AdminDashboard() {
         </section>
       ) : null}
 
+      {tab === "promos" ? (
+        <section className="admin-panel admin-panel--tight" id="tab-promos" aria-label="Промокоды">
+          <div className="admin-panel-head admin-panel-head--tight">
+            <div className="admin-toolbar-row">
+              <button
+                type="button"
+                className={`btn btn-secondary ${loading ? "is-loading" : ""}`}
+                onClick={() => void loadPromos()}
+                disabled={loading}
+              >
+                Обновить
+              </button>
+              <button type="button" className="btn" onClick={() => setModal({ type: "promo-new" })}>
+                + Промокод
+              </button>
+            </div>
+            <p className="admin-hint admin-hint--inline">
+              Код на сайте / в POST <span className="mono">promoCode</span> или в ссылке /pay?promo=КОД.
+              Занято: заявки PENDING+PAID с этим промо.
+            </p>
+          </div>
+          {!promosData ? (
+            <div className="admin-empty admin-empty--compact">Загрузка…</div>
+          ) : promosData.length === 0 ? (
+            <div className="admin-empty admin-empty--compact">Промокодов пока нет</div>
+          ) : (
+            <div className="admin-order-list" role="list">
+              {promosData.map((p) => {
+                const uses =
+                  p.maxUses != null ? `${p.reservedOrders} / ${p.maxUses}` : `${p.reservedOrders} / ∞`;
+                const kindLabel =
+                  p.discountKind === "PERCENT" ? `${p.discountValue}%` : formatMinorUnits(p.discountValue, "BYN");
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="admin-order-row"
+                    role="listitem"
+                    onClick={() => setModal({ type: "promo-edit", promo: p })}
+                  >
+                    <div className="admin-order-row__left">
+                      <span className={`pill ${p.active ? "paid" : "cancelled"}`}>
+                        {p.active ? "активен" : "выкл"}
+                      </span>
+                    </div>
+                    <div className="admin-order-row__mid">
+                      <span className="mono admin-order-row__name">{p.code}</span>
+                      <span className="admin-order-row__email">скидка {kindLabel}</span>
+                    </div>
+                    <div className="admin-order-row__sum mono">{uses}</div>
+                    <div className="admin-order-row__slot">
+                      <span className="admin-order-row__slot-title">
+                        {p.validFrom || p.validUntil ?
+                          `${p.validFrom ? p.validFrom.slice(0, 10) : "…"} — ${p.validUntil ? p.validUntil.slice(0, 10) : "…"}`
+                        : "без срока"}
+                      </span>
+                    </div>
+                    <span className="admin-order-row__chev" aria-hidden>
+                      →
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      ) : null}
+
       {modal.type === "order" ? (
         <AdminModalFrame title="Заявка" onClose={() => setModal({ type: "none" })}>
           {(() => {
@@ -777,6 +986,24 @@ export default function AdminDashboard() {
                   <span className="admin-detail__k">Сумма</span>
                   <span className="mono">{formatMinorUnits(o.amountCents, o.currency)}</span>
                 </div>
+                {o.discountCents > 0 ? (
+                  <>
+                    <div className="admin-detail__row">
+                      <span className="admin-detail__k">До скидки</span>
+                      <span className="mono">{formatMinorUnits(o.subtotalCents, o.currency)}</span>
+                    </div>
+                    <div className="admin-detail__row">
+                      <span className="admin-detail__k">Скидка</span>
+                      <span className="mono">−{formatMinorUnits(o.discountCents, o.currency)}</span>
+                    </div>
+                  </>
+                ) : null}
+                {o.promoCode ? (
+                  <div className="admin-detail__row">
+                    <span className="admin-detail__k">Промокод</span>
+                    <span className="mono">{o.promoCode}</span>
+                  </div>
+                ) : null}
                 <div className="admin-detail__row">
                   <span className="admin-detail__k">Создан</span>
                   <span className="mono">{o.createdAt}</span>
@@ -822,6 +1049,174 @@ export default function AdminDashboard() {
                   </button>
                 </div>
               </div>
+            );
+          })()}
+        </AdminModalFrame>
+      ) : null}
+
+      {modal.type === "promo-new" ? (
+        <AdminModalFrame title="Новый промокод" onClose={() => setModal({ type: "none" })}>
+          <form onSubmit={(e) => void onCreatePromo(e)} className="admin-modal-form">
+            <p className="admin-hint admin-hint--tight">
+              Код сохраняется в верхнем регистре. Фиксированная скидка — в BYN (как цены сеансов).
+            </p>
+            <div className="admin-field">
+              <label htmlFor="promo-code">Код</label>
+              <input id="promo-code" name="code" required maxLength={40} placeholder="SUMMER2026" />
+            </div>
+            <div className="admin-field">
+              <label htmlFor="promo-kind">Тип скидки</label>
+              <select id="promo-kind" name="discountKind" defaultValue="PERCENT">
+                <option value="PERCENT">Процент от суммы</option>
+                <option value="FIXED_CENTS">Фиксированная сумма (BYN)</option>
+              </select>
+            </div>
+            <div className="admin-row admin-row--modal">
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="promo-pct">Процент (1–100)</label>
+                <input id="promo-pct" name="discountPercent" type="number" min={1} max={100} defaultValue={10} />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="promo-fix">Скидка BYN (если тип «фикс»)</label>
+                <input
+                  id="promo-fix"
+                  name="discountFixedMajor"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  defaultValue={5}
+                />
+              </div>
+            </div>
+            <div className="admin-field admin-field-narrow">
+              <label htmlFor="promo-max">Лимит активаций (пусто = без лимита)</label>
+              <input id="promo-max" name="maxUses" type="number" min={1} placeholder="∞" />
+            </div>
+            <div className="admin-row admin-row--modal">
+              <div className="admin-field">
+                <label htmlFor="promo-vf">Действует с (локально)</label>
+                <input id="promo-vf" name="validFrom" type="datetime-local" />
+              </div>
+              <div className="admin-field">
+                <label htmlFor="promo-vu">Действует до</label>
+                <input id="promo-vu" name="validUntil" type="datetime-local" />
+              </div>
+            </div>
+            <label className="admin-check admin-check--modal">
+              <input type="checkbox" name="active" defaultChecked />
+              Активен
+            </label>
+            <div className="admin-modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "none" })}>
+                Отмена
+              </button>
+              <button type="submit" className="btn" disabled={loading}>
+                Создать
+              </button>
+            </div>
+          </form>
+        </AdminModalFrame>
+      ) : null}
+
+      {modal.type === "promo-edit" ? (
+        <AdminModalFrame title="Промокод" onClose={() => setModal({ type: "none" })}>
+          {(() => {
+            const p = modal.promo;
+            return (
+              <form
+                key={p.id}
+                onSubmit={(e) => void onPatchPromo(e, p.id)}
+                className="admin-modal-form"
+              >
+                <p className="admin-hint admin-hint--tight mono">id: {p.id}</p>
+                <div className="admin-field">
+                  <label htmlFor="edit-promo-code">Код</label>
+                  <input id="edit-promo-code" name="code" required maxLength={40} defaultValue={p.code} />
+                </div>
+                <div className="admin-field">
+                  <label htmlFor="edit-promo-kind">Тип скидки</label>
+                  <select
+                    id="edit-promo-kind"
+                    name="discountKind"
+                    defaultValue={p.discountKind}
+                  >
+                    <option value="PERCENT">Процент от суммы</option>
+                    <option value="FIXED_CENTS">Фиксированная сумма (BYN)</option>
+                  </select>
+                </div>
+                <div className="admin-row admin-row--modal">
+                  <div className="admin-field admin-field-narrow">
+                    <label htmlFor="edit-promo-pct">Процент (1–100)</label>
+                    <input
+                      id="edit-promo-pct"
+                      name="discountPercent"
+                      type="number"
+                      min={1}
+                      max={100}
+                      defaultValue={p.discountKind === "PERCENT" ? p.discountValue : 10}
+                    />
+                  </div>
+                  <div className="admin-field admin-field-narrow">
+                    <label htmlFor="edit-promo-fix">Скидка BYN (если тип «фикс»)</label>
+                    <input
+                      id="edit-promo-fix"
+                      name="discountFixedMajor"
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      defaultValue={
+                        p.discountKind === "FIXED_CENTS" ? minorToMajorNumber(p.discountValue) : 5
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="admin-field admin-field-narrow">
+                  <label htmlFor="edit-promo-max">Лимит активаций (пусто = ∞)</label>
+                  <input
+                    id="edit-promo-max"
+                    name="maxUses"
+                    type="number"
+                    min={1}
+                    placeholder="∞"
+                    defaultValue={p.maxUses ?? ""}
+                  />
+                </div>
+                <div className="admin-row admin-row--modal">
+                  <div className="admin-field">
+                    <label htmlFor="edit-promo-vf">Действует с</label>
+                    <input
+                      id="edit-promo-vf"
+                      name="validFrom"
+                      type="datetime-local"
+                      defaultValue={p.validFrom ? isoToDatetimeLocal(p.validFrom) : ""}
+                    />
+                  </div>
+                  <div className="admin-field">
+                    <label htmlFor="edit-promo-vu">Действует до</label>
+                    <input
+                      id="edit-promo-vu"
+                      name="validUntil"
+                      type="datetime-local"
+                      defaultValue={p.validUntil ? isoToDatetimeLocal(p.validUntil) : ""}
+                    />
+                  </div>
+                </div>
+                <label className="admin-check admin-check--modal">
+                  <input type="checkbox" name="active" defaultChecked={p.active} />
+                  Активен
+                </label>
+                <p className="admin-hint admin-hint--tight">
+                  Занято заявок (PENDING+PAID): <span className="mono">{p.reservedOrders}</span>
+                </p>
+                <div className="admin-modal-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "none" })}>
+                    Отмена
+                  </button>
+                  <button type="submit" className="btn" disabled={loading}>
+                    Сохранить
+                  </button>
+                </div>
+              </form>
             );
           })()}
         </AdminModalFrame>

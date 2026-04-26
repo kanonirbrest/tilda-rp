@@ -4,6 +4,12 @@ import { createPublicTicketToken } from "@/lib/ticket-token";
 import { createBepaidPayment } from "@/lib/bepaid";
 import { fulfillPaidOrder } from "@/lib/fulfill-order";
 import {
+  computePromoAmounts,
+  isPromoActiveBySchedule,
+  normalizePromoCode,
+  PromoApplyError,
+} from "@/lib/promo-code";
+import {
   totalAdmission,
   totalCentsForLines,
   unitPriceCents,
@@ -24,6 +30,8 @@ export type CreateOrderCheckoutInput = {
   email: string;
   phone: string;
   lines: LineInput[];
+  /** Строка с сайта / Тильды; пусто — без скидки */
+  promoCode?: string | null;
 };
 
 export type CreateOrderCheckoutOk = {
@@ -37,6 +45,8 @@ export type CreateOrderCheckoutErr = {
   status: number;
   message: string;
   hint?: string;
+  /** Для ответа API: INVALID_PROMO, PROMO_INACTIVE, … */
+  error?: string;
 };
 
 /**
@@ -65,13 +75,15 @@ export async function createOrderCheckout(
       return { ok: false, status: 404, message: "Сеанс не найден" };
     }
 
-    const amountCents = totalCentsForLines(slot, lines);
-    if (amountCents <= 0) {
+    const subtotalCents = totalCentsForLines(slot, lines);
+    if (subtotalCents <= 0) {
       return { ok: false, status: 400, message: "Некорректное количество билетов" };
     }
 
     const admissions = totalAdmission(lines);
     const skipPayment = process.env.DEV_SKIP_PAYMENT === "true";
+
+    let chargedAmountCents = subtotalCents;
 
     const orderId = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.sql`SELECT id FROM "Slot" WHERE id = ${slot.id} FOR UPDATE`);
@@ -93,6 +105,55 @@ export async function createOrderCheckout(
         }
       }
 
+      let discountCents = 0;
+      let amountCents = subtotalCents;
+      let promoCodeId: string | null = null;
+
+      const rawPromo = input.promoCode?.trim();
+      if (rawPromo) {
+        const norm = normalizePromoCode(rawPromo);
+        const promo = await tx.promoCode.findUnique({ where: { code: norm } });
+        if (!promo) {
+          throw new PromoApplyError("Промокод не найден", "INVALID_PROMO");
+        }
+        await tx.$executeRaw(
+          Prisma.sql`SELECT id FROM "PromoCode" WHERE id = ${promo.id} FOR UPDATE`,
+        );
+        const now = new Date();
+        if (!isPromoActiveBySchedule(promo, now)) {
+          throw new PromoApplyError(
+            "Промокод недействителен или срок действия истёк",
+            "PROMO_INACTIVE",
+          );
+        }
+        if (promo.maxUses != null) {
+          const reservedPromo = await tx.order.count({
+            where: {
+              promoCodeId: promo.id,
+              status: { in: ["PENDING", "PAID"] },
+            },
+          });
+          if (reservedPromo >= promo.maxUses) {
+            throw new PromoApplyError(
+              "Лимит использований этого промокода исчерпан",
+              "PROMO_EXHAUSTED",
+            );
+          }
+        }
+        const applied = computePromoAmounts(subtotalCents, promo);
+        discountCents = applied.discountCents;
+        amountCents = applied.amountCents;
+        if (amountCents < 1 && !skipPayment) {
+          throw new PromoApplyError(
+            "После скидки сумма слишком мала для онлайн-оплаты. Измените состав заказа или промокод.",
+            "PROMO_ZERO_PAYMENT",
+          );
+        }
+        promoCodeId = promo.id;
+      }
+
+      chargedAmountCents = amountCents;
+
       const customer = await tx.customer.create({
         data: { name, email: email.trim().toLowerCase(), phone },
       });
@@ -100,9 +161,12 @@ export async function createOrderCheckout(
         data: {
           slotId: slot.id,
           customerId: customer.id,
+          subtotalCents,
+          discountCents,
           amountCents,
           currency: slot.currency,
           status: "PENDING",
+          promoCodeId,
         },
       });
       for (const l of lines) {
@@ -140,13 +204,14 @@ export async function createOrderCheckout(
       console.info("[checkout] вызов bePaid", {
         orderId,
         slotId: slot.id,
-        amountCents,
+        amountCents: chargedAmountCents,
+        subtotalCents,
         currency: slot.currency,
         publicBaseUrl,
       });
       const pay = await createBepaidPayment({
         orderId,
-        amountCents,
+        amountCents: chargedAmountCents,
         currency: slot.currency,
         description: `${slot.title} — ${slot.startsAt.toISOString()}`,
         customerEmail: email.trim(),
@@ -188,6 +253,14 @@ export async function createOrderCheckout(
         ok: false,
         status: 409,
         message: "Недостаточно свободных мест на выбранный сеанс",
+      };
+    }
+    if (e instanceof PromoApplyError) {
+      return {
+        ok: false,
+        status: 400,
+        message: e.message,
+        error: e.code,
       };
     }
     console.error("createOrderCheckout", e);
