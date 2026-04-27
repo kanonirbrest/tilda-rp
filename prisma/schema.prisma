@@ -108,6 +108,8 @@ model Ticket {
   orderId     String
   order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   publicToken String    @unique
+  /// Тип билета (взрослый / детский / льготный). У старых записей может быть null.
+  tier        TicketTier?
   /// Сколько человек по этому QR (вся группа за раз)
   admissionCount Int    @default(1)
   usedAt      DateTime?

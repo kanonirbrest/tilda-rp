@@ -4,7 +4,7 @@ import { sendTicketEmail } from "./mail";
 import { sendCrmWebhook } from "./crm";
 import { getPublicAppBaseUrl } from "./request-origin";
 import { formatMinorUnits } from "./money";
-import { linesSummaryRu } from "./slot-pricing";
+import { linesSummaryRu, tierTicketSingularRu } from "./slot-pricing";
 
 export async function fulfillPaidOrder(orderId: string): Promise<void> {
   const transitioned = await prisma.$transaction(async (tx) => {
@@ -68,6 +68,7 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
       currency: full.currency,
       orderId: full.id,
       qrUrl,
+      ticketTierLabel: t.tier ? tierTicketSingularRu(t.tier) : undefined,
       linesSummary,
       admissionCount: multiPdf ? 1 : t.admissionCount,
       ticketOrdinal: multiPdf

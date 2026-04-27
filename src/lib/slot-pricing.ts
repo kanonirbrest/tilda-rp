@@ -39,6 +39,30 @@ export function totalAdmission(lines: LineInput[]): number {
   return lines.reduce((a, l) => a + l.quantity, 0);
 }
 
+/** По одному типу на каждую единицу quantity, в порядке строк заказа (как в OrderLine). */
+export function expandLineTiers(lines: LineInput[]): TicketTier[] {
+  const out: TicketTier[] = [];
+  for (const l of lines) {
+    for (let i = 0; i < l.quantity; i++) {
+      out.push(l.tier);
+    }
+  }
+  return out;
+}
+
+export function tierTicketSingularRu(tier: TicketTier): string {
+  switch (tier) {
+    case "ADULT":
+      return "Взрослый";
+    case "CHILD":
+      return "Детский";
+    case "CONCESSION":
+      return "Льготный";
+    default:
+      return String(tier);
+  }
+}
+
 const TIER_RU: Record<TicketTier, string> = {
   ADULT: "взрослых",
   CHILD: "детских",

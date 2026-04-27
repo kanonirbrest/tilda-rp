@@ -131,6 +131,8 @@ export async function buildTicketPdf(opts: {
   currency: string;
   orderId: string;
   qrUrl: string;
+  /** Этот конкретный билет: взрослый / детский / льготный */
+  ticketTierLabel?: string;
   /** Состав билетов с Тильды */
   linesSummary?: string;
   admissionCount?: number;
@@ -268,6 +270,22 @@ export async function buildTicketPdf(opts: {
     dark,
     maxValueWidth: textBlockW,
   });
+
+  if (opts.ticketTierLabel) {
+    rowY = drawLabelRow(page, {
+      x: padX,
+      yBaseline: rowY,
+      label: "Тип билета",
+      value: opts.ticketTierLabel,
+      font,
+      fontBold,
+      labelSize: 9,
+      valueSize: 12,
+      muted,
+      dark,
+      maxValueWidth: textBlockW,
+    });
+  }
 
   if (opts.linesSummary) {
     rowY = drawLabelRow(page, {

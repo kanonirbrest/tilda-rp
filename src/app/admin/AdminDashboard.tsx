@@ -7,6 +7,8 @@ import {
   parseMajorUnitsToMinor,
   parseOptionalMajorUnitsToMinor,
 } from "@/lib/money";
+import { tierTicketSingularRu } from "@/lib/slot-pricing";
+import type { TicketTier } from "@prisma/client";
 
 type SlotRow = {
   id: string;
@@ -27,6 +29,8 @@ type SlotRow = {
 
 type SlotsResponse = { timezone: string; slots: SlotRow[] };
 
+type OrderVisitState = "na" | "not_visited" | "partial" | "visited";
+
 type OrderRow = {
   id: string;
   status: string;
@@ -37,6 +41,9 @@ type OrderRow = {
   amountCents: number;
   currency: string;
   promoCode: string | null;
+  visitState: OrderVisitState;
+  visitedAt: string | null;
+  tickets: { id: string; tier: TicketTier | null; admissionCount: number; usedAt: string | null }[];
   customer: { name: string; email: string; phone: string };
   slot: { id: string; title: string; startsAt: string };
   lines: { tier: string; quantity: number; unitPriceCents: number }[];
@@ -115,10 +122,65 @@ function isActiveOrderStatus(status: string): boolean {
   return s === "pending" || s === "paid";
 }
 
+/** Плашка прохода рядом со статусом оплаты (только для PAID). */
+function visitPillForOrder(visitState: OrderVisitState): { cls: string; label: string } | null {
+  if (visitState === "na") return null;
+  if (visitState === "visited") return { cls: "visit-yes", label: "прошёл" };
+  if (visitState === "partial") return { cls: "visit-partial", label: "частично" };
+  return { cls: "visit-no", label: "не прошёл" };
+}
+
+type OrderPayFilter = "all" | "paid" | "pending";
+type OrderVisitFilter = "all" | "visited" | "not_visited" | "partial" | "not_full";
+
+function orderMatchesFilters(
+  o: OrderRow,
+  pay: OrderPayFilter,
+  visit: OrderVisitFilter,
+): boolean {
+  const st = o.status.toUpperCase();
+  if (pay === "paid" && st !== "PAID") return false;
+  if (pay === "pending" && st !== "PENDING") return false;
+  if (pay === "all" && !isActiveOrderStatus(o.status)) return false;
+
+  if (st !== "PAID") {
+    return visit === "all";
+  }
+
+  if (visit === "all") return true;
+  if (visit === "visited") return o.visitState === "visited";
+  if (visit === "not_visited") return o.visitState === "not_visited";
+  if (visit === "partial") return o.visitState === "partial";
+  if (visit === "not_full") return o.visitState === "not_visited" || o.visitState === "partial";
+  return true;
+}
+
 function truncateText(s: string, max: number): string {
   const t = s.trim();
   if (t.length <= max) return t;
   return `${t.slice(0, Math.max(0, max - 1))}…`;
+}
+
+/** Сохранённый секрет входа в админку (только клиент; при XSS доступен скриптам). */
+const ADMIN_UI_SECRET_STORAGE_KEY = "dei_admin_ui_secret";
+
+function readStoredAdminSecret(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(ADMIN_UI_SECRET_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeStoredAdminSecret(secret: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (secret) window.localStorage.setItem(ADMIN_UI_SECRET_STORAGE_KEY, secret);
+    else window.localStorage.removeItem(ADMIN_UI_SECRET_STORAGE_KEY);
+  } catch {
+    /* quota / private mode */
+  }
 }
 
 function AdminModalFrame({
@@ -205,6 +267,7 @@ export default function AdminDashboard() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [loginErr, setLoginErr] = useState("");
+  const [adminSecretInput, setAdminSecretInput] = useState("");
 
   const [tab, setTab] = useState<TabId>("orders");
   const [modal, setModal] = useState<AdminModal>({ type: "none" });
@@ -213,6 +276,8 @@ export default function AdminDashboard() {
   const [infoMsg, setInfoMsg] = useState("");
   const [slotsData, setSlotsData] = useState<SlotsResponse | null>(null);
   const [ordersData, setOrdersData] = useState<OrdersResponse | null>(null);
+  const [orderPayFilter, setOrderPayFilter] = useState<OrderPayFilter>("all");
+  const [orderVisitFilter, setOrderVisitFilter] = useState<OrderVisitFilter>("all");
   const [promosData, setPromosData] = useState<PromoRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(todayDateKey);
@@ -233,6 +298,14 @@ export default function AdminDashboard() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (authChecked && !authed) setAdminSecretInput(readStoredAdminSecret());
+  }, [authChecked, authed]);
+
+  useEffect(() => {
+    if (orderPayFilter === "pending") setOrderVisitFilter("all");
+  }, [orderPayFilter]);
 
   const loadSlots = useCallback(
     async (options: { inactive?: boolean } = {}) => {
@@ -299,8 +372,11 @@ export default function AdminDashboard() {
   async function onLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoginErr("");
-    const fd = new FormData(e.currentTarget);
-    const secret = String(fd.get("secret") ?? "");
+    const secret = adminSecretInput.trim();
+    if (!secret) {
+      setLoginErr("Введите секрет");
+      return;
+    }
     try {
       const r = await fetch("/api/admin/login", {
         method: "POST",
@@ -319,6 +395,7 @@ export default function AdminDashboard() {
         }
         throw new Error(msg || `HTTP ${r.status}`);
       }
+      writeStoredAdminSecret(secret);
       setAuthed(true);
     } catch (err: unknown) {
       setLoginErr(err instanceof Error ? err.message : String(err));
@@ -622,6 +699,11 @@ export default function AdminDashboard() {
     [ordersData],
   );
 
+  const filteredOrders = useMemo(
+    () => activeOrders.filter((o) => orderMatchesFilters(o, orderPayFilter, orderVisitFilter)),
+    [activeOrders, orderPayFilter, orderVisitFilter],
+  );
+
   const slotsForSelectedDate = useMemo(() => {
     if (!slotsData) return [];
     return slotsData.slots
@@ -650,11 +732,22 @@ export default function AdminDashboard() {
       <div className="admin-inner admin-login">
         <div className="admin-login-card">
           <h1 className="admin-login-title">Вход</h1>
-          <p className="admin-login-sub">Секрет из окружения сервера</p>
+          <p className="admin-login-sub">Секрет из окружения сервера (ADMIN_API_SECRET)</p>
+          <p className="admin-login-sub" style={{ marginTop: "0.35rem", fontSize: "0.85em", opacity: 0.85 }}>
+            После успешного входа секрет сохраняется в этом браузере (localStorage).
+          </p>
           {loginErr ? <div className="admin-alert admin-alert--err">{loginErr}</div> : null}
           <form onSubmit={onLogin}>
             <label htmlFor="admin-secret">Секрет</label>
-            <input id="admin-secret" name="secret" type="password" autoComplete="off" required />
+            <input
+              id="admin-secret"
+              name="secret"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={adminSecretInput}
+              onChange={(ev) => setAdminSecretInput(ev.target.value)}
+            />
             <div style={{ marginTop: "1rem" }}>
               <button type="submit" className="btn">
                 Войти
@@ -722,9 +815,40 @@ export default function AdminDashboard() {
               </button>
               {ordersData ? (
                 <span className="admin-hint">
-                  Активных: {activeOrders.length} · в выборке: {ordersData.orders.length}
+                  Активных: {activeOrders.length} · показано: {filteredOrders.length} · в ответе API:{" "}
+                  {ordersData.orders.length}
                 </span>
               ) : null}
+            </div>
+            <div className="admin-order-filters">
+              <label>
+                Оплата
+                <select
+                  value={orderPayFilter}
+                  onChange={(e) => setOrderPayFilter(e.target.value as OrderPayFilter)}
+                  aria-label="Фильтр по оплате"
+                >
+                  <option value="all">Все активные (PAID + PENDING)</option>
+                  <option value="paid">Только PAID</option>
+                  <option value="pending">Только PENDING</option>
+                </select>
+              </label>
+              <label>
+                Проход по билету
+                <select
+                  value={orderVisitFilter}
+                  onChange={(e) => setOrderVisitFilter(e.target.value as OrderVisitFilter)}
+                  aria-label="Фильтр по проходу"
+                  disabled={orderPayFilter === "pending"}
+                  title={orderPayFilter === "pending" ? "У PENDING ещё нет погашенных билетов" : undefined}
+                >
+                  <option value="all">Все</option>
+                  <option value="visited">Прошёл (все билеты отмечены)</option>
+                  <option value="not_visited">Не прошёл (ни одного скана)</option>
+                  <option value="partial">Частично</option>
+                  <option value="not_full">Не прошёл полностью (0 или частично)</option>
+                </select>
+              </label>
             </div>
             <p className="admin-hint admin-hint--inline">Строка — кратко; полные данные по нажатию.</p>
           </div>
@@ -732,15 +856,18 @@ export default function AdminDashboard() {
             <div className="admin-empty admin-empty--compact">Загрузка…</div>
           ) : activeOrders.length === 0 ? (
             <div className="admin-empty admin-empty--compact">Нет активных заявок</div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="admin-empty admin-empty--compact">Нет заявок по выбранным фильтрам</div>
           ) : (
             <div className="admin-order-list" role="list">
-              {activeOrders.map((o) => {
+              {filteredOrders.map((o) => {
                 const st = o.status.toLowerCase();
                 const pillClass =
                   st === "paid" ? "paid"
                   : st === "pending" ? "pending"
                   : st === "failed" ? "failed"
                   : "cancelled";
+                const visitPill = visitPillForOrder(o.visitState);
                 const createdShort = o.createdAt.slice(0, 16).replace("T", " ");
                 return (
                   <button
@@ -752,7 +879,10 @@ export default function AdminDashboard() {
                   >
                     <div className="admin-order-row__left">
                       <span className="mono admin-order-row__time">{createdShort}</span>
-                      <span className={`pill ${pillClass}`}>{o.status}</span>
+                      <div className="admin-order-row__pills">
+                        <span className={`pill ${pillClass}`}>{o.status}</span>
+                        {visitPill ? <span className={`pill ${visitPill.cls}`}>{visitPill.label}</span> : null}
+                      </div>
                     </div>
                     <div className="admin-order-row__mid">
                       <span className="admin-order-row__name">{truncateText(o.customer.name, 28)}</span>
@@ -976,12 +1106,73 @@ export default function AdminDashboard() {
               : st === "pending" ? "pending"
               : st === "failed" ? "failed"
               : "cancelled";
+            const visitP = visitPillForOrder(o.visitState);
             return (
               <div className="admin-detail">
                 <div className="admin-detail__row">
                   <span className="admin-detail__k">Статус</span>
-                  <span className={`pill ${pillClass}`}>{o.status}</span>
+                  <span className="admin-order-row__pills">
+                    <span className={`pill ${pillClass}`}>{o.status}</span>
+                    {visitP ? <span className={`pill ${visitP.cls}`}>{visitP.label}</span> : null}
+                  </span>
                 </div>
+                {o.status.toUpperCase() === "PAID" ? (
+                  <div className="admin-detail__row">
+                    <span className="admin-detail__k">Проход</span>
+                    <div className="admin-detail__block">
+                      {o.visitState === "visited" && o.visitedAt ? (
+                        <div className="mono">Все билеты отмечены · {o.visitedAt}</div>
+                      ) : o.visitState === "partial" ? (
+                        <div>
+                          <span className="admin-muted-text">Отмечены не все билеты.</span>
+                          {o.tickets.some((t) => t.usedAt) ? (
+                            <div className="mono admin-muted-text" style={{ marginTop: "0.25rem" }}>
+                              Последняя отметка:{" "}
+                              {(() => {
+                                const times = o.tickets.map((t) => t.usedAt).filter(Boolean) as string[];
+                                return times.length ? times.sort().at(-1) : "—";
+                              })()}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : o.visitState === "not_visited" ? (
+                        <span className="admin-muted-text">По билетам проход ещё не отмечен.</span>
+                      ) : (
+                        <span className="admin-muted-text">Нет билетов в заказе.</span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="admin-detail__row">
+                    <span className="admin-detail__k">Проход</span>
+                    <span className="admin-muted-text">доступен после оплаты (PAID)</span>
+                  </div>
+                )}
+                {o.status.toUpperCase() === "PAID" && o.tickets.length > 0 ? (
+                  <div className="admin-detail__row admin-detail__row--block">
+                    <span className="admin-detail__k">Билеты</span>
+                    <ul className="admin-detail-lines">
+                      {o.tickets.map((t, i) => {
+                        const prefix = o.tickets.length > 1 ? `#${i + 1} · ` : "";
+                        const tierPart = t.tier
+                          ? `${tierTicketSingularRu(t.tier)} · `
+                          : "тип не указан · ";
+                        const scanPart = t.usedAt ? `отмечен ${t.usedAt}` : "не отмечен";
+                        const cntPart = t.admissionCount > 1 ? ` · входов ×${t.admissionCount}` : "";
+                        return (
+                          <li key={t.id}>
+                            <span className={`mono${t.tier ? "" : " admin-muted-text"}`}>
+                              {prefix}
+                              {tierPart}
+                              {scanPart}
+                              {cntPart}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : null}
                 <div className="admin-detail__row">
                   <span className="admin-detail__k">Сумма</span>
                   <span className="mono">{formatMinorUnits(o.amountCents, o.currency)}</span>

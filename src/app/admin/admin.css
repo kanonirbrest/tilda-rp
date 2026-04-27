@@ -408,6 +408,55 @@
   color: var(--admin-muted);
 }
 
+.admin-root .pill.visit-yes {
+  background: rgba(56, 189, 248, 0.14);
+  color: #7dd3fc;
+}
+
+.admin-root .pill.visit-no {
+  background: rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
+}
+
+.admin-root .pill.visit-partial {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+}
+
+.admin-root .admin-order-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  align-items: flex-end;
+  margin-top: 0.35rem;
+}
+
+.admin-root .admin-order-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--admin-muted);
+}
+
+.admin-root .admin-order-filters select {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--admin-radius-sm);
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface2);
+  color: var(--admin-text);
+  min-width: 11rem;
+}
+
+.admin-root .admin-order-row__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+
 /* Price grid in slot row */
 .admin-root .price-grid {
   display: grid;

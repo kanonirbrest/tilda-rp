@@ -10,6 +10,7 @@ import {
   PromoApplyError,
 } from "@/lib/promo-code";
 import {
+  expandLineTiers,
   totalAdmission,
   totalCentsForLines,
   unitPriceCents,
@@ -179,11 +180,16 @@ export async function createOrderCheckout(
           },
         });
       }
+      const tierUnits = expandLineTiers(lines);
+      if (tierUnits.length !== admissions) {
+        throw new Error("INVARIANT_TICKET_TIERS");
+      }
       for (let i = 0; i < admissions; i++) {
         await tx.ticket.create({
           data: {
             orderId: o.id,
             publicToken: createPublicTicketToken(),
+            tier: tierUnits[i]!,
             admissionCount: 1,
           },
         });
