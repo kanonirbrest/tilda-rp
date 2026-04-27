@@ -717,6 +717,39 @@ export default function AdminDashboard() {
     return [...keys].sort();
   }, [slotsData]);
 
+  const deleteSlotsForSelectedDate = useCallback(async () => {
+    if (!slotsData) return;
+    if (
+      !window.confirm(
+        `Удалить все слоты за дату ${selectedDate} (часовой пояс: ${slotsData.timezone})?\n\n` +
+          "Сеансы, к которым привязан хотя бы один заказ, не удалятся — останутся в календаре.",
+      )
+    ) {
+      return;
+    }
+    setErrMsg("");
+    setInfoMsg("");
+    setLoading(true);
+    try {
+      const res = await apiFetch<{
+        deleted: number;
+        skippedDueToOrders: number;
+        message?: string;
+        timezone?: string;
+      }>(`/api/admin/slots/bulk-day?date=${encodeURIComponent(selectedDate)}`, { method: "DELETE" });
+      setInfoMsg(
+        res.message ??
+          `Удалено: ${res.deleted}. Пропущено (есть заказы): ${res.skippedDueToOrders}. TZ: ${res.timezone ?? slotsData.timezone}.`,
+      );
+      setModal({ type: "none" });
+      await loadSlots();
+    } catch (err: unknown) {
+      setErrMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [slotsData, selectedDate, loadSlots]);
+
   if (!authChecked) {
     return (
       <div className="admin-inner">
@@ -979,8 +1012,20 @@ export default function AdminDashboard() {
               >
                 + Группа на день
               </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={!slotsData || loading || slotsForSelectedDate.length === 0}
+                title="Удаляются только слоты без заказов за выбранную дату"
+                onClick={() => void deleteSlotsForSelectedDate()}
+              >
+                Удалить все за дату
+              </button>
             </div>
-            <p className="admin-hint admin-hint--inline">Сеанс — строка; изменения и удаление в окне.</p>
+            <p className="admin-hint admin-hint--inline">
+              Сеанс — строка; изменения и удаление в окне. «Удалить все за дату» — пустые слоты за выбранный день; с
+              заказами не снимаются.
+            </p>
           </div>
           {!slotsData ? (
             <div className="admin-empty admin-empty--compact">Загрузка…</div>

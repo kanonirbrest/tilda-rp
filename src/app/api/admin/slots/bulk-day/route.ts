@@ -94,3 +94,61 @@ export async function POST(req: Request) {
 
   return jsonWithCors(req, { ok: true, created, skipped });
 }
+
+/**
+ * Удалить все слоты за календарный день (TZ выставки).
+ * Слоты, к которым привязан хотя бы один заказ, не трогаем (как при DELETE одного слота).
+ */
+export async function DELETE(req: Request) {
+  const deny = await requireAdmin(req);
+  if (deny) return deny;
+
+  const url = new URL(req.url);
+  const date = url.searchParams.get("date")?.trim() ?? "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return jsonWithCors(req, { error: "BAD_DATE", message: "Укажите query date=YYYY-MM-DD" }, { status: 400 });
+  }
+
+  const tz = getExhibitionTimezone();
+  const range = wallDayUtcRange(date, tz);
+  if (!range) {
+    return jsonWithCors(req, { error: "BAD_DATE", message: "Некорректная дата" }, { status: 400 });
+  }
+
+  const slots = await prisma.slot.findMany({
+    where: { startsAt: { gte: range.start, lte: range.end } },
+    select: { id: true },
+  });
+  const ids = slots.map((s) => s.id);
+  if (ids.length === 0) {
+    return jsonWithCors(req, { ok: true, deleted: 0, skippedDueToOrders: 0, date, timezone: tz });
+  }
+
+  const orderGroups = await prisma.order.groupBy({
+    by: ["slotId"],
+    where: { slotId: { in: ids } },
+    _count: { _all: true },
+  });
+  const blockedIds = new Set(orderGroups.map((g) => g.slotId));
+  const deletable = ids.filter((id) => !blockedIds.has(id));
+
+  let deleted = 0;
+  if (deletable.length > 0) {
+    const res = await prisma.slot.deleteMany({ where: { id: { in: deletable } } });
+    deleted = res.count;
+  }
+
+  return jsonWithCors(req, {
+    ok: true,
+    date,
+    timezone: tz,
+    deleted,
+    skippedDueToOrders: blockedIds.size,
+    message:
+      blockedIds.size > 0 ?
+        `Не удалено сеансов с заказами: ${blockedIds.size}. Удалено без заказов: ${deleted}.`
+      : deleted > 0 ?
+        `Удалено сеансов: ${deleted}.`
+      : "Нет сеансов за эту дату.",
+  });
+}
