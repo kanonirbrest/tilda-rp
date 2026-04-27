@@ -3,33 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
 import { dateKeyInTz, getExhibitionTimezone } from "@/lib/exhibition-time";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
-
-async function slotStatsMap(slotIds: string[]) {
-  const map = new Map<string, { soldPaid: number; pendingReserved: number }>();
-  for (const id of slotIds) map.set(id, { soldPaid: 0, pendingReserved: 0 });
-  if (slotIds.length === 0) return map;
-
-  const rows = await prisma.orderLine.findMany({
-    where: {
-      order: {
-        slotId: { in: slotIds },
-        status: { in: ["PAID", "PENDING"] },
-      },
-    },
-    select: {
-      quantity: true,
-      order: { select: { status: true, slotId: true } },
-    },
-  });
-  for (const row of rows) {
-    const sid = row.order.slotId;
-    const m = map.get(sid);
-    if (!m) continue;
-    if (row.order.status === "PAID") m.soldPaid += row.quantity;
-    else m.pendingReserved += row.quantity;
-  }
-  return map;
-}
+import { slotOrderLineStatsMap } from "@/lib/slot-order-line-stats";
 
 type DayAgg = {
   finiteLeft: number;
@@ -53,7 +27,7 @@ export async function GET(req: Request) {
   });
 
   const tz = getExhibitionTimezone();
-  const stats = await slotStatsMap(slots.map((s) => s.id));
+  const stats = await slotOrderLineStatsMap(slots.map((s) => s.id));
 
   const byDay = new Map<string, DayAgg>();
 

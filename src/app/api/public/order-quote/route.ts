@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
+import { prisma } from "@/lib/prisma";
+import {
+  computePromoAmounts,
+  isPromoActiveBySchedule,
+  normalizePromoCode,
+} from "@/lib/promo-code";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
 import { buildLinesFromCounts, totalCentsForLines } from "@/lib/slot-pricing";
 import { parseTicketCountParam } from "@/lib/ticket-checkout-params";
@@ -25,7 +31,7 @@ export async function OPTIONS(req: Request) {
 
 /**
  * Публичная оценка суммы заказа для Тильды (без создания заказа).
- * GET ?date=YYYY-MM-DD&time=HH:MM&adult=&child=&concession=
+ * GET ?date=YYYY-MM-DD&time=HH:MM&adult=&child=&concession=&promoCode=
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -34,6 +40,8 @@ export async function GET(req: Request) {
   const adult = parseTicketCountParam(searchParams.get("adult"));
   const child = parseTicketCountParam(searchParams.get("child"));
   const concession = parseTicketCountParam(searchParams.get("concession"));
+  const promoRaw =
+    searchParams.get("promoCode")?.trim() || searchParams.get("promo")?.trim() || "";
 
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return jsonPublicReadResponse(req, { error: "DATE_REQUIRED", hint: "Укажите date в формате YYYY-MM-DD" }, 400);
@@ -58,13 +66,72 @@ export async function GET(req: Request) {
   const lines = buildLinesFromCounts(slot, { adult, child, concession });
   const totalCents = totalCentsForLines(slot, lines);
   const currency = slot.currency || "BYN";
+  const formattedTotal = formatTotal(totalCents, currency);
+
+  type PromoOk = {
+    applied: true;
+    discountCents: number;
+    amountCents: number;
+    formattedAmount: string;
+  };
+  type PromoErr = { applied: false; error: string; hint: string };
+  let promo: PromoOk | PromoErr | null = null;
+
+  if (promoRaw) {
+    const norm = normalizePromoCode(promoRaw);
+    const row = await prisma.promoCode.findUnique({ where: { code: norm } });
+    if (!row) {
+      promo = { applied: false, error: "INVALID_PROMO", hint: "Промокод не найден" };
+    } else {
+      const now = new Date();
+      if (!isPromoActiveBySchedule(row, now)) {
+        promo = {
+          applied: false,
+          error: "PROMO_INACTIVE",
+          hint: "Промокод недействителен или срок действия истёк",
+        };
+      } else if (row.maxUses != null) {
+        const used = await prisma.order.count({
+          where: {
+            promoCodeId: row.id,
+            status: { in: ["PENDING", "PAID"] },
+          },
+        });
+        if (used >= row.maxUses) {
+          promo = {
+            applied: false,
+            error: "PROMO_EXHAUSTED",
+            hint: "Лимит использований этого промокода исчерпан",
+          };
+        }
+      }
+      if (!promo) {
+        const { discountCents, amountCents } = computePromoAmounts(totalCents, row);
+        if (amountCents < 1) {
+          promo = {
+            applied: false,
+            error: "PROMO_ZERO_PAYMENT",
+            hint: "После скидки сумма слишком мала для онлайн-оплаты",
+          };
+        } else {
+          promo = {
+            applied: true,
+            discountCents,
+            amountCents,
+            formattedAmount: formatTotal(amountCents, currency),
+          };
+        }
+      }
+    }
+  }
 
   return jsonPublicReadResponse(
     req,
     {
       totalCents,
       currency,
-      formattedTotal: formatTotal(totalCents, currency),
+      formattedTotal,
+      promo,
     },
     200,
   );

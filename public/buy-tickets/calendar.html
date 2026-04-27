@@ -984,8 +984,57 @@ background-image: none !important;
   transform: translateZ(0);
   pointer-events: auto !important;
 }
-#rec1961440851 .t1093 .t-popup__container {
+#rec1961440851 .t1093 .t-popup__container,
+.t-popup[data-popup-rec-ids*="1961449631"] .t-popup__container {
   pointer-events: auto !important;
+  box-sizing: border-box !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  overflow: auto !important;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+#rec1961440851 .t1093 .t-popup__container::-webkit-scrollbar,
+.t-popup[data-popup-rec-ids*="1961449631"] .t-popup__container::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+/* Упрощённый чекаут: внешний контейнер на всю высоту окна без скролла, скролл внутри .dei-plain-checkout */
+#rec1961440851 .t1093 .t-popup__container:has(#dei-plain-checkout-root),
+.t-popup[data-popup-rec-ids*="1961449631"] .t-popup__container:has(#dei-plain-checkout-root) {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  width: min(100%, 760px) !important;
+  max-width: min(96vw, 760px) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  overscroll-behavior-y: contain;
+}
+#rec1961440851 .t1093 .t-popup__container:has(#dei-plain-checkout-root) #rec1961449631,
+.t-popup[data-popup-rec-ids*="1961449631"] .t-popup__container:has(#dei-plain-checkout-root) #rec1961449631 {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+/* Подложка Zero Block в попапе: артборд не ниже окна; carrier/filter тянутся на высоту артборда */
+body.dei-ticket-popup-open #rec1961449631 .t396__artboard {
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+}
+body.dei-ticket-popup-open #rec1961449631 .t396__carrier,
+body.dei-ticket-popup-open #rec1961449631 .t396__filter {
+  min-height: 100% !important;
+  height: 100% !important;
 }
 #rec1961449631,
 #rec1961449631 .tn-atom {
@@ -1097,6 +1146,8 @@ background-image: none !important;
     child: "1772100801560000001",
     concession: "1772100817712000004",
   };
+
+  var deiPlainCounts = { adult: 0, child: 0, concession: 0 };
 
   var state = { dateLabel: null, time: null };
 
@@ -1242,11 +1293,451 @@ background-image: none !important;
     return Number.isFinite(n) ? n : 0;
   }
 
+  function deiIsPlainPopup() {
+    return !!document.getElementById("dei-plain-checkout-root");
+  }
+
+  function deiReadTicketCounts() {
+    if (deiIsPlainPopup()) {
+      return {
+        adult: deiPlainCounts.adult,
+        child: deiPlainCounts.child,
+        concession: deiPlainCounts.concession,
+      };
+    }
+    return {
+      adult: readCountByElemId(COUNT_IDS.adult),
+      child: readCountByElemId(COUNT_IDS.child),
+      concession: readCountByElemId(COUNT_IDS.concession),
+    };
+  }
+
+  function deiSyncPlainCountEl(el, n) {
+    if (!el) return;
+    var s = String(n);
+    el.textContent = s;
+    el.setAttribute("data-dei-count-width", s.length >= 2 ? "2" : "1");
+  }
+
+  function deiSyncPlainCountDisplays() {
+    var r = document.getElementById("dei-plain-checkout-root");
+    if (!r) return;
+    deiSyncPlainCountEl(r.querySelector('[data-dei-count="adult"]'), deiPlainCounts.adult);
+    deiSyncPlainCountEl(r.querySelector('[data-dei-count="child"]'), deiPlainCounts.child);
+    deiSyncPlainCountEl(r.querySelector('[data-dei-count="concession"]'), deiPlainCounts.concession);
+  }
+
+  function deiFetchDaySlotTimes(isoDate, onOk, onErr) {
+    var base = API_BASE.replace(/\/$/, "");
+    fetch(base + "/api/public/day-slots?date=" + encodeURIComponent(isoDate))
+      .then(function (r) {
+        return r.json().then(function (data) {
+          if (!r.ok) throw new Error((data && data.error) || "day-slots");
+          return data;
+        });
+      })
+      .then(function (data) {
+        var times = (data && data.times) || [];
+        onOk(Array.isArray(times) ? times : []);
+      })
+      .catch(function () {
+        if (typeof onErr === "function") onErr();
+        else onOk([]);
+      });
+  }
+
+  function deiPlainFillTimesWrap(timesWrap, times) {
+    if (!timesWrap) return;
+    timesWrap.innerHTML = "";
+    (times || []).forEach(function (t) {
+      var tt = String(t || "").trim();
+      if (!/^\d{1,2}:\d{2}$/.test(tt)) return;
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "dei-plain-time";
+      b.setAttribute("data-dei-time", tt);
+      b.textContent = tt;
+      timesWrap.appendChild(b);
+    });
+  }
+
+  function deiRefreshPlainCheckoutTimesIfMounted() {
+    var root = document.getElementById("dei-plain-checkout-root");
+    if (!root) return;
+    var wrap = root.querySelector(".dei-plain-times");
+    var iso = ruLabelToIso(state.dateLabel);
+    if (!wrap || !iso) return;
+    deiFetchDaySlotTimes(iso, function (times) {
+      deiPlainFillTimesWrap(wrap, times);
+      if (state.time && times.indexOf(state.time) === -1) state.time = null;
+      deiSyncTimeSlotSelection();
+      deiScheduleQuoteRefresh(document.getElementById(FORM_ID));
+    });
+  }
+
+  function deiScrapeTicketLabels(root) {
+    var def = {
+      adult: "Взрослый билет",
+      child: "Детский билет",
+      concession: "Льготный билет",
+    };
+    if (!root) return def;
+    var out = { adult: def.adult, child: def.child, concession: def.concession };
+    root.querySelectorAll(".tn-atom").forEach(function (el) {
+      var t = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (/взросл/i.test(t) && /билет/i.test(t) && /BYN/i.test(t)) out.adult = t;
+      else if (/детск/i.test(t) && /билет/i.test(t) && /BYN/i.test(t)) out.child = t;
+      else if (/льготн/i.test(t) && /билет/i.test(t) && /BYN/i.test(t)) out.concession = t;
+    });
+    return out;
+  }
+
+  function deiNormHintLine(s) {
+    return String(s || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/^c(\s)/i, "с$1");
+  }
+
+  function deiScrapeTicketHints(root) {
+    var empty = { adult: "", child: "", concession: "" };
+    if (!root) return empty;
+    var out = { adult: "", child: "", concession: "" };
+    root.querySelectorAll(".tn-atom").forEach(function (el) {
+      var raw = (el.textContent || "").replace(/\s+/g, " ").trim();
+      var t = deiNormHintLine(raw);
+      if (/^с\s*12\s+лет$/i.test(t) && !/3\s*до/i.test(raw)) out.adult = t;
+      else if (/3\s*до\s*12/i.test(t) || /с\s*3\s*до/i.test(t)) out.child = t;
+      else if (/пенсион|инвалид/i.test(t)) out.concession = t;
+    });
+    return out;
+  }
+
+  function deiPlainAppendTicketRow(section, title, hint, tier) {
+    var row = document.createElement("div");
+    row.className = "dei-plain-ticket-row";
+    var textCol = document.createElement("div");
+    textCol.className = "dei-plain-ticket-text";
+    var tit = document.createElement("span");
+    tit.className = "dei-plain-ticket-title";
+    tit.textContent = title;
+    textCol.appendChild(tit);
+    if (hint) {
+      var hEl = document.createElement("span");
+      hEl.className = "dei-plain-ticket-hint";
+      hEl.textContent = hint;
+      textCol.appendChild(hEl);
+    }
+    row.appendChild(textCol);
+    var stepper = document.createElement("div");
+    stepper.className = "dei-plain-stepper";
+    function stepBtn(delta, aria) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "dei-plain-step";
+      b.setAttribute("data-dei-tier", tier);
+      b.setAttribute("data-dei-step", String(delta));
+      b.setAttribute("aria-label", aria);
+      b.textContent = delta < 0 ? "−" : "+";
+      return b;
+    }
+    stepper.appendChild(stepBtn(-1, "Меньше"));
+    var val = document.createElement("span");
+    val.className = "dei-plain-stepper-val";
+    val.setAttribute("data-dei-count", tier);
+    val.textContent = "0";
+    stepper.appendChild(val);
+    stepper.appendChild(stepBtn(1, "Больше"));
+    row.appendChild(stepper);
+    section.appendChild(row);
+  }
+
+  function deiMountPlainPopupOnce() {
+    if (document.getElementById("dei-plain-checkout-root")) return;
+    var rec = document.getElementById(REC_POPUP);
+    var form = document.getElementById(FORM_ID);
+    var t396 = rec && rec.querySelector(".t396");
+    if (!rec || !form || !t396) return;
+    var iso = ruLabelToIso(state.dateLabel);
+    if (!iso) return;
+    if (rec.getAttribute("data-dei-plain-mounting") === "1") return;
+    rec.setAttribute("data-dei-plain-mounting", "1");
+
+    deiFetchDaySlotTimes(iso, function (times) {
+      try {
+        if (document.getElementById("dei-plain-checkout-root")) return;
+        if (!times.length) return;
+
+      deiPlainCounts.adult = readCountByElemId(COUNT_IDS.adult);
+      deiPlainCounts.child = readCountByElemId(COUNT_IDS.child);
+      deiPlainCounts.concession = readCountByElemId(COUNT_IDS.concession);
+
+      var root = document.createElement("div");
+      root.id = "dei-plain-checkout-root";
+      root.className = "dei-plain-checkout";
+
+      var sec1 = document.createElement("div");
+      sec1.className = "dei-plain-section";
+      var h1 = document.createElement("h2");
+      h1.className = "dei-plain-heading";
+      h1.textContent = "Выберите время";
+      sec1.appendChild(h1);
+      var timesWrap = document.createElement("div");
+      timesWrap.className = "dei-plain-times";
+      timesWrap.setAttribute("role", "group");
+      timesWrap.setAttribute("aria-label", "Время сеанса");
+      deiPlainFillTimesWrap(timesWrap, times);
+      sec1.appendChild(timesWrap);
+      root.appendChild(sec1);
+
+      var sec2 = document.createElement("div");
+      sec2.className = "dei-plain-section";
+      var h2 = document.createElement("h2");
+      h2.className = "dei-plain-heading";
+      h2.textContent = "Билеты";
+      sec2.appendChild(h2);
+      var ticketLab = deiScrapeTicketLabels(rec);
+      var hintLab = deiScrapeTicketHints(rec);
+      deiPlainAppendTicketRow(sec2, ticketLab.adult, hintLab.adult, "adult");
+      deiPlainAppendTicketRow(sec2, ticketLab.child, hintLab.child, "child");
+      deiPlainAppendTicketRow(sec2, ticketLab.concession, hintLab.concession, "concession");
+      root.appendChild(sec2);
+
+      var slot = document.createElement("div");
+      slot.id = "dei-plain-form-slot";
+      slot.className = "dei-plain-form-slot";
+      root.appendChild(slot);
+
+      rec.insertBefore(root, t396);
+      t396.setAttribute("hidden", "");
+      t396.setAttribute("aria-hidden", "true");
+      t396.style.display = "none";
+
+      form.parentNode.removeChild(form);
+      slot.appendChild(form);
+
+      deiSyncPlainCountDisplays();
+
+      root.addEventListener("click", function (e) {
+        var tb = e.target.closest(".dei-plain-time");
+        if (tb && root.contains(tb)) {
+          var tt = (tb.getAttribute("data-dei-time") || "").trim();
+          if (/^\d{1,2}:\d{2}$/.test(tt)) {
+            state.time = tt;
+            deiSyncTimeSlotSelection();
+            deiScheduleQuoteRefresh(document.getElementById(FORM_ID));
+          }
+          return;
+        }
+        var st = e.target.closest(".dei-plain-step");
+        if (!st || !root.contains(st)) return;
+        var tier = st.getAttribute("data-dei-tier");
+        var d = parseInt(st.getAttribute("data-dei-step"), 10);
+        if ((tier !== "adult" && tier !== "child" && tier !== "concession") || !Number.isFinite(d)) return;
+        deiPlainCounts[tier] = Math.max(0, deiPlainCounts[tier] + d);
+        deiSyncPlainCountDisplays();
+        var f = document.getElementById(FORM_ID);
+        if (f) deiScheduleQuoteRefresh(f);
+      });
+      } finally {
+        rec.removeAttribute("data-dei-plain-mounting");
+      }
+    });
+  }
+
   function getPhone(form) {
     var h = form.querySelector('input.js-phonemask-result[name="Phone"]');
     if (h && h.value) return h.value.trim();
     var vis = form.querySelector("input.t-input-phonemask");
     return vis ? String(vis.value || "").trim() : "";
+  }
+
+  function deiEsc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/\"/g, "&quot;");
+  }
+
+  function deiNormalizePromoCode(s) {
+    return String(s || "").trim().toUpperCase();
+  }
+
+  function deiPromoMsg(form, text) {
+    var m = form && form.querySelector(".dei-promo-field__msg");
+    if (!m) return;
+    var t = String(text || "").trim();
+    if (t) {
+      m.textContent = t;
+      m.removeAttribute("hidden");
+    } else {
+      m.textContent = "";
+      m.setAttribute("hidden", "");
+    }
+  }
+
+  function deiRenderOrderTotalFromQuote(out, body) {
+    if (!out || !body || typeof body.formattedTotal !== "string") return;
+    if (body.promo && body.promo.applied === true && typeof body.promo.formattedAmount === "string") {
+      out.innerHTML =
+        'Сумма заказа: <span class="dei-order-total__was">' +
+        deiEsc(body.formattedTotal) +
+        '</span> <span class="dei-order-total__now">' +
+        deiEsc(body.promo.formattedAmount) +
+        "</span>";
+    } else {
+      out.textContent = "Сумма заказа: " + body.formattedTotal;
+    }
+  }
+
+  function deiApplyPromo(form) {
+    var row = form.querySelector(".dei-promo-field--checkout");
+    var inp = row && row.querySelector('input[name="promoCode"]');
+    if (!inp) return;
+    var raw = String(inp.value || "").trim();
+    var date = ruLabelToIso(state.dateLabel);
+    var time = state.time;
+    var tc = deiReadTicketCounts();
+    var adult = tc.adult;
+    var child = tc.child;
+    var concession = tc.concession;
+    if (!date || !time) {
+      deiPromoMsg(form, "Сначала выберите дату и время сеанса");
+      return;
+    }
+    if (adult + child + concession < 1) {
+      deiPromoMsg(form, "Укажите количество билетов");
+      return;
+    }
+    var btn = row.querySelector(".dei-promo-apply");
+    if (!raw) {
+      form.dataset.deiPromoForQuote = "";
+      deiPromoMsg(form, "");
+      deiScheduleQuoteRefresh(form);
+      return;
+    }
+    var base = API_BASE.replace(/\/$/, "");
+    var url =
+      base +
+      "/api/public/order-quote?date=" +
+      encodeURIComponent(date) +
+      "&time=" +
+      encodeURIComponent(time) +
+      "&adult=" +
+      adult +
+      "&child=" +
+      child +
+      "&concession=" +
+      concession +
+      "&promoCode=" +
+      encodeURIComponent(raw);
+    if (btn) {
+      btn.disabled = true;
+      btn.setAttribute("aria-busy", "true");
+    }
+    var out = document.getElementById("dei-order-total");
+    fetch(url)
+      .then(function (r) {
+        return r.json().then(function (j) {
+          return { ok: r.ok, body: j };
+        });
+      })
+      .then(function (res) {
+        if (!res.ok || !res.body || typeof res.body.formattedTotal !== "string") {
+          deiPromoMsg(form, "Не удалось проверить промокод");
+          return;
+        }
+        if (res.body.promo && res.body.promo.applied === false) {
+          form.dataset.deiPromoForQuote = "";
+          deiPromoMsg(form, res.body.promo.hint || "Промокод не применён");
+          if (out) deiRenderOrderTotalFromQuote(out, res.body);
+          return;
+        }
+        if (res.body.promo && res.body.promo.applied === true) {
+          form.dataset.deiPromoForQuote = deiNormalizePromoCode(raw);
+          deiPromoMsg(form, "");
+          if (out) deiRenderOrderTotalFromQuote(out, res.body);
+          return;
+        }
+        form.dataset.deiPromoForQuote = deiNormalizePromoCode(raw);
+        deiPromoMsg(
+          form,
+          "Предпросмотр скидки недоступен. Промокод будет учтён при оплате.",
+        );
+        if (out) out.textContent = "Сумма заказа: " + res.body.formattedTotal;
+      })
+      .catch(function () {
+        deiPromoMsg(form, "Ошибка сети");
+      })
+      .finally(function () {
+        if (btn) {
+          btn.disabled = false;
+          btn.removeAttribute("aria-busy");
+        }
+      });
+  }
+
+  function deiBindPromoUi(form) {
+    if (!form || form.dataset.deiPromoUiBound === "1") return;
+    form.dataset.deiPromoUiBound = "1";
+    form.addEventListener(
+      "click",
+      function (e) {
+        var b = e.target && e.target.closest && e.target.closest(".dei-promo-apply");
+        if (!b || !form.contains(b)) return;
+        e.preventDefault();
+        deiApplyPromo(form);
+      },
+      true
+    );
+    form.addEventListener(
+      "input",
+      function (e) {
+        var t = e.target;
+        if (!t || !t.closest || !t.closest(".dei-promo-field--checkout")) return;
+        if (t.getAttribute("name") !== "promoCode") return;
+        var applied = (form.dataset.deiPromoForQuote || "").trim();
+        if (!applied) return;
+        if (deiNormalizePromoCode(t.value) !== applied) {
+          form.dataset.deiPromoForQuote = "";
+          deiPromoMsg(form, "");
+          deiScheduleQuoteRefresh(form);
+        }
+      },
+      true
+    );
+  }
+
+  function deiEnsurePromoFieldAfterPhone(form) {
+    if (!form) return;
+    if (form.querySelector(".dei-promo-field--checkout")) {
+      deiBindPromoUi(form);
+      return;
+    }
+    var legacy = form.querySelector(".t-input-group.t-input-group_dei-promo.dei-promo-field");
+    if (legacy && legacy.parentNode) {
+      legacy.parentNode.removeChild(legacy);
+      form.dataset.deiPromoFieldAttached = "";
+    }
+    if (form.dataset.deiPromoFieldAttached === "1") return;
+    var phoneGroup = form.querySelector(".t-input-group_ph");
+    if (!phoneGroup || !phoneGroup.parentNode) return;
+    var wrap = document.createElement("div");
+    wrap.className =
+      "t-input-group t-input-group_dei-promo dei-promo-field dei-promo-field--checkout";
+    wrap.style.marginBottom = "20px";
+    wrap.innerHTML =
+      '<div class="t-input-title t-descr t-descr_md dei-promo-field__title">Промокод</div>' +
+      '<div class="dei-promo-field__row">' +
+      '<div class="t-input-block dei-promo-field__input-wrap">' +
+      '<input type="text" class="t-input js-tilda-rule t-input-inline-styles dei-promo-field__input" name="promoCode" autocomplete="off" maxlength="64" placeholder="Промокод" aria-label="Промокод" />' +
+      "</div>" +
+      '<button type="button" class="dei-promo-apply">Применить</button>' +
+      "</div>" +
+      '<div class="dei-promo-field__msg" hidden></div>';
+    phoneGroup.parentNode.insertBefore(wrap, phoneGroup.nextSibling);
+    form.dataset.deiPromoFieldAttached = "1";
+    deiBindPromoUi(form);
   }
 
   document.addEventListener(
@@ -1271,6 +1762,12 @@ background-image: none !important;
     pop.querySelectorAll(".tn-elem.dei-time-slot-selected").forEach(function (el) {
       el.classList.remove("dei-time-slot-selected");
     });
+    var plainRoot = document.getElementById("dei-plain-checkout-root");
+    if (plainRoot) {
+      plainRoot.querySelectorAll(".dei-plain-time--selected").forEach(function (b) {
+        b.classList.remove("dei-plain-time--selected");
+      });
+    }
     if (!t) return;
     pop.querySelectorAll(".tn-atom__button-text").forEach(function (span) {
       var tx = (span.textContent || "").trim();
@@ -1278,6 +1775,13 @@ background-image: none !important;
       var slot = span.closest(".tn-elem");
       if (slot) slot.classList.add("dei-time-slot-selected");
     });
+    if (plainRoot) {
+      plainRoot.querySelectorAll(".dei-plain-time").forEach(function (b) {
+        if ((b.getAttribute("data-dei-time") || "").trim() === t) {
+          b.classList.add("dei-plain-time--selected");
+        }
+      });
+    }
   }
 
   document.addEventListener(
@@ -1301,6 +1805,8 @@ background-image: none !important;
             });
             dayLink.classList.add("dei-cal-day-selected");
           }
+          deiMountPlainPopupOnce();
+          deiRefreshPlainCheckoutTimesIfMounted();
           deiScheduleQuoteRefresh(document.getElementById(FORM_ID));
         }
       }
@@ -1353,7 +1859,11 @@ background-image: none !important;
         REC_POPUP +
         " .tn-elem.plus2, #" +
         REC_POPUP +
-        " .tn-elem.minus2";
+        " .tn-elem.minus2, #" +
+        REC_POPUP +
+        " .dei-plain-step, #" +
+        REC_POPUP +
+        " .dei-plain-time";
       if (e.target.closest(sel)) deiClearTextSelection();
     },
     true
@@ -1399,11 +1909,16 @@ background-image: none !important;
     var gen = ++deiQuoteGen;
     var date = ruLabelToIso(state.dateLabel);
     var time = state.time;
-    var adult = readCountByElemId(COUNT_IDS.adult);
-    var child = readCountByElemId(COUNT_IDS.child);
-    var concession = readCountByElemId(COUNT_IDS.concession);
+    var tc = deiReadTicketCounts();
+    var adult = tc.adult;
+    var child = tc.child;
+    var concession = tc.concession;
     if (!date || !time) {
       out.textContent = !date ? "Выберите дату и время сеанса" : "Выберите время сеанса";
+      return;
+    }
+    if (adult + child + concession < 1) {
+      out.textContent = "Укажите количество билетов";
       return;
     }
     var base = API_BASE.replace(/\/$/, "");
@@ -1419,6 +1934,10 @@ background-image: none !important;
       child +
       "&concession=" +
       concession;
+    var promoQ = form && (form.dataset.deiPromoForQuote || "").trim();
+    if (promoQ) {
+      url += "&promoCode=" + encodeURIComponent(promoQ);
+    }
     out.textContent = "…";
     fetch(url)
       .then(function (r) {
@@ -1432,7 +1951,11 @@ background-image: none !important;
           out.textContent = "Не удалось посчитать сумму";
           return;
         }
-        out.textContent = "Сумма заказа: " + res.body.formattedTotal;
+        if (form && promoQ && res.body.promo && res.body.promo.applied === false) {
+          form.dataset.deiPromoForQuote = "";
+          deiPromoMsg(form, res.body.promo.hint || "Промокод больше не действует");
+        }
+        deiRenderOrderTotalFromQuote(out, res.body);
       })
       .catch(function () {
         if (gen !== deiQuoteGen) return;
@@ -1457,7 +1980,8 @@ background-image: none !important;
         deiRefreshOrderTotal(form);
       }, 40);
     });
-    deiQuoteObserver.observe(pop, { subtree: true, childList: true, characterData: true });
+    var obsHost = document.getElementById("dei-plain-checkout-root") || pop;
+    deiQuoteObserver.observe(obsHost, { subtree: true, childList: true, characterData: true });
   }
 
   function deiBindOrderTotalRefresh(form) {
@@ -1478,12 +2002,12 @@ background-image: none !important;
 
   function deiResetTicketPopupExceptDate() {
     state.time = null;
+    deiPlainCounts.adult = 0;
+    deiPlainCounts.child = 0;
+    deiPlainCounts.concession = 0;
+    deiSyncPlainCountDisplays();
+    deiSyncTimeSlotSelection();
     var pop = document.getElementById(REC_POPUP);
-    if (pop) {
-      pop.querySelectorAll(".tn-elem.dei-time-slot-selected").forEach(function (el) {
-        el.classList.remove("dei-time-slot-selected");
-      });
-    }
     if (typeof jQuery !== "undefined") {
       var $p = jQuery("#rec1961449631");
       ["count", "count1", "count2"].forEach(function (c) {
@@ -1505,6 +2029,8 @@ background-image: none !important;
     }
     var form = document.getElementById(FORM_ID);
     if (form) {
+      form.dataset.deiPromoForQuote = "";
+      deiPromoMsg(form, "");
       try {
         form.reset();
       } catch (err) {}
@@ -1619,9 +2145,10 @@ background-image: none !important;
 
     var date = ruLabelToIso(state.dateLabel);
     var time = state.time;
-    var adult = readCountByElemId(COUNT_IDS.adult);
-    var child = readCountByElemId(COUNT_IDS.child);
-    var concession = readCountByElemId(COUNT_IDS.concession);
+    var tc = deiReadTicketCounts();
+    var adult = tc.adult;
+    var child = tc.child;
+    var concession = tc.concession;
     var name = (form.querySelector('input[name="name"]') || {}).value;
     var email = (form.querySelector('input[name="email"]') || {}).value;
     var phone = getPhone(form);
@@ -1629,6 +2156,8 @@ background-image: none !important;
     var emailTrim = (email || "").trim();
     var phoneTrim = String(phone || "").trim();
     var phoneDigits = phoneTrim.replace(/\D/g, "");
+    var promoEl = form.querySelector('input[name="promoCode"]');
+    var promoTrim = promoEl ? String(promoEl.value || "").trim() : "";
     var consent = form.querySelector('input[name="Checkbox"]');
 
     if (!nameTrim) {
@@ -1676,19 +2205,21 @@ background-image: none !important;
     }
     deiSetSubmitPending(btn, true);
 
+    var orderPayload = {
+      date: date,
+      time: time,
+      adult: adult,
+      child: child,
+      concession: concession,
+      name: nameTrim,
+      email: emailTrim,
+      phone: phoneTrim,
+    };
+    if (promoTrim) orderPayload.promoCode = promoTrim;
     fetch(API_BASE.replace(/\/$/, "") + "/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        date: date,
-        time: time,
-        adult: adult,
-        child: child,
-        concession: concession,
-        name: nameTrim,
-        email: emailTrim,
-        phone: phoneTrim,
-      }),
+      body: JSON.stringify(orderPayload),
     })
       .then(function (r) {
         return r.json().then(function (j) {
@@ -1795,7 +2326,9 @@ background-image: none !important;
   function tryHook() {
     getTicketForms().forEach(function (form) {
       hookForm(form);
+      deiEnsurePromoFieldAfterPhone(form);
     });
+    deiMountPlainPopupOnce();
   }
 
   if (!window.__deiCheckoutDelegated) {
@@ -1965,7 +2498,7 @@ ym(108517548,"init",{ssr:!0,webvisor:!0,clickmap:!0,ecommerce:"dataLayer",referr
 <div class="t-input-phonemask__options-wrap" data-nosnippet=""></div><style id="dei-cal-day-fill">
 :root {
   --dei-cal-day-accent: rgb(255, 98, 130);
-  --dei-page-canvas: #0b0d18;
+  --dei-page-canvas: transparent;
 }
 /* Полностью скрываем legacy-подсказки валидации экспорта Tilda. */
 #form1961449631 .t-input-error {
@@ -1978,6 +2511,104 @@ ym(108517548,"init",{ssr:!0,webvisor:!0,clickmap:!0,ecommerce:"dataLayer",referr
   border-color: transparent !important;
   box-shadow: none !important;
 }
+#form1961449631 .tn-form__submit {
+  margin-bottom: 30px !important;
+}
+/* Автозаполнение: без «жёлтой» подсветки и без UA :-internal-autofill-selected (Chromium). */
+#form1961449631 input:-webkit-autofill,
+#form1961449631 input:-webkit-autofill:hover,
+#form1961449631 input:-webkit-autofill:focus,
+#form1961449631 input:-webkit-autofill:active,
+#form1961449631 textarea:-webkit-autofill,
+#form1961449631 textarea:-webkit-autofill:hover,
+#form1961449631 textarea:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  -webkit-text-fill-color: rgb(255, 255, 255) !important;
+  caret-color: rgb(255, 255, 255);
+  transition: background-color 99999s ease-out 0s;
+}
+#form1961449631 input:autofill,
+#form1961449631 textarea:autofill {
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  -webkit-text-fill-color: rgb(255, 255, 255) !important;
+  caret-color: rgb(255, 255, 255);
+}
+#form1961449631 input:-internal-autofill-selected,
+#form1961449631 textarea:-internal-autofill-selected {
+  appearance: auto !important;
+  background-image: none !important;
+  background-color: transparent !important;
+  color: rgb(255, 255, 255) !important;
+}
+#form1961449631 .dei-promo-field__title {
+  font-family: var(--t-text-font, Arial), Arial, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 200 !important;
+  line-height: 1.35 !important;
+  letter-spacing: normal !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  margin-bottom: 8px;
+}
+#form1961449631 .dei-promo-field__row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+#form1961449631 .dei-promo-field__input-wrap {
+  flex: 1;
+  min-width: 0;
+}
+#form1961449631 .dei-promo-field__input {
+  width: 100%;
+  box-sizing: border-box;
+  color: rgb(255, 255, 255);
+  border: 1px solid rgb(255, 255, 255);
+  background-color: transparent;
+  border-radius: 15px;
+  font-size: 16px;
+  font-weight: 200;
+  height: 50px;
+  padding: 0 16px;
+}
+#form1961449631 .dei-promo-apply {
+  flex-shrink: 0;
+  align-self: stretch;
+  height: 50px;
+  padding: 0 18px;
+  border-radius: 15px;
+  border: 1px solid rgb(255, 255, 255);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 15px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#form1961449631 .dei-promo-apply:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+#form1961449631 .dei-promo-apply:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+#form1961449631 .dei-promo-field__msg:not([hidden]) {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #f95d51;
+}
+#rec1961449631 .dei-order-total__was {
+  text-decoration: line-through;
+  opacity: 0.75;
+  margin-right: 6px;
+}
+#rec1961449631 .dei-order-total__now {
+  font-weight: 600;
+}
 /* Выбранное время в попапе билетов — розовый акцент */
 #rec1961449631 .tn-elem.dei-time-slot-selected .tn-atom {
   background-color: rgba(255, 98, 130, 0.22) !important;
@@ -1986,6 +2617,429 @@ ym(108517548,"init",{ssr:!0,webvisor:!0,clickmap:!0,ecommerce:"dataLayer",referr
 #rec1961449631 .tn-elem.dei-time-slot-selected .tn-atom__button-border {
   border-color: var(--dei-cal-day-accent) !important;
   opacity: 1 !important;
+}
+/* Упрощённый попап билетов (без Zero Block в потоке) */
+#rec1961449631:has(#dei-plain-checkout-root) .t396 {
+  display: none !important;
+}
+.dei-plain-checkout {
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 16px clamp(14px, 4vw, 28px) calc(72px + env(safe-area-inset-bottom, 0px));
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  color: #ffffff;
+  font-family: var(--t-headline-font, var(--t-text-font, Arial)), Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.dei-plain-checkout::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.dei-plain-section {
+  margin-bottom: 32px;
+}
+.dei-plain-section:last-of-type {
+  margin-bottom: 28px;
+}
+.dei-plain-heading {
+  font-family: var(--t-headline-font, Arial), Arial, sans-serif;
+  font-size: 30px;
+  font-weight: 500;
+  line-height: 1.55;
+  letter-spacing: normal;
+  margin: 0 0 20px;
+  color: #ffffff;
+}
+@media screen and (max-width: 1199px) {
+  .dei-plain-heading {
+    font-size: 26px;
+  }
+}
+@media screen and (max-width: 479px) {
+  .dei-plain-heading {
+    font-size: 22px;
+    line-height: 1.35;
+  }
+}
+.dei-plain-times {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  row-gap: 12px;
+}
+@media screen and (max-width: 374px) {
+  .dei-plain-times {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    row-gap: 10px;
+  }
+}
+.dei-plain-time {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 8px;
+  border: 1px solid #ff6282;
+  background-color: transparent;
+  color: #ffffff;
+  border-radius: 12px;
+  font-family: var(--t-headline-font, Arial), Arial, sans-serif;
+  font-size: 24px;
+  font-weight: 200;
+  line-height: 1.55;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+}
+@media screen and (max-width: 1199px) {
+  .dei-plain-time {
+    font-size: 17px;
+    min-height: 52px;
+    padding: 9px 6px;
+  }
+}
+@media screen and (max-width: 479px) {
+  .dei-plain-time {
+    font-size: 13px;
+    min-height: 46px;
+    padding: 8px 4px;
+    border-radius: 10px;
+  }
+}
+.dei-plain-time:hover {
+  background-color: rgba(255, 98, 130, 0.12);
+  border-color: #ff6282;
+}
+.dei-plain-time--selected {
+  background-color: rgb(255, 98, 130) !important;
+  border-color: rgb(255, 98, 130) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+.dei-plain-ticket-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.dei-plain-ticket-row:last-child {
+  margin-bottom: 0;
+}
+.dei-plain-ticket-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding-right: 4px;
+}
+.dei-plain-ticket-title {
+  font-family: var(--t-headline-font, Arial), Arial, sans-serif;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.55;
+  color: #ffffff;
+}
+@media screen and (max-width: 1199px) {
+  .dei-plain-ticket-title {
+    font-size: 18px;
+  }
+}
+@media screen and (max-width: 479px) {
+  .dei-plain-ticket-title {
+    font-size: 18px;
+    line-height: 1.2;
+  }
+}
+.dei-plain-ticket-hint {
+  font-family: var(--t-headline-font, Arial), Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 200;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.95);
+}
+@media screen and (max-width: 1199px) {
+  .dei-plain-ticket-hint {
+    font-size: 16px;
+  }
+}
+@media screen and (max-width: 479px) {
+  .dei-plain-ticket-hint {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+}
+.dei-plain-stepper {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-shrink: 0;
+}
+.dei-plain-step {
+  box-sizing: border-box;
+  min-width: 28px;
+  min-height: 44px;
+  padding: 0 2px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: var(--t-headline-font, Arial), Arial, sans-serif;
+  font-size: 28px;
+  font-weight: 200;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s ease, transform 0.1s ease;
+}
+.dei-plain-step:hover {
+  color: #ff6282;
+  background: transparent;
+}
+.dei-plain-step:active {
+  transform: scale(0.92);
+}
+.dei-plain-stepper-val {
+  box-sizing: border-box;
+  flex-shrink: 0;
+  min-width: 1.25em;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  font-family: var(--t-headline-font, Arial), Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 200;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #ffffff;
+}
+.dei-plain-stepper-val[data-dei-count-width="2"] {
+  min-width: 2ch;
+  padding: 0 2px;
+}
+@media screen and (max-width: 479px) {
+  .dei-plain-stepper-val {
+    font-size: 16px;
+  }
+  .dei-plain-stepper-val[data-dei-count-width="2"] {
+    min-width: 2.25ch;
+  }
+  .dei-plain-step {
+    font-size: 24px;
+  }
+  .dei-plain-stepper {
+    gap: 14px;
+  }
+}
+.dei-plain-form-slot {
+  margin-top: 18px;
+}
+/* Форма Тильды внутри plain-чекаута — как в экспорте Zero Block */
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input-group,
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-form__inputsbox .t-input-group {
+  margin-bottom: 25px !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input,
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 textarea.t-input {
+  font-family: var(--t-text-font, Arial), Arial, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 200 !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.4 !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.88) !important;
+  background-color: transparent !important;
+  color: rgba(255, 255, 255, 0.98) !important;
+  padding-left: 32px !important;
+  padding-right: 32px !important;
+  height: 48px !important;
+  box-sizing: border-box !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input::placeholder,
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 textarea.t-input::placeholder {
+  color: rgba(255, 255, 255, 0.55) !important;
+  font-weight: 200 !important;
+  letter-spacing: 0.06em !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input::-webkit-input-placeholder,
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 textarea.t-input::-webkit-input-placeholder {
+  color: rgba(255, 255, 255, 0.55) !important;
+  font-weight: 200 !important;
+  letter-spacing: 0.06em !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input::-moz-placeholder,
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 textarea.t-input::-moz-placeholder {
+  color: rgba(255, 255, 255, 0.55) !important;
+  font-weight: 200 !important;
+  letter-spacing: 0.06em !important;
+  opacity: 1 !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input-phonemask__wrap {
+  font-family: var(--t-text-font, Arial), Arial, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 200 !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.4 !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.88) !important;
+  background-color: transparent !important;
+  color: rgba(255, 255, 255, 0.98) !important;
+  padding-left: 12px !important;
+  padding-right: 14px !important;
+  height: 48px !important;
+  box-sizing: border-box !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex-wrap: nowrap !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input-phonemask__select {
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+  padding: 0 6px 0 0 !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input-phonemask__select-code {
+  margin-left: 4px !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input-phonemask__select-triangle {
+  margin-left: 2px !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input-phonemask__wrap .t-input.t-input-phonemask,
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input-phonemask__wrap input.t-input-phonemask {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border-radius: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  width: 0 !important;
+  padding-left: 6px !important;
+  padding-right: 0 !important;
+  margin: 0 !important;
+  text-align: left !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input-phonemask {
+  font-family: var(--t-text-font, Arial), Arial, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 200 !important;
+  letter-spacing: 0 !important;
+  color: rgba(255, 255, 255, 0.98) !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input-phonemask::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+  letter-spacing: 0.06em !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input-phonemask::-webkit-input-placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+  letter-spacing: 0.06em !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-input-phonemask::-moz-placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+  letter-spacing: 0.06em !important;
+  opacity: 1 !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-checkbox__control {
+  border-radius: 4px !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-checkbox__labeltext,
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .t-checkbox__label {
+  font-family: var(--t-text-font, Arial), Arial, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 200 !important;
+  line-height: 1.45 !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 button.t-submit {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: 52px !important;
+  padding: 14px 20px !important;
+  border-radius: 999px !important;
+  border: none !important;
+  /* Текстовый шрифт темы (sans), не headline — чтобы совпадало с «Перейти к оплате» на основном блоке */
+  font-family: var(--t-text-font, Arial), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+  background: var(--dei-cal-day-accent, rgb(255, 98, 130)) !important;
+  color: #fff !important;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 button.t-submit:hover {
+  background: rgb(236, 78, 112) !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 button.t-submit:active {
+  transform: scale(0.99);
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .dei-promo-field__input {
+  height: 48px !important;
+  border-radius: 999px !important;
+  font-family: var(--t-text-font, Arial), Arial, sans-serif !important;
+  font-weight: 200 !important;
+  letter-spacing: 0.02em !important;
+  background-color: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.88) !important;
+  padding-left: 32px !important;
+  padding-right: 32px !important;
+  box-sizing: border-box !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .dei-promo-field__input::placeholder {
+  color: rgba(255, 255, 255, 0.55) !important;
+  letter-spacing: 0.06em !important;
+  font-weight: 200 !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .dei-promo-field__input::-webkit-input-placeholder {
+  color: rgba(255, 255, 255, 0.55) !important;
+  letter-spacing: 0.06em !important;
+  font-weight: 200 !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .dei-promo-field__input::-moz-placeholder {
+  color: rgba(255, 255, 255, 0.55) !important;
+  letter-spacing: 0.06em !important;
+  font-weight: 200 !important;
+  opacity: 1 !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .dei-promo-apply {
+  border: 1px solid rgba(255, 255, 255, 0.88) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+  font-family: var(--t-text-font, Arial), Arial, sans-serif !important;
+  font-weight: 200 !important;
+  font-size: 16px !important;
+  letter-spacing: 0.03em !important;
+  border-radius: 999px !important;
+  height: 48px !important;
+  box-sizing: border-box !important;
+}
+#rec1961449631:has(#dei-plain-checkout-root) #form1961449631 .dei-promo-apply:hover {
+  border-color: #ff6282 !important;
+  background: rgba(255, 98, 130, 0.12) !important;
+  color: #fff !important;
 }
 /* Фон страницы: картинка на слое body::before — иначе backdrop-filter у попапа часто не размывает фон с html. */
 html {
