@@ -8,6 +8,7 @@ type Status =
   | "pending"
   | "pending_timeout"
   | "payment_incomplete"
+  | "refunded"
   | "other"
   | "error";
 
@@ -84,6 +85,10 @@ export function SuccessClient({
           setStatus("paid");
           return;
         }
+        if (data.status === "REFUNDED") {
+          setStatus("refunded");
+          return;
+        }
         if (data.status === "PENDING") {
           tries += 1;
           if (tries >= MAX_PENDING_POLLS) {
@@ -145,6 +150,19 @@ export function SuccessClient({
               {supportEmail}
             </a>{" "}
             с номером заказа ниже.
+          </p>
+        </div>
+      ) : null}
+
+      {status === "refunded" ? (
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-800">
+          <p className="font-medium text-zinc-900">По этому заказу оформлен возврат средств.</p>
+          <p className="mt-2 text-zinc-600">
+            Билет недействителен. При вопросах напишите на{" "}
+            <a className="font-medium underline" href={`mailto:${supportEmail}`}>
+              {supportEmail}
+            </a>
+            .
           </p>
         </div>
       ) : null}

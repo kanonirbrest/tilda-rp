@@ -7,6 +7,7 @@ import {
   parseMajorUnitsToMinor,
   parseOptionalMajorUnitsToMinor,
 } from "@/lib/money";
+import { formatDisplayDateTime } from "@/lib/format-display-datetime";
 import { tierTicketSingularRu } from "@/lib/slot-pricing";
 import type { TicketTier } from "@prisma/client";
 
@@ -36,6 +37,9 @@ type OrderRow = {
   status: string;
   createdAt: string;
   paidAt: string | null;
+  refundedAt: string | null;
+  /** Есть checkout-токен или UID транзакции списания (для возврата без ручного parent_uid). */
+  hasBepaidReference: boolean;
   subtotalCents: number;
   discountCents: number;
   amountCents: number;
@@ -66,6 +70,7 @@ type OrdersResponse = {
   total: number;
   limit: number;
   offset: number;
+  bepaidRefundAvailable: boolean;
   orders: OrderRow[];
 };
 
@@ -119,7 +124,7 @@ function todayDateKey(): string {
 
 function isActiveOrderStatus(status: string): boolean {
   const s = status.toLowerCase();
-  return s === "pending" || s === "paid";
+  return s === "pending" || s === "paid" || s === "refunded";
 }
 
 /** Плашка прохода рядом со статусом оплаты (только для PAID). */
@@ -130,7 +135,7 @@ function visitPillForOrder(visitState: OrderVisitState): { cls: string; label: s
   return { cls: "visit-no", label: "не прошёл" };
 }
 
-type OrderPayFilter = "all" | "paid" | "pending";
+type OrderPayFilter = "all" | "paid" | "pending" | "refunded";
 type OrderVisitFilter = "all" | "visited" | "not_visited" | "partial" | "not_full";
 
 function orderMatchesFilters(
@@ -141,6 +146,7 @@ function orderMatchesFilters(
   const st = o.status.toUpperCase();
   if (pay === "paid" && st !== "PAID") return false;
   if (pay === "pending" && st !== "PENDING") return false;
+  if (pay === "refunded" && st !== "REFUNDED") return false;
   if (pay === "all" && !isActiveOrderStatus(o.status)) return false;
 
   if (st !== "PAID") {
@@ -263,6 +269,88 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return json as T;
 }
 
+function OrderBepaidRefundPanel({
+  order,
+  bepaidRefundAvailable,
+  onDone,
+}: {
+  order: OrderRow;
+  bepaidRefundAvailable: boolean;
+  /** `ok` — только что возвращён; `duplicate` — уже был REFUNDED (гонка или повтор). */
+  onDone: (kind: "ok" | "duplicate") => void;
+}) {
+  const [manualParent, setManualParent] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  if (!bepaidRefundAvailable || order.status.toUpperCase() !== "PAID") return null;
+
+  const needsManualParent = !order.hasBepaidReference;
+  const canSubmit = !needsManualParent || manualParent.trim().length >= 8;
+
+  async function onRefund() {
+    const sum = formatMinorUnits(order.amountCents, order.currency);
+    if (!window.confirm(`Оформить полный возврат через bePaid на сумму ${sum}?`)) return;
+    setErr("");
+    setBusy(true);
+    try {
+      const body: { parentUid?: string } = {};
+      if (needsManualParent) body.parentUid = manualParent.trim();
+      const res = await apiFetch<{ ok?: boolean; already?: boolean }>(
+        `/api/admin/orders/${encodeURIComponent(order.id)}/refund`,
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        },
+      );
+      onDone(res.already ? "duplicate" : "ok");
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="admin-detail__row admin-detail__row--block">
+      <span className="admin-detail__k">Возврат bePaid</span>
+      <div className="admin-detail__block">
+        <p className="admin-hint admin-hint--tight">
+          Возвращается полная сумма заказа. После успеха статус заказа станет REFUNDED, билеты перестанут
+          приниматься.
+        </p>
+        {needsManualParent ? (
+          <div className="admin-field" style={{ marginTop: "0.5rem" }}>
+            <label htmlFor="refund-parent-uid">parent_uid (из личного кабинета bePaid)</label>
+            <input
+              id="refund-parent-uid"
+              value={manualParent}
+              onChange={(e) => setManualParent(e.target.value)}
+              placeholder="UID исходной транзакции списания"
+              autoComplete="off"
+              style={{ width: "100%", maxWidth: "28rem" }}
+            />
+          </div>
+        ) : null}
+        {err ? (
+          <p className="admin-alert admin-alert--err admin-hint--tight" style={{ marginTop: "0.5rem" }}>
+            {err}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          className={`btn btn-danger ${busy ? "is-loading" : ""}`}
+          style={{ marginTop: "0.75rem" }}
+          disabled={!canSubmit || busy}
+          onClick={() => void onRefund()}
+        >
+          Вернуть оплату
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authed, setAuthed] = useState(false);
@@ -304,7 +392,7 @@ export default function AdminDashboard() {
   }, [authChecked, authed]);
 
   useEffect(() => {
-    if (orderPayFilter === "pending") setOrderVisitFilter("all");
+    if (orderPayFilter === "pending" || orderPayFilter === "refunded") setOrderVisitFilter("all");
   }, [orderPayFilter]);
 
   const loadSlots = useCallback(
@@ -861,9 +949,10 @@ export default function AdminDashboard() {
                   onChange={(e) => setOrderPayFilter(e.target.value as OrderPayFilter)}
                   aria-label="Фильтр по оплате"
                 >
-                  <option value="all">Все активные (PAID + PENDING)</option>
+                  <option value="all">Все (PAID, PENDING, REFUNDED)</option>
                   <option value="paid">Только PAID</option>
                   <option value="pending">Только PENDING</option>
+                  <option value="refunded">Только возвращённые</option>
                 </select>
               </label>
               <label>
@@ -872,8 +961,12 @@ export default function AdminDashboard() {
                   value={orderVisitFilter}
                   onChange={(e) => setOrderVisitFilter(e.target.value as OrderVisitFilter)}
                   aria-label="Фильтр по проходу"
-                  disabled={orderPayFilter === "pending"}
-                  title={orderPayFilter === "pending" ? "У PENDING ещё нет погашенных билетов" : undefined}
+                  disabled={orderPayFilter === "pending" || orderPayFilter === "refunded"}
+                  title={
+                    orderPayFilter === "pending" ? "У PENDING ещё нет погашенных билетов"
+                    : orderPayFilter === "refunded" ? "У возвращённых заказов проход не учитывается"
+                    : undefined
+                  }
                 >
                   <option value="all">Все</option>
                   <option value="visited">Прошёл (все билеты отмечены)</option>
@@ -899,9 +992,10 @@ export default function AdminDashboard() {
                   st === "paid" ? "paid"
                   : st === "pending" ? "pending"
                   : st === "failed" ? "failed"
+                  : st === "refunded" ? "refunded"
                   : "cancelled";
                 const visitPill = visitPillForOrder(o.visitState);
-                const createdShort = o.createdAt.slice(0, 16).replace("T", " ");
+                const createdShort = formatDisplayDateTime(o.createdAt);
                 return (
                   <button
                     key={o.id}
@@ -925,7 +1019,7 @@ export default function AdminDashboard() {
                     <div className="admin-order-row__slot">
                       <span className="admin-order-row__slot-title">{truncateText(o.slot.title, 40)}</span>
                       <span className="admin-order-row__slot-time mono">
-                        {o.slot.startsAt.slice(0, 16).replace("T", " ")}
+                        {formatDisplayDateTime(o.slot.startsAt)}
                       </span>
                     </div>
                     <span className="admin-order-row__chev" aria-hidden>
@@ -1126,7 +1220,7 @@ export default function AdminDashboard() {
                     <div className="admin-order-row__slot">
                       <span className="admin-order-row__slot-title">
                         {p.validFrom || p.validUntil ?
-                          `${p.validFrom ? p.validFrom.slice(0, 10) : "…"} — ${p.validUntil ? p.validUntil.slice(0, 10) : "…"}`
+                          `${p.validFrom ? formatDisplayDateTime(p.validFrom) : "…"} — ${p.validUntil ? formatDisplayDateTime(p.validUntil) : "…"}`
                         : "без срока"}
                       </span>
                     </div>
@@ -1150,6 +1244,7 @@ export default function AdminDashboard() {
               st === "paid" ? "paid"
               : st === "pending" ? "pending"
               : st === "failed" ? "failed"
+              : st === "refunded" ? "refunded"
               : "cancelled";
             const visitP = visitPillForOrder(o.visitState);
             return (
@@ -1166,7 +1261,7 @@ export default function AdminDashboard() {
                     <span className="admin-detail__k">Проход</span>
                     <div className="admin-detail__block">
                       {o.visitState === "visited" && o.visitedAt ? (
-                        <div className="mono">Все билеты отмечены · {o.visitedAt}</div>
+                        <div className="mono">Все билеты отмечены · {formatDisplayDateTime(o.visitedAt)}</div>
                       ) : o.visitState === "partial" ? (
                         <div>
                           <span className="admin-muted-text">Отмечены не все билеты.</span>
@@ -1174,7 +1269,10 @@ export default function AdminDashboard() {
                             <div className="mono admin-muted-text" style={{ marginTop: "0.25rem" }}>
                               Последняя отметка:{" "}
                               {(() => {
-                                const times = o.tickets.map((t) => t.usedAt).filter(Boolean) as string[];
+                                const times = o.tickets
+                                  .map((t) => t.usedAt)
+                                  .filter(Boolean)
+                                  .map((u) => formatDisplayDateTime(u as string)) as string[];
                                 return times.length ? times.sort().at(-1) : "—";
                               })()}
                             </div>
@@ -1187,13 +1285,19 @@ export default function AdminDashboard() {
                       )}
                     </div>
                   </div>
+                ) : o.status.toUpperCase() === "REFUNDED" ? (
+                  <div className="admin-detail__row">
+                    <span className="admin-detail__k">Проход</span>
+                    <span className="admin-muted-text">не действует — заказ возвращён</span>
+                  </div>
                 ) : (
                   <div className="admin-detail__row">
                     <span className="admin-detail__k">Проход</span>
                     <span className="admin-muted-text">доступен после оплаты (PAID)</span>
                   </div>
                 )}
-                {o.status.toUpperCase() === "PAID" && o.tickets.length > 0 ? (
+                {(o.status.toUpperCase() === "PAID" || o.status.toUpperCase() === "REFUNDED") &&
+                o.tickets.length > 0 ? (
                   <div className="admin-detail__row admin-detail__row--block">
                     <span className="admin-detail__k">Билеты</span>
                     <ul className="admin-detail-lines">
@@ -1202,7 +1306,7 @@ export default function AdminDashboard() {
                         const tierPart = t.tier
                           ? `${tierTicketSingularRu(t.tier)} · `
                           : "тип не указан · ";
-                        const scanPart = t.usedAt ? `отмечен ${t.usedAt}` : "не отмечен";
+                        const scanPart = t.usedAt ? `отмечен ${formatDisplayDateTime(t.usedAt)}` : "не отмечен";
                         const cntPart = t.admissionCount > 1 ? ` · входов ×${t.admissionCount}` : "";
                         return (
                           <li key={t.id}>
@@ -1242,12 +1346,31 @@ export default function AdminDashboard() {
                 ) : null}
                 <div className="admin-detail__row">
                   <span className="admin-detail__k">Создан</span>
-                  <span className="mono">{o.createdAt}</span>
+                  <span className="mono">{formatDisplayDateTime(o.createdAt)}</span>
                 </div>
                 <div className="admin-detail__row">
                   <span className="admin-detail__k">Оплачен</span>
-                  <span className="mono">{o.paidAt ?? "—"}</span>
+                  <span className="mono">{formatDisplayDateTime(o.paidAt)}</span>
                 </div>
+                {o.refundedAt ? (
+                  <div className="admin-detail__row">
+                    <span className="admin-detail__k">Возврат</span>
+                    <span className="mono">{formatDisplayDateTime(o.refundedAt)}</span>
+                  </div>
+                ) : null}
+                <OrderBepaidRefundPanel
+                  order={o}
+                  bepaidRefundAvailable={ordersData?.bepaidRefundAvailable ?? false}
+                  onDone={(kind) => {
+                    setInfoMsg(
+                      kind === "duplicate" ?
+                        "Заказ уже в статусе возврата (REFUNDED)."
+                      : "Возврат через bePaid оформлен.",
+                    );
+                    setModal({ type: "none" });
+                    void loadOrders();
+                  }}
+                />
                 <div className="admin-detail__row admin-detail__row--block">
                   <span className="admin-detail__k">Заказ</span>
                   <code className="admin-detail__code">{o.id}</code>
@@ -1264,7 +1387,7 @@ export default function AdminDashboard() {
                   <span className="admin-detail__k">Сеанс</span>
                   <div className="admin-detail__block">
                     <div>{o.slot.title}</div>
-                    <div className="mono">{o.slot.startsAt}</div>
+                    <div className="mono">{formatDisplayDateTime(o.slot.startsAt)}</div>
                     <div className="mono admin-muted-text">slotId: {o.slot.id}</div>
                   </div>
                 </div>

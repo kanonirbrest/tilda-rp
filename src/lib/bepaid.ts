@@ -273,3 +273,129 @@ export async function createBepaidPayment(opts: {
   });
   throw new Error(`BEPAID_UNEXPECTED_RESPONSE: ${JSON.stringify(json)}`);
 }
+
+const DEFAULT_BEPAID_REFUND_URL = "https://gateway.bepaid.by/transactions/refunds";
+
+function resolveBepaidRefundUrl(): string {
+  const raw = process.env.BEPAID_REFUND_URL?.trim();
+  if (raw) return raw.replace(/\/+$/, "");
+  return DEFAULT_BEPAID_REFUND_URL;
+}
+
+/**
+ * UID транзакции списания для `parent_uid` при возврате (Card API).
+ * Отличается от токена checkout в `Order.bepaidUid`.
+ */
+export function pickBepaidPaymentParentUidFromWebhook(
+  body: Record<string, unknown>,
+  orderCheckoutToken: string | null | undefined,
+): string | undefined {
+  const checkoutTok =
+    typeof orderCheckoutToken === "string" && orderCheckoutToken ? orderCheckoutToken : undefined;
+
+  const transaction = body.transaction as Record<string, unknown> | undefined;
+  const txUid = (transaction?.uid ?? transaction?.id) as string | undefined;
+  if (typeof txUid === "string" && txUid) {
+    if (!checkoutTok || txUid !== checkoutTok) return txUid;
+  }
+
+  const gateway = body.gateway_response as Record<string, unknown> | undefined;
+  const gwPayment = gateway?.payment as Record<string, unknown> | undefined;
+  const gwUid = gwPayment?.uid as string | undefined;
+  if (typeof gwUid === "string" && gwUid) {
+    if (!checkoutTok || gwUid !== checkoutTok) return gwUid;
+  }
+
+  const payment = body.payment as Record<string, unknown> | undefined;
+  const payUid = payment?.uid as string | undefined;
+  if (typeof payUid === "string" && payUid) {
+    if (!checkoutTok || payUid !== checkoutTok) return payUid;
+  }
+
+  if (typeof txUid === "string" && txUid) return txUid;
+  return undefined;
+}
+
+export type BepaidRefundResult =
+  | { ok: true; transaction: Record<string, unknown> }
+  | { ok: false; httpStatus: number; message: string };
+
+/**
+ * Полный возврат по `parent_uid` (документация: Card API refund).
+ * Авторизация Basic — те же `BEPAID_SHOP_ID` / `BEPAID_SECRET_KEY`, что и для checkout.
+ */
+export async function refundBepaidPayment(opts: {
+  parentUid: string;
+  amountCents: number;
+  reason: string;
+}): Promise<BepaidRefundResult> {
+  const shopId = process.env.BEPAID_SHOP_ID;
+  const secret = process.env.BEPAID_SECRET_KEY;
+  if (!shopId || !secret) {
+    return { ok: false, httpStatus: 503, message: "bePaid не настроен (BEPAID_SHOP_ID / BEPAID_SECRET_KEY)" };
+  }
+
+  const url = resolveBepaidRefundUrl();
+  const credentials = Buffer.from(`${shopId}:${secret}`).toString("base64");
+
+  const payload = {
+    request: {
+      parent_uid: opts.parentUid,
+      amount: opts.amountCents,
+      reason: opts.reason.slice(0, 255),
+    },
+  };
+
+  console.info("[bePaid] refund запрос", {
+    url,
+    parentUidLen: opts.parentUid.length,
+    amountCents: opts.amountCents,
+  });
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      Accept: "application/json",
+      Authorization: `Basic ${credentials}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const rawText = await res.text();
+  let json: Record<string, unknown> | null = null;
+  try {
+    json = rawText ? (JSON.parse(rawText) as Record<string, unknown>) : null;
+  } catch {
+    json = null;
+  }
+
+  const transaction = json?.transaction as Record<string, unknown> | undefined;
+  const status =
+    typeof transaction?.status === "string" ? transaction.status.toLowerCase() : "";
+
+  if (!res.ok) {
+    const msg =
+      json && typeof json.message === "string" ? json.message
+      : json ? JSON.stringify(json).slice(0, 2000)
+      : rawText.slice(0, 500);
+    console.error("[bePaid] refund HTTP ошибка", { status: res.status, msg });
+    return { ok: false, httpStatus: res.status, message: msg || `HTTP ${res.status}` };
+  }
+
+  if (status && !["successful", "success", "pending", "processing"].includes(status)) {
+    const msg =
+      typeof transaction?.message === "string" ? transaction.message
+      : typeof json?.message === "string" ? json.message
+      : JSON.stringify(transaction ?? json);
+    console.error("[bePaid] refund отклонён", { status, msg });
+    return { ok: false, httpStatus: 502, message: msg || "Возврат не принят" };
+  }
+
+  console.info("[bePaid] refund успешно принят к обработке", {
+    txStatus: transaction?.status ?? null,
+    uid: typeof transaction?.uid === "string" ? transaction.uid.slice(-8) : null,
+  });
+
+  return { ok: true, transaction: transaction ?? json ?? {} };
+}

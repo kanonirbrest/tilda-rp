@@ -45,6 +45,8 @@ enum OrderStatus {
   PAID
   FAILED
   CANCELLED
+  /// Деньги возвращены через bePaid (или помечено после ручного возврата в ЛК).
+  REFUNDED
 }
 
 enum PromoDiscountKind {
@@ -82,9 +84,13 @@ model Order {
   /// Сумма к оплате (как в bePaid `order.amount`).
   amountCents  Int
   currency     String      @default("BYN")
+  /// Токен checkout из ответа создания оплаты; вебхук может сопоставлять и по нему.
   bepaidUid    String?     @unique
+  /// UID транзакции списания в bePaid (`parent_uid` для возврата). Заполняется из вебхука.
+  bepaidPaymentUid String? @unique
   createdAt    DateTime    @default(now())
   paidAt       DateTime?
+  refundedAt   DateTime?
   promoCodeId  String?
   promoCode    PromoCode?  @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
   tickets      Ticket[]

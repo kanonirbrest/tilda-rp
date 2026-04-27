@@ -127,12 +127,7 @@ export function QuickClient({ token }: { token: string }) {
         <div className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-sm shadow-sm">
           <div className="text-base font-semibold text-zinc-900">{data.customerName}</div>
           <div className="text-zinc-600">{data.slotTitle}</div>
-          <div className="text-zinc-600">
-            {new Date(data.startsAt).toLocaleString("ru-RU", {
-              dateStyle: "long",
-              timeStyle: "short",
-            })}
-          </div>
+          <div className="text-zinc-600">{data.startsAt}</div>
           <div className="text-zinc-600">
             {data.amountDisplay ?? formatMinorUnits(data.amountCents, data.currency)}
           </div>
@@ -147,7 +142,7 @@ export function QuickClient({ token }: { token: string }) {
             ) : null}
             {data.used ? (
               <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-800">
-                Уже прошёл{data.usedAt ? ` · ${new Date(data.usedAt).toLocaleString("ru-RU")}` : ""}
+                Уже прошёл{data.usedAt ? ` · ${data.usedAt}` : ""}
               </span>
             ) : null}
           </div>

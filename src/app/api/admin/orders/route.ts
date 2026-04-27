@@ -1,6 +1,7 @@
 import type { OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
+import { formatDisplayDateTime } from "@/lib/format-display-datetime";
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
@@ -24,7 +25,7 @@ function visitMeta(
   }
   if (used.length === tickets.length) {
     const maxMs = Math.max(...used.map((t) => t.usedAt!.getTime()));
-    return { visitState: "visited", visitedAt: new Date(maxMs).toISOString() };
+    return { visitState: "visited", visitedAt: formatDisplayDateTime(new Date(maxMs).toISOString()) };
   }
   return { visitState: "partial", visitedAt: null };
 }
@@ -56,13 +57,19 @@ export async function GET(req: Request) {
     }),
   ]);
 
+  const bepaidRefundAvailable = Boolean(
+    process.env.BEPAID_SHOP_ID?.trim() && process.env.BEPAID_SECRET_KEY?.trim(),
+  );
+
   const orders = rows.map((o) => {
     const { visitState, visitedAt } = visitMeta(o.status, o.tickets);
     return {
       id: o.id,
       status: o.status,
-      createdAt: o.createdAt.toISOString(),
-      paidAt: o.paidAt?.toISOString() ?? null,
+      createdAt: formatDisplayDateTime(o.createdAt.toISOString()),
+      paidAt: o.paidAt != null ? formatDisplayDateTime(o.paidAt.toISOString()) : null,
+      refundedAt: o.refundedAt != null ? formatDisplayDateTime(o.refundedAt.toISOString()) : null,
+      hasBepaidReference: Boolean(o.bepaidPaymentUid || o.bepaidUid),
       subtotalCents: o.subtotalCents,
       discountCents: o.discountCents,
       amountCents: o.amountCents,
@@ -74,7 +81,7 @@ export async function GET(req: Request) {
         id: t.id,
         tier: t.tier,
         admissionCount: t.admissionCount,
-        usedAt: t.usedAt?.toISOString() ?? null,
+        usedAt: t.usedAt != null ? formatDisplayDateTime(t.usedAt.toISOString()) : null,
       })),
       customer: {
         name: o.customer.name,
@@ -84,7 +91,7 @@ export async function GET(req: Request) {
       slot: {
         id: o.slot.id,
         title: o.slot.title,
-        startsAt: o.slot.startsAt.toISOString(),
+        startsAt: formatDisplayDateTime(o.slot.startsAt.toISOString()),
       },
       lines: o.lines.map((l) => ({
         tier: l.tier,
@@ -94,5 +101,5 @@ export async function GET(req: Request) {
     };
   });
 
-  return jsonWithCors(req, { total, limit, offset, orders });
+  return jsonWithCors(req, { total, limit, offset, bepaidRefundAvailable, orders });
 }

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getStaffFromCookies } from "@/lib/auth-staff";
 import { sendCrmWebhook } from "@/lib/crm";
 import { formatMinorUnits } from "@/lib/money";
+import { formatDisplayDateTime } from "@/lib/format-display-datetime";
 
 const schema = z.object({
   token: z.string().min(10).max(200),
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
     if (ticket.usedAt) {
       return {
         type: "ALREADY_USED" as const,
-        usedAt: ticket.usedAt.toISOString(),
+        usedAt: formatDisplayDateTime(ticket.usedAt.toISOString()),
       };
     }
 

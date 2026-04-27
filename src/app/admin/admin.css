@@ -408,6 +408,11 @@
   color: var(--admin-muted);
 }
 
+.admin-root .pill.refunded {
+  background: rgba(167, 139, 250, 0.14);
+  color: #c4b5fd;
+}
+
 .admin-root .pill.visit-yes {
   background: rgba(56, 189, 248, 0.14);
   color: #7dd3fc;

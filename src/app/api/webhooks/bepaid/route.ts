@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fulfillPaidOrder } from "@/lib/fulfill-order";
+import { pickBepaidPaymentParentUidFromWebhook } from "@/lib/bepaid";
 
 /**
  * Checkout API иногда кладёт полезную нагрузку во вложенный `checkout`;
@@ -245,6 +246,19 @@ export async function POST(req: Request) {
       hint: "В БД Order.bepaidUid должен совпасть с checkout token из создания платежа.",
     });
     return NextResponse.json({ ok: false, error: "ORDER_NOT_FOUND" }, { status: 404 });
+  }
+
+  if (order.status === "REFUNDED") {
+    console.info("[bePaid webhook] заказ уже с возвратом, пропуск", { orderId: order.id });
+    return NextResponse.json({ ok: true, ignored: true, reason: "refunded" });
+  }
+
+  const paymentParentUid = pickBepaidPaymentParentUidFromWebhook(body, order.bepaidUid);
+  if (paymentParentUid && order.bepaidPaymentUid == null) {
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { bepaidPaymentUid: paymentParentUid },
+    });
   }
 
   console.info("[bePaid webhook] найден заказ, fulfill", {

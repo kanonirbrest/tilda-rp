@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getStaffFromCookies } from "@/lib/auth-staff";
 import { formatMinorUnits } from "@/lib/money";
+import { formatDisplayDateTime } from "@/lib/format-display-datetime";
 
 const schema = z.object({
   token: z.string().min(10).max(200),
@@ -40,12 +41,12 @@ export async function POST(req: Request) {
     found: true,
     paid: ticket.order.status === "PAID",
     used: Boolean(ticket.usedAt),
-    usedAt: ticket.usedAt?.toISOString() ?? null,
+    usedAt: ticket.usedAt != null ? formatDisplayDateTime(ticket.usedAt.toISOString()) : null,
     customerName: ticket.order.customer.name,
     email: ticket.order.customer.email,
     phone: ticket.order.customer.phone,
     slotTitle: ticket.order.slot.title,
-    startsAt: ticket.order.slot.startsAt.toISOString(),
+    startsAt: formatDisplayDateTime(ticket.order.slot.startsAt.toISOString()),
     amountCents: ticket.order.amountCents,
     amountDisplay: formatMinorUnits(ticket.order.amountCents, ticket.order.currency),
     currency: ticket.order.currency,

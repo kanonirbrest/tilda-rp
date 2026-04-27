@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { formatDisplayDateTime } from "@/lib/format-display-datetime";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -17,7 +18,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   return NextResponse.json({
     status: order.status,
     slotTitle: order.slot.title,
-    startsAt: order.slot.startsAt.toISOString(),
+    startsAt: formatDisplayDateTime(order.slot.startsAt.toISOString()),
     ticketToken: ticketTokens[0] ?? null,
     ticketTokens,
   });
