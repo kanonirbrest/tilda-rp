@@ -134,6 +134,12 @@ function isActiveOrderStatus(status: string): boolean {
   return s === "pending" || s === "paid" || s === "refunded";
 }
 
+/** Неудачная оплата или отмена без оплаты — для отдельного режима просмотра. */
+function isUnsuccessfulOrderStatus(status: string): boolean {
+  const s = status.toLowerCase();
+  return s === "failed" || s === "cancelled";
+}
+
 /** Плашка прохода рядом со статусом оплаты (только для PAID). */
 function visitPillForOrder(visitState: OrderVisitState): { cls: string; label: string } | null {
   if (visitState === "na") return null;
@@ -142,7 +148,7 @@ function visitPillForOrder(visitState: OrderVisitState): { cls: string; label: s
   return { cls: "visit-no", label: "не прошёл" };
 }
 
-type OrderPayFilter = "all" | "paid" | "pending" | "refunded";
+type OrderPayFilter = "all" | "paid" | "pending" | "refunded" | "failed";
 type OrderVisitFilter = "all" | "visited" | "not_visited" | "partial" | "not_full";
 
 function orderMatchesFilters(
@@ -154,7 +160,9 @@ function orderMatchesFilters(
   if (pay === "paid" && st !== "PAID") return false;
   if (pay === "pending" && st !== "PENDING") return false;
   if (pay === "refunded" && st !== "REFUNDED") return false;
-  if (pay === "all" && !isActiveOrderStatus(o.status)) return false;
+  if (pay === "failed") {
+    if (!isUnsuccessfulOrderStatus(o.status)) return false;
+  } else if (pay === "all" && !isActiveOrderStatus(o.status)) return false;
 
   if (st !== "PAID") {
     return visit === "all";
@@ -675,7 +683,13 @@ export default function AdminDashboard() {
   }, [authChecked, authed]);
 
   useEffect(() => {
-    if (orderPayFilter === "pending" || orderPayFilter === "refunded") setOrderVisitFilter("all");
+    if (
+      orderPayFilter === "pending" ||
+      orderPayFilter === "refunded" ||
+      orderPayFilter === "failed"
+    ) {
+      setOrderVisitFilter("all");
+    }
   }, [orderPayFilter]);
 
   const loadSlots = useCallback(
@@ -1099,9 +1113,18 @@ export default function AdminDashboard() {
     [ordersData],
   );
 
+  /** Активные заявки или неудачные — в зависимости от фильтра оплаты (по умолчанию только активные). */
+  const ordersListPool = useMemo(() => {
+    if (!ordersData) return [];
+    if (orderPayFilter === "failed") {
+      return ordersData.orders.filter((o) => isUnsuccessfulOrderStatus(o.status));
+    }
+    return ordersData.orders.filter((o) => isActiveOrderStatus(o.status));
+  }, [ordersData, orderPayFilter]);
+
   const filteredOrders = useMemo(
-    () => activeOrders.filter((o) => orderMatchesFilters(o, orderPayFilter, orderVisitFilter)),
-    [activeOrders, orderPayFilter, orderVisitFilter],
+    () => ordersListPool.filter((o) => orderMatchesFilters(o, orderPayFilter, orderVisitFilter)),
+    [ordersListPool, orderPayFilter, orderVisitFilter],
   );
 
   const slotsForSelectedDate = useMemo(() => {
@@ -1268,10 +1291,11 @@ export default function AdminDashboard() {
                   onChange={(e) => setOrderPayFilter(e.target.value as OrderPayFilter)}
                   aria-label="Фильтр по оплате"
                 >
-                  <option value="all">Все (PAID, PENDING, REFUNDED)</option>
+                  <option value="all">Все активные (PAID, PENDING, REFUNDED)</option>
                   <option value="paid">Только PAID</option>
                   <option value="pending">Только PENDING</option>
                   <option value="refunded">Только возвращённые</option>
+                  <option value="failed">Неудачные и отменённые (FAILED, CANCELLED)</option>
                 </select>
               </label>
               <label>
@@ -1280,10 +1304,15 @@ export default function AdminDashboard() {
                   value={orderVisitFilter}
                   onChange={(e) => setOrderVisitFilter(e.target.value as OrderVisitFilter)}
                   aria-label="Фильтр по проходу"
-                  disabled={orderPayFilter === "pending" || orderPayFilter === "refunded"}
+                  disabled={
+                    orderPayFilter === "pending" ||
+                    orderPayFilter === "refunded" ||
+                    orderPayFilter === "failed"
+                  }
                   title={
                     orderPayFilter === "pending" ? "У PENDING ещё нет погашенных билетов"
                     : orderPayFilter === "refunded" ? "У возвращённых заказов проход не учитывается"
+                    : orderPayFilter === "failed" ? "Для FAILED и CANCELLED проход не применяется"
                     : undefined
                   }
                 >
@@ -1299,8 +1328,12 @@ export default function AdminDashboard() {
           </div>
           {!ordersData ? (
             <div className="admin-empty admin-empty--compact">Загрузка…</div>
-          ) : activeOrders.length === 0 ? (
-            <div className="admin-empty admin-empty--compact">Нет активных заявок</div>
+          ) : ordersListPool.length === 0 ? (
+            <div className="admin-empty admin-empty--compact">
+              {orderPayFilter === "failed" ?
+                "Нет неудачных или отменённых заявок"
+              : "Нет активных заявок"}
+            </div>
           ) : filteredOrders.length === 0 ? (
             <div className="admin-empty admin-empty--compact">Нет заявок по выбранным фильтрам</div>
           ) : (
