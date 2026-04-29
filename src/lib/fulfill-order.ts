@@ -4,6 +4,7 @@ import { sendTicketEmail } from "./mail";
 import { sendCrmWebhook } from "./crm";
 import { getPublicAppBaseUrl } from "./request-origin";
 import { formatMinorUnits } from "./money";
+import { paidCentsForOrderTicketAtIndex } from "./ticket-refund-alloc";
 import { linesSummaryRu, tierTicketSingularRu } from "./slot-pricing";
 
 export async function fulfillPaidOrder(orderId: string): Promise<void> {
@@ -46,8 +47,6 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
   if (!full?.tickets.length) return;
 
   const tickets = full.tickets;
-  const linesSummary =
-    full.lines.length > 0 ? linesSummaryRu(full.lines) : undefined;
 
   const base = getPublicAppBaseUrl();
   const downloadUrls = tickets.map(
@@ -64,12 +63,11 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
       title: full.slot.title,
       customerName: full.customer.name,
       startsAt: full.slot.startsAt,
-      amountCents: full.amountCents,
+      amountCents: paidCentsForOrderTicketAtIndex(full, i, tickets.length),
       currency: full.currency,
       orderId: full.id,
       qrUrl,
       ticketTierLabel: t.tier ? tierTicketSingularRu(t.tier) : undefined,
-      linesSummary,
       admissionCount: multiPdf ? 1 : t.admissionCount,
       ticketOrdinal: multiPdf
         ? { index: i + 1, total: tickets.length }
@@ -119,7 +117,8 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
       slotTitle: full.slot.title,
       slotStartsAt: full.slot.startsAt.toISOString(),
       usedAt: null,
-      linesSummary: linesSummary ?? null,
+      linesSummary:
+        full.lines.length > 0 ? linesSummaryRu(full.lines) : null,
       admissionCount: admissionTotal,
     });
   } catch (err) {

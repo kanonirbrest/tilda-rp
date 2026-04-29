@@ -68,3 +68,13 @@ export function paidCentsForTicketAtIndex(
   const all = allocatePaidCentsPerTicket(amountCents, subtotalCents, listPricePerTicket);
   return all[ticketIndex] ?? 0;
 }
+
+/** Доля оплаченной суммы для билета по индексу (та же логика, что при возврате по билетам). */
+export function paidCentsForOrderTicketAtIndex(
+  order: { amountCents: number; subtotalCents: number; lines: OrderLine[] },
+  ticketIndex: number,
+  ticketCount: number,
+): number {
+  const weights = listPriceCentsPerTicket(order.lines, ticketCount);
+  return paidCentsForTicketAtIndex(order.amountCents, order.subtotalCents, weights, ticketIndex);
+}

@@ -6,9 +6,6 @@ import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orde
 import { slotOrderLineStatsMap } from "@/lib/slot-order-line-stats";
 
 type DayAgg = {
-  finiteLeft: number;
-  finiteTotal: number;
-  anyUnlimited: boolean;
   bookable: boolean;
 };
 
@@ -16,7 +13,7 @@ export async function OPTIONS(req: Request) {
   return new NextResponse(null, { status: 204, headers: publicReadCorsHeaders(req) });
 }
 
-/** Сводка по календарным дням: доступность и текст для подсказки (остаток билетов). */
+/** Сводка по календарным дням: доступность и текст подсказки только если билетов на день нет. */
 export async function GET(req: Request) {
   await expireStalePendingOrders();
 
@@ -34,7 +31,7 @@ export async function GET(req: Request) {
   function ensure(dk: string): DayAgg {
     let a = byDay.get(dk);
     if (!a) {
-      a = { finiteLeft: 0, finiteTotal: 0, anyUnlimited: false, bookable: false };
+      a = { bookable: false };
       byDay.set(dk, a);
     }
     return a;
@@ -47,27 +44,16 @@ export async function GET(req: Request) {
     const agg = ensure(dk);
 
     if (s.capacity == null) {
-      agg.anyUnlimited = true;
       agg.bookable = true;
-    } else {
-      agg.finiteTotal += s.capacity;
-      agg.finiteLeft += Math.max(0, s.capacity - reserved);
-      if (s.capacity - reserved > 0) agg.bookable = true;
+    } else if (s.capacity - reserved > 0) {
+      agg.bookable = true;
     }
   }
 
   const days: Record<string, { bookable: boolean; hover: string }> = {};
 
   for (const [date, agg] of byDay) {
-    let hover: string;
-    if (!agg.bookable) {
-      hover = "Нет доступных билетов на эту дату";
-    } else if (agg.finiteTotal > 0) {
-      hover = `Осталось ${agg.finiteLeft} из ${agg.finiteTotal}`;
-      if (agg.anyUnlimited) hover += " · также есть сеансы без лимита мест";
-    } else {
-      hover = "Места доступны";
-    }
+    const hover = agg.bookable ? "" : "На этот день билетов нет";
     days[date] = { bookable: agg.bookable, hover };
   }
 

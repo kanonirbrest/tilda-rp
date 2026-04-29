@@ -924,6 +924,35 @@ export default function AdminDashboard() {
     }
   }
 
+  async function downloadCustomersCsv() {
+    setErrMsg("");
+    setInfoMsg("");
+    try {
+      const r = await fetch("/api/admin/customers/export", { credentials: "include" });
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(t.slice(0, 400) || `HTTP ${r.status}`);
+      }
+      const blob = await r.blob();
+      const cd = r.headers.get("Content-Disposition");
+      let filename = "customers-export.csv";
+      const m = /filename="([^"]+)"/.exec(cd ?? "");
+      if (m?.[1]) filename = m[1];
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setInfoMsg("CSV с покупателями сохранён.");
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function deleteSlot(id: string) {
     if (!window.confirm("Удалить этот сеанс? Доступно только если нет ни одного заказа.")) {
       return;
@@ -1216,6 +1245,13 @@ export default function AdminDashboard() {
                 disabled={loading}
               >
                 Обновить
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void downloadCustomersCsv()}
+              >
+                CSV покупателей
               </button>
               {ordersData ? (
                 <span className="admin-hint">

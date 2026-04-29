@@ -126,15 +126,13 @@ export async function buildTicketPdf(opts: {
   title: string;
   customerName: string;
   startsAt: Date;
-  /** Сумма заказа в копейках (минорные единицы). */
+  /** Цена этого билета в копейках (доля оплаты с учётом промо). */
   amountCents: number;
   currency: string;
   orderId: string;
   qrUrl: string;
   /** Этот конкретный билет: взрослый / детский / льготный */
   ticketTierLabel?: string;
-  /** Состав билетов с Тильды */
-  linesSummary?: string;
   admissionCount?: number;
   /** Нумерация при нескольких отдельных билетах в одном заказе (например 2 из 4). */
   ticketOrdinal?: { index: number; total: number };
@@ -287,22 +285,6 @@ export async function buildTicketPdf(opts: {
     });
   }
 
-  if (opts.linesSummary) {
-    rowY = drawLabelRow(page, {
-      x: padX,
-      yBaseline: rowY,
-      label: "Состав",
-      value: opts.linesSummary,
-      font,
-      fontBold,
-      labelSize: 9,
-      valueSize: 11,
-      muted,
-      dark,
-      maxValueWidth: textBlockW,
-    });
-  }
-
   if (
     opts.ticketOrdinal != null &&
     opts.ticketOrdinal.total > 1
@@ -341,7 +323,7 @@ export async function buildTicketPdf(opts: {
   rowY = drawLabelRow(page, {
     x: padX,
     yBaseline: rowY,
-    label: "Сумма",
+    label: "Цена билета",
     value: formatMinorUnits(opts.amountCents, opts.currency),
     font,
     fontBold,
