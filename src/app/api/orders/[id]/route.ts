@@ -8,7 +8,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     where: { id },
     include: {
       slot: true,
-      tickets: { orderBy: { createdAt: "asc" }, select: { publicToken: true } },
+      tickets: {
+        orderBy: { createdAt: "asc" },
+        where: { refundedAt: null },
+        select: { publicToken: true },
+      },
     },
   });
   if (!order) {

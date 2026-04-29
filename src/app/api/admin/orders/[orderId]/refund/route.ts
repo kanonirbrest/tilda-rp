@@ -49,6 +49,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ orderId: strin
       id: true,
       status: true,
       amountCents: true,
+      refundedCents: true,
       bepaidUid: true,
       bepaidPaymentUid: true,
     },
@@ -68,6 +69,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ orderId: strin
     );
   }
 
+  const remainingCents = order.amountCents - order.refundedCents;
+  if (remainingCents < 1) {
+    return jsonWithCors(req, {
+      ok: true,
+      already: true,
+      message: "Сумма заказа уже полностью возвращена (частичные возвраты).",
+    });
+  }
+
   const parentUid = order.bepaidPaymentUid ?? order.bepaidUid ?? parentOverride;
   if (!parentUid) {
     return jsonWithCors(
@@ -83,7 +93,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ orderId: strin
 
   const refund = await refundBepaidPayment({
     parentUid,
-    amountCents: order.amountCents,
+    amountCents: remainingCents,
     reason,
   });
 
@@ -92,12 +102,26 @@ export async function POST(req: Request, ctx: { params: Promise<{ orderId: strin
     return jsonWithCors(req, { error: "BEPAID_REFUND_FAILED", message: refund.message }, { status: st });
   }
 
-  const updated = await prisma.order.updateMany({
-    where: { id: order.id, status: "PAID" },
-    data: { status: "REFUNDED", refundedAt: new Date() },
+  const updated = await prisma.$transaction(async (tx) => {
+    const o = await tx.order.updateMany({
+      where: { id: order.id, status: "PAID" },
+      data: {
+        status: "REFUNDED",
+        refundedAt: new Date(),
+        refundedCents: order.amountCents,
+      },
+    });
+    if (o.count === 0) {
+      return { race: true as const };
+    }
+    await tx.ticket.updateMany({
+      where: { orderId: order.id, refundedAt: null },
+      data: { refundedAt: new Date() },
+    });
+    return { race: false as const };
   });
 
-  if (updated.count === 0) {
+  if (updated.race) {
     const cur = await prisma.order.findUnique({ where: { id: order.id }, select: { status: true } });
     if (cur?.status === "REFUNDED") {
       return jsonWithCors(req, { ok: true, already: true, message: "Уже возвращён (параллельный запрос)." });
@@ -117,5 +141,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ orderId: strin
     ok: true,
     orderId: order.id,
     status: "REFUNDED" as const,
+    refundAmountCents: remainingCents,
   });
 }

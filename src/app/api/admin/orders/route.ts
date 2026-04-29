@@ -11,19 +11,20 @@ type VisitState = "na" | "not_visited" | "partial" | "visited";
 
 function visitMeta(
   status: OrderStatus,
-  tickets: { usedAt: Date | null }[],
+  tickets: { usedAt: Date | null; refundedAt: Date | null }[],
 ): { visitState: VisitState; visitedAt: string | null } {
   if (status !== "PAID") {
     return { visitState: "na", visitedAt: null };
   }
-  if (tickets.length === 0) {
-    return { visitState: "not_visited", visitedAt: null };
+  const active = tickets.filter((t) => t.refundedAt == null);
+  if (active.length === 0) {
+    return { visitState: "na", visitedAt: null };
   }
-  const used = tickets.filter((t) => t.usedAt != null);
+  const used = active.filter((t) => t.usedAt != null);
   if (used.length === 0) {
     return { visitState: "not_visited", visitedAt: null };
   }
-  if (used.length === tickets.length) {
+  if (used.length === active.length) {
     const maxMs = Math.max(...used.map((t) => t.usedAt!.getTime()));
     return { visitState: "visited", visitedAt: formatDisplayDateTime(new Date(maxMs).toISOString()) };
   }
@@ -51,7 +52,13 @@ export async function GET(req: Request) {
         promoCode: { select: { code: true } },
         tickets: {
           orderBy: { createdAt: "asc" },
-          select: { id: true, usedAt: true, admissionCount: true, tier: true },
+          select: {
+            id: true,
+            usedAt: true,
+            refundedAt: true,
+            admissionCount: true,
+            tier: true,
+          },
         },
       },
     }),
@@ -73,6 +80,7 @@ export async function GET(req: Request) {
       subtotalCents: o.subtotalCents,
       discountCents: o.discountCents,
       amountCents: o.amountCents,
+      refundedCents: o.refundedCents,
       currency: o.currency,
       promoCode: o.promoCode?.code ?? null,
       visitState,
@@ -82,6 +90,7 @@ export async function GET(req: Request) {
         tier: t.tier,
         admissionCount: t.admissionCount,
         usedAt: t.usedAt != null ? formatDisplayDateTime(t.usedAt.toISOString()) : null,
+        refundedAt: t.refundedAt != null ? formatDisplayDateTime(t.refundedAt.toISOString()) : null,
       })),
       customer: {
         name: o.customer.name,

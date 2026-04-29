@@ -37,9 +37,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ found: false });
   }
 
+  const paid = ticket.order.status === "PAID" && ticket.refundedAt == null;
   return NextResponse.json({
     found: true,
-    paid: ticket.order.status === "PAID",
+    paid,
+    refunded: Boolean(ticket.refundedAt) || ticket.order.status === "REFUNDED",
     used: Boolean(ticket.usedAt),
     usedAt: ticket.usedAt != null ? formatDisplayDateTime(ticket.usedAt.toISOString()) : null,
     customerName: ticket.order.customer.name,

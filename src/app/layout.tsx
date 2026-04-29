@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "DEI Tickets",
   description: "Оплата билетов, админка сеансов и контроль входа",
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({

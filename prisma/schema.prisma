@@ -91,6 +91,8 @@ model Order {
   createdAt    DateTime    @default(now())
   paidAt       DateTime?
   refundedAt   DateTime?
+  /// Сумма уже возвращённая через bePaid (частичные + полные), копейки; ≤ amountCents.
+  refundedCents Int       @default(0)
   promoCodeId  String?
   promoCode    PromoCode?  @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
   tickets      Ticket[]
@@ -121,6 +123,8 @@ model Ticket {
   usedAt      DateTime?
   usedById    String?
   usedBy      StaffUser? @relation(fields: [usedById], references: [id])
+  /// Деньги за этот билет возвращены; QR недействителен.
+  refundedAt  DateTime?
   createdAt   DateTime  @default(now())
 
   @@index([orderId])

@@ -15,13 +15,16 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
           customer: true,
           slot: true,
           lines: true,
-          tickets: { orderBy: { createdAt: "asc" }, select: { publicToken: true, tier: true } },
+          tickets: {
+            orderBy: { createdAt: "asc" },
+            select: { publicToken: true, tier: true, refundedAt: true },
+          },
         },
       },
     },
   });
 
-  if (!ticket || ticket.order.status !== "PAID") {
+  if (!ticket || ticket.order.status !== "PAID" || ticket.refundedAt) {
     return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
   }
 

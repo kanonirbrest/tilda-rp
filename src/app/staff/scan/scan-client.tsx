@@ -23,13 +23,11 @@ export function ScanClient() {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** false = localhost/https; true = типичный http://192.168.x.x — камера часто запрещена */
-  const [insecureContext, setInsecureContext] = useState(false);
+  const [insecureContext] = useState(
+    () => typeof window !== "undefined" && !window.isSecureContext,
+  );
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const regionId = "qr-reader-region";
-
-  useEffect(() => {
-    setInsecureContext(typeof window !== "undefined" && !window.isSecureContext);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -129,6 +127,7 @@ export function ScanClient() {
 
   return (
     <div className="flex flex-col gap-4">
+      <InstallHint />
       {insecureContext ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
           <p className="font-medium">Камера на этом адресе часто не работает</p>
@@ -174,6 +173,42 @@ export function ScanClient() {
         )}
       </div>
       <ManualTokenForm />
+    </div>
+  );
+}
+
+function InstallHint() {
+  const [isStandalone] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return (
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone)
+    );
+  });
+  const [isIosSafari] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const ua = window.navigator.userAgent.toLowerCase();
+    const ios = /iphone|ipad|ipod/.test(ua);
+    const safari = /safari/.test(ua) && !/crios|fxios|edgios/.test(ua);
+    return ios && safari;
+  });
+
+  if (isStandalone) {
+    return (
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+        Открыто как приложение на домашнем экране.
+      </div>
+    );
+  }
+
+  if (!isIosSafari) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white p-3 text-sm text-zinc-700">
+      <p className="font-medium text-zinc-900">Установка на iPhone (без App Store)</p>
+      <p className="mt-1">Откройте меню “Поделиться” в Safari и выберите “На экран Домой”.</p>
     </div>
   );
 }

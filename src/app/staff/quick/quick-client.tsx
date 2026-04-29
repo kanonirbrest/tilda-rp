@@ -7,6 +7,8 @@ import { formatMinorUnits } from "@/lib/money";
 type VerifyOk = {
   found: true;
   paid: boolean;
+  /** Билет или заказ с возвратом — проход невозможен. */
+  refunded?: boolean;
   used: boolean;
   usedAt: string | null;
   customerName: string;
@@ -76,7 +78,12 @@ export function QuickClient({ token }: { token: string }) {
         return;
       }
       if (!res.ok) {
-        setError(json.error || "Ошибка");
+        const code = json.error;
+        setError(
+          code === "REFUNDED" ? "Возврат: проход по этому билету недоступен."
+          : code === "NOT_PAID" ? "Заказ не оплачен."
+          : (code || "Ошибка"),
+        );
         return;
       }
       await load();
@@ -135,7 +142,11 @@ export function QuickClient({ token }: { token: string }) {
             {data.email} · {data.phone}
           </div>
           <div className="mt-2 flex flex-wrap gap-2 border-t border-zinc-100 pt-3">
-            {!data.paid ? (
+            {data.refunded ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">
+                Возврат
+              </span>
+            ) : !data.paid ? (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">
                 Не оплачен
               </span>

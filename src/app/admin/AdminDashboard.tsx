@@ -43,11 +43,18 @@ type OrderRow = {
   subtotalCents: number;
   discountCents: number;
   amountCents: number;
+  refundedCents: number;
   currency: string;
   promoCode: string | null;
   visitState: OrderVisitState;
   visitedAt: string | null;
-  tickets: { id: string; tier: TicketTier | null; admissionCount: number; usedAt: string | null }[];
+  tickets: {
+    id: string;
+    tier: TicketTier | null;
+    admissionCount: number;
+    usedAt: string | null;
+    refundedAt: string | null;
+  }[];
   customer: { name: string; email: string; phone: string };
   slot: { id: string; title: string; startsAt: string };
   lines: { tier: string; quantity: number; unitPriceCents: number }[];
@@ -272,25 +279,30 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 function OrderBepaidRefundPanel({
   order,
   bepaidRefundAvailable,
+  manualParent,
+  setManualParent,
   onDone,
 }: {
   order: OrderRow;
   bepaidRefundAvailable: boolean;
+  manualParent: string;
+  setManualParent: (v: string) => void;
   /** `ok` — только что возвращён; `duplicate` — уже был REFUNDED (гонка или повтор). */
   onDone: (kind: "ok" | "duplicate") => void;
 }) {
-  const [manualParent, setManualParent] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  if (!bepaidRefundAvailable || order.status.toUpperCase() !== "PAID") return null;
+  const remainingCents = Math.max(0, order.amountCents - order.refundedCents);
+  if (!bepaidRefundAvailable || order.status.toUpperCase() !== "PAID" || remainingCents < 1) return null;
 
   const needsManualParent = !order.hasBepaidReference;
   const canSubmit = !needsManualParent || manualParent.trim().length >= 8;
 
   async function onRefund() {
-    const sum = formatMinorUnits(order.amountCents, order.currency);
-    if (!window.confirm(`Оформить полный возврат через bePaid на сумму ${sum}?`)) return;
+    const sum = formatMinorUnits(remainingCents, order.currency);
+    if (!window.confirm(`Оформить возврат через bePaid на остаток ${sum}? Заказ будет полностью возвращён.`))
+      return;
     setErr("");
     setBusy(true);
     try {
@@ -316,8 +328,11 @@ function OrderBepaidRefundPanel({
       <span className="admin-detail__k">Возврат bePaid</span>
       <div className="admin-detail__block">
         <p className="admin-hint admin-hint--tight">
-          Возвращается полная сумма заказа. После успеха статус заказа станет REFUNDED, билеты перестанут
+          Полный возврат остатка: после успеха статус заказа станет REFUNDED, все билеты перестанут
           приниматься.
+          {order.refundedCents > 0 ?
+            ` Уже возвращено ${formatMinorUnits(order.refundedCents, order.currency)}.`
+          : null}
         </p>
         {needsManualParent ? (
           <div className="admin-field" style={{ marginTop: "0.5rem" }}>
@@ -344,8 +359,276 @@ function OrderBepaidRefundPanel({
           disabled={!canSubmit || busy}
           onClick={() => void onRefund()}
         >
-          Вернуть оплату
+          Вернуть весь остаток
         </button>
+      </div>
+    </div>
+  );
+}
+
+function OrderTicketRefundButton({
+  order,
+  ticket,
+  bepaidRefundAvailable,
+  manualParent,
+  onDone,
+}: {
+  order: OrderRow;
+  ticket: OrderRow["tickets"][0];
+  bepaidRefundAvailable: boolean;
+  manualParent: string;
+  onDone: () => void | Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const remainingBudget = order.amountCents - order.refundedCents;
+  const needsManualParent = !order.hasBepaidReference;
+  const canSubmit = !needsManualParent || manualParent.trim().length >= 8;
+
+  if (
+    !bepaidRefundAvailable ||
+    order.status.toUpperCase() !== "PAID" ||
+    remainingBudget < 1 ||
+    ticket.refundedAt ||
+    ticket.usedAt
+  ) {
+    return null;
+  }
+
+  async function onRefund() {
+    if (
+      !window.confirm(
+        "Оформить возврат через bePaid за этот билет? Сумма рассчитывается пропорционально оплате (включая промокод).",
+      )
+    ) {
+      return;
+    }
+    setErr("");
+    setBusy(true);
+    try {
+      const body: { ticketId: string; parentUid?: string } = { ticketId: ticket.id };
+      if (needsManualParent) body.parentUid = manualParent.trim();
+      await apiFetch<{ ok?: boolean; already?: boolean }>(
+        `/api/admin/orders/${encodeURIComponent(order.id)}/refund-ticket`,
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        },
+      );
+      await onDone();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("Уже возвращён") || msg.includes("already")) {
+        await onDone();
+      } else {
+        setErr(msg);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: "0.35rem" }}>
+      <button
+        type="button"
+        className={`btn btn-danger btn-compact ${busy ? "is-loading" : ""}`}
+        disabled={!canSubmit || busy}
+        onClick={() => void onRefund()}
+      >
+        Вернуть этот билет
+      </button>
+      {err ? (
+        <p className="admin-alert admin-alert--err admin-hint--tight" style={{ marginTop: "0.35rem" }}>
+          {err}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function OrderModalBody({
+  o,
+  bepaidRefundAvailable,
+  onFullRefundDone,
+  onTicketRefunded,
+}: {
+  o: OrderRow;
+  bepaidRefundAvailable: boolean;
+  onFullRefundDone: (kind: "ok" | "duplicate") => void;
+  onTicketRefunded: () => void | Promise<void>;
+}) {
+  const [manualParent, setManualParent] = useState("");
+  const st = o.status.toLowerCase();
+  const pillClass =
+    st === "paid" ? "paid"
+    : st === "pending" ? "pending"
+    : st === "failed" ? "failed"
+    : st === "refunded" ? "refunded"
+    : "cancelled";
+  const visitP = visitPillForOrder(o.visitState);
+
+  return (
+    <div className="admin-detail">
+      <div className="admin-detail__row">
+        <span className="admin-detail__k">Статус</span>
+        <span className="admin-order-row__pills">
+          <span className={`pill ${pillClass}`}>{o.status}</span>
+          {visitP ? <span className={`pill ${visitP.cls}`}>{visitP.label}</span> : null}
+        </span>
+      </div>
+      {o.status.toUpperCase() === "PAID" ? (
+        <div className="admin-detail__row">
+          <span className="admin-detail__k">Проход</span>
+          <div className="admin-detail__block">
+            {o.visitState === "visited" && o.visitedAt ? (
+              <div className="mono">Все билеты отмечены · {formatDisplayDateTime(o.visitedAt)}</div>
+            ) : o.visitState === "partial" ? (
+              <div>
+                <span className="admin-muted-text">Отмечены не все билеты.</span>
+                {o.tickets.some((t) => t.usedAt) ? (
+                  <div className="mono admin-muted-text" style={{ marginTop: "0.25rem" }}>
+                    Последняя отметка:{" "}
+                    {(() => {
+                      const times = o.tickets
+                        .map((t) => t.usedAt)
+                        .filter(Boolean)
+                        .map((u) => formatDisplayDateTime(u as string)) as string[];
+                      return times.length ? times.sort().at(-1) : "—";
+                    })()}
+                  </div>
+                ) : null}
+              </div>
+            ) : o.visitState === "not_visited" ? (
+              <span className="admin-muted-text">По билетам проход ещё не отмечен.</span>
+            ) : (
+              <span className="admin-muted-text">Нет действующих билетов (все возвращены).</span>
+            )}
+          </div>
+        </div>
+      ) : o.status.toUpperCase() === "REFUNDED" ? (
+        <div className="admin-detail__row">
+          <span className="admin-detail__k">Проход</span>
+          <span className="admin-muted-text">не действует — заказ возвращён</span>
+        </div>
+      ) : (
+        <div className="admin-detail__row">
+          <span className="admin-detail__k">Проход</span>
+          <span className="admin-muted-text">доступен после оплаты (PAID)</span>
+        </div>
+      )}
+      {(o.status.toUpperCase() === "PAID" || o.status.toUpperCase() === "REFUNDED") && o.tickets.length > 0 ? (
+        <div className="admin-detail__row admin-detail__row--block">
+          <span className="admin-detail__k">Билеты</span>
+          <ul className="admin-detail-lines">
+            {o.tickets.map((t, i) => {
+              const prefix = o.tickets.length > 1 ? `#${i + 1} · ` : "";
+              const tierPart = t.tier ? `${tierTicketSingularRu(t.tier)} · ` : "тип не указан · ";
+              const scanPart = t.refundedAt ? `возврат ${formatDisplayDateTime(t.refundedAt)}`
+              : t.usedAt ? `отмечен ${formatDisplayDateTime(t.usedAt)}`
+              : "не отмечен";
+              const cntPart = t.admissionCount > 1 ? ` · входов ×${t.admissionCount}` : "";
+              return (
+                <li key={t.id}>
+                  <span className={`mono${t.tier ? "" : " admin-muted-text"}`}>
+                    {prefix}
+                    {tierPart}
+                    {scanPart}
+                    {cntPart}
+                  </span>
+                  <OrderTicketRefundButton
+                    order={o}
+                    ticket={t}
+                    bepaidRefundAvailable={bepaidRefundAvailable}
+                    manualParent={manualParent}
+                    onDone={onTicketRefunded}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+      <div className="admin-detail__row">
+        <span className="admin-detail__k">Сумма</span>
+        <span className="mono">{formatMinorUnits(o.amountCents, o.currency)}</span>
+      </div>
+      {o.refundedCents > 0 && o.status.toUpperCase() === "PAID" ? (
+        <div className="admin-detail__row">
+          <span className="admin-detail__k">Уже возвращено</span>
+          <span className="mono">{formatMinorUnits(o.refundedCents, o.currency)}</span>
+        </div>
+      ) : null}
+      {o.discountCents > 0 ? (
+        <>
+          <div className="admin-detail__row">
+            <span className="admin-detail__k">До скидки</span>
+            <span className="mono">{formatMinorUnits(o.subtotalCents, o.currency)}</span>
+          </div>
+          <div className="admin-detail__row">
+            <span className="admin-detail__k">Скидка</span>
+            <span className="mono">−{formatMinorUnits(o.discountCents, o.currency)}</span>
+          </div>
+        </>
+      ) : null}
+      {o.promoCode ? (
+        <div className="admin-detail__row">
+          <span className="admin-detail__k">Промокод</span>
+          <span className="mono">{o.promoCode}</span>
+        </div>
+      ) : null}
+      <div className="admin-detail__row">
+        <span className="admin-detail__k">Создан</span>
+        <span className="mono">{formatDisplayDateTime(o.createdAt)}</span>
+      </div>
+      <div className="admin-detail__row">
+        <span className="admin-detail__k">Оплачен</span>
+        <span className="mono">{formatDisplayDateTime(o.paidAt)}</span>
+      </div>
+      {o.refundedAt ? (
+        <div className="admin-detail__row">
+          <span className="admin-detail__k">Возврат</span>
+          <span className="mono">{formatDisplayDateTime(o.refundedAt)}</span>
+        </div>
+      ) : null}
+      <OrderBepaidRefundPanel
+        order={o}
+        bepaidRefundAvailable={bepaidRefundAvailable}
+        manualParent={manualParent}
+        setManualParent={setManualParent}
+        onDone={onFullRefundDone}
+      />
+      <div className="admin-detail__row admin-detail__row--block">
+        <span className="admin-detail__k">Заказ</span>
+        <code className="admin-detail__code">{o.id}</code>
+      </div>
+      <div className="admin-detail__row admin-detail__row--block">
+        <span className="admin-detail__k">Клиент</span>
+        <div className="admin-detail__block">
+          <div>{o.customer.name}</div>
+          <div className="mono">{o.customer.email}</div>
+          <div className="mono">{o.customer.phone}</div>
+        </div>
+      </div>
+      <div className="admin-detail__row admin-detail__row--block">
+        <span className="admin-detail__k">Сеанс</span>
+        <div className="admin-detail__block">
+          <div>{o.slot.title}</div>
+          <div className="mono">{formatDisplayDateTime(o.slot.startsAt)}</div>
+          <div className="mono admin-muted-text">slotId: {o.slot.id}</div>
+        </div>
+      </div>
+      <div className="admin-detail__row admin-detail__row--block">
+        <span className="admin-detail__k">Состав</span>
+        <ul className="admin-detail-lines">
+          {o.lines.map((l, i) => (
+            <li key={i}>
+              <span className="mono">{tierRu(l.tier)}</span> ×{l.quantity} ·{" "}
+              {formatMinorUnits(l.unitPriceCents, o.currency)} за ед.
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
@@ -1237,179 +1520,37 @@ export default function AdminDashboard() {
 
       {modal.type === "order" ? (
         <AdminModalFrame title="Заявка" onClose={() => setModal({ type: "none" })}>
-          {(() => {
-            const o = modal.order;
-            const st = o.status.toLowerCase();
-            const pillClass =
-              st === "paid" ? "paid"
-              : st === "pending" ? "pending"
-              : st === "failed" ? "failed"
-              : st === "refunded" ? "refunded"
-              : "cancelled";
-            const visitP = visitPillForOrder(o.visitState);
-            return (
-              <div className="admin-detail">
-                <div className="admin-detail__row">
-                  <span className="admin-detail__k">Статус</span>
-                  <span className="admin-order-row__pills">
-                    <span className={`pill ${pillClass}`}>{o.status}</span>
-                    {visitP ? <span className={`pill ${visitP.cls}`}>{visitP.label}</span> : null}
-                  </span>
-                </div>
-                {o.status.toUpperCase() === "PAID" ? (
-                  <div className="admin-detail__row">
-                    <span className="admin-detail__k">Проход</span>
-                    <div className="admin-detail__block">
-                      {o.visitState === "visited" && o.visitedAt ? (
-                        <div className="mono">Все билеты отмечены · {formatDisplayDateTime(o.visitedAt)}</div>
-                      ) : o.visitState === "partial" ? (
-                        <div>
-                          <span className="admin-muted-text">Отмечены не все билеты.</span>
-                          {o.tickets.some((t) => t.usedAt) ? (
-                            <div className="mono admin-muted-text" style={{ marginTop: "0.25rem" }}>
-                              Последняя отметка:{" "}
-                              {(() => {
-                                const times = o.tickets
-                                  .map((t) => t.usedAt)
-                                  .filter(Boolean)
-                                  .map((u) => formatDisplayDateTime(u as string)) as string[];
-                                return times.length ? times.sort().at(-1) : "—";
-                              })()}
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : o.visitState === "not_visited" ? (
-                        <span className="admin-muted-text">По билетам проход ещё не отмечен.</span>
-                      ) : (
-                        <span className="admin-muted-text">Нет билетов в заказе.</span>
-                      )}
-                    </div>
-                  </div>
-                ) : o.status.toUpperCase() === "REFUNDED" ? (
-                  <div className="admin-detail__row">
-                    <span className="admin-detail__k">Проход</span>
-                    <span className="admin-muted-text">не действует — заказ возвращён</span>
-                  </div>
-                ) : (
-                  <div className="admin-detail__row">
-                    <span className="admin-detail__k">Проход</span>
-                    <span className="admin-muted-text">доступен после оплаты (PAID)</span>
-                  </div>
-                )}
-                {(o.status.toUpperCase() === "PAID" || o.status.toUpperCase() === "REFUNDED") &&
-                o.tickets.length > 0 ? (
-                  <div className="admin-detail__row admin-detail__row--block">
-                    <span className="admin-detail__k">Билеты</span>
-                    <ul className="admin-detail-lines">
-                      {o.tickets.map((t, i) => {
-                        const prefix = o.tickets.length > 1 ? `#${i + 1} · ` : "";
-                        const tierPart = t.tier
-                          ? `${tierTicketSingularRu(t.tier)} · `
-                          : "тип не указан · ";
-                        const scanPart = t.usedAt ? `отмечен ${formatDisplayDateTime(t.usedAt)}` : "не отмечен";
-                        const cntPart = t.admissionCount > 1 ? ` · входов ×${t.admissionCount}` : "";
-                        return (
-                          <li key={t.id}>
-                            <span className={`mono${t.tier ? "" : " admin-muted-text"}`}>
-                              {prefix}
-                              {tierPart}
-                              {scanPart}
-                              {cntPart}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ) : null}
-                <div className="admin-detail__row">
-                  <span className="admin-detail__k">Сумма</span>
-                  <span className="mono">{formatMinorUnits(o.amountCents, o.currency)}</span>
-                </div>
-                {o.discountCents > 0 ? (
-                  <>
-                    <div className="admin-detail__row">
-                      <span className="admin-detail__k">До скидки</span>
-                      <span className="mono">{formatMinorUnits(o.subtotalCents, o.currency)}</span>
-                    </div>
-                    <div className="admin-detail__row">
-                      <span className="admin-detail__k">Скидка</span>
-                      <span className="mono">−{formatMinorUnits(o.discountCents, o.currency)}</span>
-                    </div>
-                  </>
-                ) : null}
-                {o.promoCode ? (
-                  <div className="admin-detail__row">
-                    <span className="admin-detail__k">Промокод</span>
-                    <span className="mono">{o.promoCode}</span>
-                  </div>
-                ) : null}
-                <div className="admin-detail__row">
-                  <span className="admin-detail__k">Создан</span>
-                  <span className="mono">{formatDisplayDateTime(o.createdAt)}</span>
-                </div>
-                <div className="admin-detail__row">
-                  <span className="admin-detail__k">Оплачен</span>
-                  <span className="mono">{formatDisplayDateTime(o.paidAt)}</span>
-                </div>
-                {o.refundedAt ? (
-                  <div className="admin-detail__row">
-                    <span className="admin-detail__k">Возврат</span>
-                    <span className="mono">{formatDisplayDateTime(o.refundedAt)}</span>
-                  </div>
-                ) : null}
-                <OrderBepaidRefundPanel
-                  order={o}
-                  bepaidRefundAvailable={ordersData?.bepaidRefundAvailable ?? false}
-                  onDone={(kind) => {
-                    setInfoMsg(
-                      kind === "duplicate" ?
-                        "Заказ уже в статусе возврата (REFUNDED)."
-                      : "Возврат через bePaid оформлен.",
-                    );
-                    setModal({ type: "none" });
-                    void loadOrders();
-                  }}
-                />
-                <div className="admin-detail__row admin-detail__row--block">
-                  <span className="admin-detail__k">Заказ</span>
-                  <code className="admin-detail__code">{o.id}</code>
-                </div>
-                <div className="admin-detail__row admin-detail__row--block">
-                  <span className="admin-detail__k">Клиент</span>
-                  <div className="admin-detail__block">
-                    <div>{o.customer.name}</div>
-                    <div className="mono">{o.customer.email}</div>
-                    <div className="mono">{o.customer.phone}</div>
-                  </div>
-                </div>
-                <div className="admin-detail__row admin-detail__row--block">
-                  <span className="admin-detail__k">Сеанс</span>
-                  <div className="admin-detail__block">
-                    <div>{o.slot.title}</div>
-                    <div className="mono">{formatDisplayDateTime(o.slot.startsAt)}</div>
-                    <div className="mono admin-muted-text">slotId: {o.slot.id}</div>
-                  </div>
-                </div>
-                <div className="admin-detail__row admin-detail__row--block">
-                  <span className="admin-detail__k">Состав</span>
-                  <ul className="admin-detail-lines">
-                    {o.lines.map((l, i) => (
-                      <li key={i}>
-                        <span className="mono">{tierRu(l.tier)}</span> ×{l.quantity} ·{" "}
-                        {formatMinorUnits(l.unitPriceCents, o.currency)} за ед.
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="admin-modal-actions">
-                  <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "none" })}>
-                    Закрыть
-                  </button>
-                </div>
-              </div>
-            );
-          })()}
+          <OrderModalBody
+            key={modal.order.id}
+            o={modal.order}
+            bepaidRefundAvailable={ordersData?.bepaidRefundAvailable ?? false}
+            onFullRefundDone={(kind) => {
+              setInfoMsg(
+                kind === "duplicate" ?
+                  "Заказ уже в статусе возврата (REFUNDED)."
+                : "Возврат через bePaid оформлен.",
+              );
+              setModal({ type: "none" });
+              void loadOrders();
+            }}
+            onTicketRefunded={async () => {
+              setInfoMsg("Возврат по билету оформлен.");
+              try {
+                const data = await apiFetch<OrdersResponse>("/api/admin/orders?limit=500");
+                setOrdersData(data);
+                const next = data.orders.find((x) => x.id === modal.order.id);
+                if (next) setModal({ type: "order", order: next });
+              } catch (e: unknown) {
+                setErrMsg(e instanceof Error ? e.message : String(e));
+                void loadOrders();
+              }
+            }}
+          />
+          <div className="admin-modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "none" })}>
+              Закрыть
+            </button>
+          </div>
         </AdminModalFrame>
       ) : null}
 

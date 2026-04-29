@@ -38,6 +38,9 @@ export async function POST(req: Request) {
     if (ticket.order.status !== "PAID") {
       return { type: "NOT_PAID" as const };
     }
+    if (ticket.refundedAt) {
+      return { type: "REFUNDED" as const };
+    }
     if (ticket.usedAt) {
       return {
         type: "ALREADY_USED" as const,
@@ -61,6 +64,9 @@ export async function POST(req: Request) {
   }
   if (result.type === "NOT_PAID") {
     return NextResponse.json({ error: "NOT_PAID" }, { status: 400 });
+  }
+  if (result.type === "REFUNDED") {
+    return NextResponse.json({ error: "REFUNDED" }, { status: 400 });
   }
   if (result.type === "ALREADY_USED") {
     return NextResponse.json({ error: "ALREADY_USED", usedAt: result.usedAt }, { status: 409 });

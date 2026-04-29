@@ -1,0 +1,13 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="112" fill="#18181B"/>
+  <rect x="88" y="88" width="336" height="336" rx="48" fill="#27272A"/>
+  <rect x="136" y="136" width="60" height="60" rx="10" fill="#FAFAFA"/>
+  <rect x="316" y="136" width="60" height="60" rx="10" fill="#FAFAFA"/>
+  <rect x="136" y="316" width="60" height="60" rx="10" fill="#FAFAFA"/>
+  <rect x="228" y="136" width="56" height="16" rx="8" fill="#D4D4D8"/>
+  <rect x="228" y="168" width="56" height="16" rx="8" fill="#D4D4D8"/>
+  <rect x="316" y="228" width="16" height="56" rx="8" fill="#D4D4D8"/>
+  <rect x="348" y="228" width="16" height="56" rx="8" fill="#D4D4D8"/>
+  <rect x="228" y="316" width="148" height="16" rx="8" fill="#D4D4D8"/>
+  <text x="256" y="426" text-anchor="middle" fill="#FAFAFA" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="700">SCAN</text>
+</svg>
