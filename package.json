@@ -14,13 +14,13 @@
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
     "slots:generate": "tsx scripts/generate-slots.ts",
+    "playwright:install": "playwright install chromium",
     "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@pdf-lib/fontkit": "^1.1.1",
     "@prisma/client": "6.19.2",
     "bcryptjs": "^3.0.3",
     "html5-qrcode": "^2.3.8",
@@ -28,7 +28,7 @@
     "luxon": "^3.7.2",
     "next": "16.2.1",
     "nodemailer": "^8.0.4",
-    "pdf-lib": "^1.17.1",
+    "playwright": "^1.50.0",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
