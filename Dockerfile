@@ -16,6 +16,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
 RUN npm run build
 
+# Chromium для PDF билетов (Playwright). Фиксированный каталог: у пользователя nextjs часто HOME=/nonexistent,
+# из‑за этого дефолтный ~/.cache/ms-playwright в контейнере недоступен.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN mkdir -p /opt/ms-playwright \
+  && npx playwright install-deps chromium \
+  && npx playwright install chromium
+
 FROM base AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -35,6 +42,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+
+COPY --from=builder /opt/ms-playwright /opt/ms-playwright
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN chown -R nextjs:nodejs /opt/ms-playwright
 
 COPY --chmod=755 docker-entrypoint.sh ./docker-entrypoint.sh
 

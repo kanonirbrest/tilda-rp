@@ -125,6 +125,7 @@ npm run dev
 3. Запуск вместе с PostgreSQL:  
    `docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build`  
    Приложение слушает порт `APP_PORT` (по умолчанию 3000). Миграции выполняются в `docker-entrypoint.sh` (`prisma migrate deploy`), отключить: `SKIP_DB_MIGRATE=1`.
+   **PDF билетов:** в образе ставится Chromium Playwright (`playwright install-deps` + `install chromium`), каталог браузеров `/opt/ms-playwright`, в контейнере задано `PLAYWRIGHT_BROWSERS_PATH` — иначе при `HOME=/nonexistent` Playwright ищет бинарник в недоступном кэше и выдаёт `Executable doesn't exist`.
 4. Первый вход персонала: после `npm run db:seed` локально или отдельным скриптом создайте пользователя в продакшен-БД (сид по умолчанию только для разработки).
 
 Если БД уже есть снаружи, не поднимайте сервис `postgres` в compose и передайте контейнеру `DATABASE_URL` на ваш хост.

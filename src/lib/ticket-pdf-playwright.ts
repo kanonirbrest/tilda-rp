@@ -6,10 +6,20 @@ async function getBrowser(): Promise<Browser> {
   if (browserSingleton?.isConnected()) {
     return browserSingleton;
   }
-  browserSingleton = await chromium.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--font-render-hinting=none"],
-  });
+  try {
+    browserSingleton = await chromium.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--font-render-hinting=none"],
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `PDF (Playwright): Chromium не запущен (${msg}). ` +
+        `В Docker образе нужны браузеры и PLAYWRIGHT_BROWSERS_PATH (см. Dockerfile). ` +
+        `Локально: npx playwright install chromium. Либо TICKET_PDF_RENDERER=prince и Prince в PATH.`,
+      { cause: e },
+    );
+  }
   return browserSingleton;
 }
 
