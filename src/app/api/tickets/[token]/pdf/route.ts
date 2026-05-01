@@ -40,28 +40,46 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   const base = getPublicAppBaseUrl();
   const qrUrl = `${base}/staff/quick?t=${ticket.publicToken}`;
 
-  const pdfBytes = await buildTicketPdf({
-    title: ticket.order.slot.title,
-    customerName: ticket.order.customer.name,
-    startsAt: ticket.order.slot.startsAt,
-    amountCents: ticketPriceCents,
-    currency: ticket.order.currency,
-    orderId: ticket.order.id,
-    qrUrl,
-    ticketTierLabel: ticket.tier ? tierTicketSingularRu(ticket.tier) : undefined,
-    admissionCount: multiPdf ? 1 : ticket.admissionCount,
-    ticketOrdinal:
-      multiPdf && idx >= 0
-        ? { index: idx + 1, total: ordered.length }
-        : undefined,
-  });
+  try {
+    const pdfBytes = await buildTicketPdf({
+      title: ticket.order.slot.title,
+      customerName: ticket.order.customer.name,
+      startsAt: ticket.order.slot.startsAt,
+      amountCents: ticketPriceCents,
+      currency: ticket.order.currency,
+      orderId: ticket.order.id,
+      qrUrl,
+      ticketTierLabel: ticket.tier ? tierTicketSingularRu(ticket.tier) : undefined,
+      admissionCount: multiPdf ? 1 : ticket.admissionCount,
+      ticketOrdinal:
+        multiPdf && idx >= 0
+          ? { index: idx + 1, total: ordered.length }
+          : undefined,
+    });
 
-  return new NextResponse(Buffer.from(pdfBytes), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="ticket-${ticket.order.id.slice(0, 8)}-${ticket.publicToken.slice(0, 6)}.pdf"`,
-      "Cache-Control": "private, no-store",
-    },
-  });
+    return new NextResponse(Buffer.from(pdfBytes), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="ticket-${ticket.order.id.slice(0, 8)}-${ticket.publicToken.slice(0, 6)}.pdf"`,
+        "Cache-Control": "private, no-store",
+      },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[ticket pdf] render failed", {
+      orderId: ticket.order.id,
+      tokenPrefix: token.slice(0, 8),
+      message,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    return NextResponse.json(
+      {
+        error: "PDF_RENDER_FAILED",
+        hint:
+          process.env.NODE_ENV === "development" ? message : "Повторите позже или откройте логи сервера.",
+      },
+      { status: 503 },
+    );
+  }
 }

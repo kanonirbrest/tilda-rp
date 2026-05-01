@@ -26,6 +26,19 @@ RUN mkdir -p /opt/ms-playwright \
 FROM base AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# Системные .so для Chromium должны быть установлены именно в этом образе (не переносятся из stage builder).
+# Ручной список apt легко разъехаться с версией Playwright; здесь тот же шаг, что рекомендует Playwright
+# для текущей версии под Debian. Версия берётся из package-lock приложения.
+WORKDIR /__pwdeps
+COPY --from=builder /app/package-lock.json ./package-lock.json
+RUN set -eux; \
+  PW_VER="$(node -p "require('./package-lock.json').packages['node_modules/playwright'].version")"; \
+  printf '%s\n' "{\"private\":true,\"dependencies\":{\"playwright\":\"${PW_VER}\"}}" > package.json; \
+  npm install --omit=dev; \
+  npx playwright install-deps chromium; \
+  cd / && rm -rf /__pwdeps /root/.npm
+
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
 # Полный Prisma CLI только для migrate deploy (транзитивные deps не входят в Next standalone)
@@ -46,6 +59,17 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modul
 COPY --from=builder /opt/ms-playwright /opt/ms-playwright
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 RUN chown -R nextjs:nodejs /opt/ms-playwright
+
+# Если в образе не хватает .so, сборка падает — не выкатываем «зелёный» деплой с битым Chromium.
+RUN set -eux; \
+  bin="$(find /opt/ms-playwright -name headless_shell -type f | head -n 1)"; \
+  test -n "$bin"; \
+  echo "ldd $bin"; \
+  if ldd "$bin" 2>&1 | grep -q "not found"; then \
+    echo "headless_shell: unresolved libs"; \
+    ldd "$bin" || true; \
+    exit 1; \
+  fi
 
 COPY --chmod=755 docker-entrypoint.sh ./docker-entrypoint.sh
 

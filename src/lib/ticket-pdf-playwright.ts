@@ -3,7 +3,10 @@ import { chromium, type Browser } from "playwright";
 let browserSingleton: Browser | null = null;
 
 async function getBrowser(): Promise<Browser> {
-  if (browserSingleton?.isConnected()) {
+  if (browserSingleton && !browserSingleton.isConnected()) {
+    browserSingleton = null;
+  }
+  if (browserSingleton) {
     return browserSingleton;
   }
   try {
@@ -23,12 +26,18 @@ async function getBrowser(): Promise<Browser> {
   return browserSingleton;
 }
 
+const SETCONTENT_TIMEOUT_MS = Number(process.env.TICKET_PDF_SETCONTENT_TIMEOUT_MS ?? "45000");
+
 /** HTML-документ → PDF A4 (печать как в браузере: потоковая вёрстка без координат). */
 export async function renderHtmlToPdfBuffer(html: string): Promise<Uint8Array> {
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
-    await page.setContent(html, { waitUntil: "networkidle" });
+    // Билет — только inline/data URL, без сети; `networkidle` на проде может не наступить или висеть до таймаута.
+    await page.setContent(html, {
+      waitUntil: "load",
+      timeout: SETCONTENT_TIMEOUT_MS,
+    });
     const buf = await page.pdf({
       format: "A4",
       printBackground: true,
