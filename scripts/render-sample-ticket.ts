@@ -11,7 +11,6 @@ async function main() {
 
   const buf = await buildTicketPdf({
     title: "Небо.Река — экскурсия по основной экспозиции",
-    customerName: "Иванова Мария Сергеевна",
     startsAt: new Date("2026-06-15T14:00:00+03:00"),
     amountCents: 58_00,
     currency: "BYN",

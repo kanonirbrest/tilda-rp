@@ -13,7 +13,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     include: {
       order: {
         include: {
-          customer: true,
           slot: true,
           lines: true,
           tickets: {
@@ -43,7 +42,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   try {
     const pdfBytes = await buildTicketPdf({
       title: ticket.order.slot.title,
-      customerName: ticket.order.customer.name,
       startsAt: ticket.order.slot.startsAt,
       amountCents: ticketPriceCents,
       currency: ticket.order.currency,

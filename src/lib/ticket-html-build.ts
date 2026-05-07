@@ -7,7 +7,6 @@ import { DEFAULT_TICKET_LEGAL_BLOCK } from "@/lib/ticket-legal-default";
 
 export type TicketPdfInput = {
   title: string;
-  customerName: string;
   startsAt: Date;
   amountCents: number;
   currency: string;
@@ -20,6 +19,9 @@ export type TicketPdfInput = {
 
 const VENUE_LINE =
   "МИНСК, ПР-Т МАШЕРОВА 15/1, ВХОД СО ДВОРА";
+
+/** Ссылка на блок «Адрес» на сайте DEI — кликабельно в PDF. */
+const VENUE_ADDRESS_URL = "https://dei.by/contacts#address";
 
 /** Корни для поиска `assets/` — и от cwd (скрипты, Next из каталога приложения), и от расположения этого файла (иначе PDF из монорепы/другого cwd не находит svg). */
 function assetSearchRoots(): string[] {
@@ -45,6 +47,15 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#039;");
 }
 
+/** Невидимые/Bidi-символы из локали или копипаста дают странные глифы в Chromium PDF; убираем до верстки. */
+function sanitizeForPdfText(s: string): string {
+  return s
+    .replace(/[\u200B-\u200D\uFEFF\u2060]/g, "")
+    .replace(/\u00AD/g, "")
+    .replace(/[\u202A-\u202E]/g, "")
+    .trim();
+}
+
 function fileToDataUrl(absPath: string): string {
   const buf = readFileSync(absPath);
   const ext = absPath.split(".").pop()?.toLowerCase();
@@ -53,6 +64,9 @@ function fileToDataUrl(absPath: string): string {
     ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
     ext === "webp" ? "image/webp" :
     ext === "svg" ? "image/svg+xml" :
+    ext === "woff2" ? "font/woff2" :
+    ext === "woff" ? "font/woff" :
+    ext === "ttf" ? "font/ttf" :
     "application/octet-stream";
   if (mime === "image/svg+xml") {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(buf.toString("utf8"))}`;
@@ -66,6 +80,7 @@ function fileToDataUrl(absPath: string): string {
  * 2) иначе `assets/tickets/ticket-background.png`;
  * 3) иначе `ticket-background.jpg` или `7777.jpg` в `assets/tickets`;
  * 4) иначе сплошной цвет подложки в `.sheet`.
+ * Для меньшего размера PDF используйте сжатый JPEG/WebP под A4 вместо огромного PNG.
  */
 function resolveTicketBackground(): { dataUrl: string | null } {
   const envPath = process.env.TICKET_PDF_ARTWORK?.trim();
@@ -99,6 +114,38 @@ function resolveNeboRekaTitleSvgDataUrl(): string | null {
   return fileToDataUrl(p);
 }
 
+function resolveRuleLineStarSvgDataUrl(side: "left" | "right"): string | null {
+  const name = side === "left" ? "rule-line-star-left.svg" : "rule-line-star-right.svg";
+  const p = resolveFirstExisting(["assets", "svg", name]);
+  if (!p) return null;
+  return fileToDataUrl(p);
+}
+
+/**
+ * Локальный Cy Grotesk Grand для PDF (data URL в `@font-face`, без сети).
+ * Переопределение: `TICKET_PDF_CY_GROTESK_WOFF2` — абсолютный путь к `.woff2`.
+ * По умолчанию: `assets/fonts/cy-grotesk-grand-2.woff2`.
+ */
+function resolveCyGroteskGrandWoff2Path(): string | null {
+  const env = process.env.TICKET_PDF_CY_GROTESK_WOFF2?.trim();
+  if (env && existsSync(env)) return env;
+  return resolveFirstExisting(["assets", "fonts", "cy-grotesk-grand-2.woff2"]);
+}
+
+function cyGroteskGrandFontFaceCss(): string {
+  const p = resolveCyGroteskGrandWoff2Path();
+  if (!p) return "";
+  const src = fileToDataUrl(p);
+  return `@font-face {
+  font-family: "Cy Grotesk Grand";
+  src: url(${src}) format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+`;
+}
+
 function resolveLegalBlock(): string {
   const env = process.env.TICKET_LEGAL_BLOCK?.trim();
   if (env) return env;
@@ -110,16 +157,18 @@ function legalToHtml(raw: string): string {
     .trim()
     .split(/\n+/)
     .filter(Boolean)
-    .map((p) => `<p class="legal-line">${escapeHtml(p)}</p>`)
+    .map((p) => `<p class="legal-line">${escapeHtml(sanitizeForPdfText(p))}</p>`)
     .join("");
 }
 
 function formatWhenRuUpper(iso: Date): string {
-  return iso
-    .toLocaleString("ru-RU", { dateStyle: "long", timeStyle: "short" })
-    .replace(/\s+/g, " ")
-    .trim()
-    .toUpperCase();
+  return sanitizeForPdfText(
+    iso
+      .toLocaleString("ru-RU", { dateStyle: "long", timeStyle: "short" })
+      .replace(/\s+/g, " ")
+      .trim()
+      .toUpperCase(),
+  );
 }
 
 function formatPriceTicket(isoMinor: number, currency: string): string {
@@ -127,11 +176,21 @@ function formatPriceTicket(isoMinor: number, currency: string): string {
   return s.replace(/\.00(?=\s)/, "");
 }
 
+/** Пиксели стороны PNG QR; на странице он ~30 mm — 256 достаточно для сканирования и меньше весит в PDF. Env: `TICKET_PDF_QR_PX`. */
+function qrRasterWidthPx(): number {
+  const raw = process.env.TICKET_PDF_QR_PX?.trim();
+  const n = raw ? Number.parseInt(raw, 10) : 256;
+  if (!Number.isFinite(n) || n < 180) return 180;
+  if (n > 512) return 512;
+  return Math.round(n);
+}
+
 export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
+  const qrPx = qrRasterWidthPx();
   const qrDataUrl = await QRCode.toDataURL(opts.qrUrl, {
     type: "image/png",
     margin: 1,
-    width: 400,
+    width: qrPx,
     errorCorrectionLevel: "M",
   });
 
@@ -139,20 +198,22 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
   const hasBg = Boolean(bg.dataUrl);
 
   const whenStr = formatWhenRuUpper(opts.startsAt);
-  const priceStr = formatPriceTicket(opts.amountCents, opts.currency);
+  const priceStr = sanitizeForPdfText(formatPriceTicket(opts.amountCents, opts.currency));
   const legalHtml = legalToHtml(resolveLegalBlock());
 
-  let tierAndOrdinal = opts.ticketTierLabel ?? "";
+  /* Типографский разделитель вместо средней точки «·» — в subset шрифта она иногда ломается в PDF. */
+  const tierSep = " — ";
+  let tierAndOrdinal = sanitizeForPdfText(opts.ticketTierLabel ?? "");
   if (opts.ticketOrdinal != null && opts.ticketOrdinal.total > 1) {
     tierAndOrdinal = tierAndOrdinal
-      ? `${tierAndOrdinal} · ${opts.ticketOrdinal.index} из ${opts.ticketOrdinal.total}`
+      ? `${tierAndOrdinal}${tierSep}${opts.ticketOrdinal.index} из ${opts.ticketOrdinal.total}`
       : `${opts.ticketOrdinal.index} из ${opts.ticketOrdinal.total}`;
     if (opts.admissionCount != null && opts.admissionCount > 1) {
-      tierAndOrdinal += ` · входов ${opts.admissionCount}`;
+      tierAndOrdinal += `${tierSep}входов ${opts.admissionCount}`;
     }
   } else if (opts.admissionCount != null && opts.admissionCount > 1) {
     tierAndOrdinal = tierAndOrdinal
-      ? `${tierAndOrdinal} · входов ${opts.admissionCount}`
+      ? `${tierAndOrdinal}${tierSep}входов ${opts.admissionCount}`
       : `Входов: ${opts.admissionCount}`;
   }
 
@@ -187,21 +248,37 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
   const neboRekaSvg = resolveNeboRekaTitleSvgDataUrl();
   const heroTitleBlock =
     neboRekaSvg ?
-      `<div class="brand-mark" role="img" aria-label="${escapeHtml(opts.title)}">
+      `<div class="brand-mark" role="img" aria-label="${escapeHtml(sanitizeForPdfText(opts.title))}">
           <img class="brand-mark__img" src="${neboRekaSvg}" width="411" height="75" alt="" />
         </div>`
-    : `<h1 class="brand-title">${escapeHtml(opts.title)}</h1>`;
+    : `<h1 class="brand-title">${escapeHtml(sanitizeForPdfText(opts.title))}</h1>`;
+
+  const ruleLineLeftUrl = resolveRuleLineStarSvgDataUrl("left");
+  const ruleLineRightUrl = resolveRuleLineStarSvgDataUrl("right");
+
+  const ruleDividerHtml = (side: "left" | "right", opts?: { afterBlocks?: boolean }) => {
+    const url = side === "left" ? ruleLineLeftUrl : ruleLineRightUrl;
+    const extra = opts?.afterBlocks ? " rule--svg-end" : "";
+    if (url) {
+      return `<div class="rule rule--svg${extra}"><img class="rule-img" src="${url}" alt="" /></div>`;
+    }
+    if (side === "right") {
+      return `<div class="rule star-right"><span class="star">✦</span><span class="line"></span></div>`;
+    }
+    return `<div class="rule"><span class="star">✦</span><span class="line"></span></div>`;
+  };
+
+  const cyGroteskFace = cyGroteskGrandFontFaceCss();
 
   return `<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Playfair+Display:wght@700&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
+    ${cyGroteskFace}
     * { box-sizing: border-box; }
+    /* PDF: только наш разметочный HTML; подстраховка от UA-виджетов в рендере */
+    input, select, textarea, button { display: none !important; }
     @page { size: A4; margin: 0; }
     html {
       margin: 0;
@@ -250,8 +327,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       background-size: cover;
       background-repeat: no-repeat;
       color: #ffffff;
-      /* Cy Grotesk в макете недоступен в вебе: Rubik — геометрический гротеск с кириллицей, чуть плотнее Manrope. */
-      font-family: Rubik, Manrope, system-ui, sans-serif;
+      font-family: "Cy Grotesk Grand", system-ui, sans-serif;
     }
     /* Декоративный растр (7777.jpg): Figma position left -4px, top -3px */
     .sheet--mesh {
@@ -272,21 +348,22 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       min-width: 0;
       display: flex;
       flex-direction: column;
-      gap: 2mm;
+      gap: 0;
     }
     /* Шапка: «ВАШ БИЛЕТ» — Figma Cy Grotesk 600, 24px / 33px */
     .eyebrow-strong {
-      font-family: "Cy Grotesk Grand", Rubik, Manrope, system-ui, sans-serif;
+      font-family: "Cy Grotesk Grand", system-ui, sans-serif;
       font-style: normal;
       font-weight: 600;
       font-size: 24px;
       line-height: 33px;
       text-transform: uppercase;
       color: #ffffff;
+      margin-bottom: 2mm;
     }
-    /* «На иммерсивную…» — Figma Demi 14.5px, line-height 100%, uppercase */
+    /* «На иммерсивную…» — отступ снизу 36px до «Небо.Река» / заголовка */
     .eyebrow-soft {
-      font-family: "Cy Grotesk Grand", Rubik, Manrope, system-ui, sans-serif;
+      font-family: "Cy Grotesk Grand", system-ui, sans-serif;
       font-weight: 600;
       font-size: 14.5px;
       line-height: 100%;
@@ -294,9 +371,10 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       text-transform: uppercase;
       color: #ffffff;
       max-width: 118mm;
+      margin-bottom: 36px;
     }
     .brand-mark {
-      margin: 2mm 0 1.5mm;
+      margin: 0 0 1.5mm;
       max-width: 100%;
     }
     .brand-mark__img {
@@ -306,21 +384,14 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       height: auto;
     }
     .brand-title {
-      margin: 3mm 0 2mm;
-      font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+      margin: 0 0 2mm;
+      font-family: Georgia, "Times New Roman", Times, serif;
       font-size: 24px;
       font-weight: 700;
       line-height: 1.15;
       letter-spacing: -0.01em;
       word-wrap: break-word;
       color: #ffffff;
-    }
-    .byline {
-      font-size: 7px;
-      font-weight: 600;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      opacity: 0.75;
     }
     .hero-qr {
       flex: 0 0 auto;
@@ -339,13 +410,6 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       object-fit: contain;
       display: block;
     }
-    .hero-qr span {
-      font-size: 6.5px;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      opacity: 0.65;
-      text-align: center;
-    }
 
     .rule {
       display: flex;
@@ -355,8 +419,20 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       margin: 4.5mm 0;
       flex-shrink: 0;
     }
+    .rule.rule--svg {
+      display: block;
+      width: 100%;
+      line-height: 0;
+      gap: 0;
+    }
+    .rule.rule--svg .rule-img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
     /* Полоса адреса: 37px над верхней линией; 28px от линии до текста сверху и снизу */
-    .blocks + .rule.star-right {
+    .blocks + .rule.star-right,
+    .blocks + .rule.rule--svg-end {
       margin-top: 37px;
       margin-bottom: 0;
     }
@@ -384,11 +460,11 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       gap: 2.5mm;
       align-items: flex-start;
     }
-    /* Подписи полей (ДАТА И ВРЕМЯ …): Figma — Cy Grotesk Grand 600, 14.5px / 20px, uppercase */
+    /* Подписи полей: Medium 500 — визуально «легче» строки значений (600/700) */
     .field-label {
-      font-family: "Cy Grotesk Grand", Rubik, Manrope, system-ui, sans-serif;
+      font-family: "Cy Grotesk Grand", system-ui, sans-serif;
       font-style: normal;
-      font-weight: 600;
+      font-weight: 500;
       font-size: 14.5px;
       line-height: 20px;
       text-transform: uppercase;
@@ -396,7 +472,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     }
     /* Значения (дата, участник, тип, цена, заказ): Figma — Demi/600, 26px, line-height 100% */
     .field-value {
-      font-family: "Cy Grotesk Grand", Rubik, Manrope, system-ui, sans-serif;
+      font-family: "Cy Grotesk Grand", system-ui, sans-serif;
       font-weight: 600;
       font-size: 26px;
       line-height: 100%;
@@ -405,6 +481,13 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       color: #ffffff;
       word-wrap: break-word;
       overflow-wrap: anywhere;
+    }
+    /* Длинный id заказа: не как «главные» строки — чуть мельче и Medium, как в макете */
+    .field-value.order-id {
+      font-size: 17px;
+      font-weight: 500;
+      line-height: 1.2;
+      letter-spacing: 0.04em;
     }
     .venue-wrap {
       display: flex;
@@ -425,12 +508,19 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     /* Блок адреса: Figma — Cy Grotesk Grand Medium 13px, line-height 100%, uppercase (оба ряда) */
     .venue-text .venue-line,
     .venue-text .venue-addr {
-      font-family: "Cy Grotesk Grand", Rubik, Manrope, system-ui, sans-serif;
+      font-family: "Cy Grotesk Grand", system-ui, sans-serif;
       font-weight: 500;
       font-size: 13px;
       line-height: 100%;
       letter-spacing: 0;
       text-transform: uppercase;
+    }
+    .venue-text a.venue-addr {
+      color: inherit;
+      text-decoration: underline;
+      text-decoration-color: rgba(255, 255, 255, 0.85);
+      text-underline-offset: 3px;
+      text-decoration-thickness: 1px;
     }
     .venue-dei {
       flex: 0 0 auto;
@@ -465,7 +555,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
 
     /* Юридический блок: Cy Grotesk Grand Medium 12/13; без margin-top:auto — иначе лишняя вертикаль и 2-я страница PDF */
     .fine-print {
-      font-family: "Cy Grotesk Grand", Rubik, Manrope, system-ui, sans-serif;
+      font-family: "Cy Grotesk Grand", system-ui, sans-serif;
       font-weight: 500;
       font-size: 12px;
       line-height: 13px;
@@ -482,15 +572,15 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     .fine-print .legal-line:last-child {
       margin-bottom: 0;
     }
+    /* Воздух между последней строкой .fine-print и логотипом (+20% к базовым 48px) */
     .razman-footer {
       text-align: center;
-      margin-top: 3mm;
-      padding-top: 1.5mm;
+      margin-top: calc(48px * 1.2);
+      padding-top: 0;
       font-size: 8px;
       font-weight: 600;
       letter-spacing: 0.22em;
       text-transform: uppercase;
-      opacity: 0.85;
       flex-shrink: 0;
     }
     .razman-footer img {
@@ -509,24 +599,15 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
         <div class="eyebrow-strong">Ваш билет</div>
         <div class="eyebrow-soft">На иммерсивную медиа-выставку</div>
         ${heroTitleBlock}
-        <div class="byline">By Razman Production</div>
       </div>
       <div class="hero-qr">
         <img src="${qrDataUrl}" alt="" />
-        <span>Покажите QR при входе</span>
       </div>
     </div>
 
-    <div class="rule">
-      <span class="star">✦</span>
-      <span class="line"></span>
-    </div>
+    ${ruleDividerHtml("left")}
 
     <div class="blocks">
-      <section class="field-block">
-        <div class="field-label">Участник</div>
-        <div class="field-value value-wide">${escapeHtml(opts.customerName.toUpperCase())}</div>
-      </section>
       <section class="field-block">
         <div class="field-label">Дата и время</div>
         <div class="field-value value-wide">${escapeHtml(whenStr)}</div>
@@ -538,27 +619,21 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       </section>
       <section class="field-block">
         <div class="field-label">Номер заказа</div>
-        <div class="field-value order-id">${escapeHtml(opts.orderId)}</div>
+        <div class="field-value order-id">${escapeHtml(sanitizeForPdfText(opts.orderId))}</div>
       </section>
     </div>
 
-    <div class="rule star-right">
-      <span class="star">✦</span>
-      <span class="line"></span>
-    </div>
+    ${ruleDividerHtml("right", { afterBlocks: true })}
 
     <div class="venue-wrap">
       <div class="venue-text">
         <span class="venue-line">Адрес проведения</span>
-        <span class="venue-addr">${escapeHtml(VENUE_LINE)}</span>
+        <a class="venue-addr" href="${VENUE_ADDRESS_URL}" rel="noopener noreferrer">${escapeHtml(VENUE_LINE)}</a>
       </div>
       ${venueDeiBlock}
     </div>
 
-    <div class="rule">
-      <span class="star">✦</span>
-      <span class="line"></span>
-    </div>
+    ${ruleDividerHtml("left")}
 
     <div class="fine-print">
       ${legalHtml}

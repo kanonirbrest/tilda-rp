@@ -40,13 +40,13 @@ export function allocatePaidCentsPerTicket(
 
   if (subtotalCents <= 0) {
     const base = Math.floor(amountCents / n);
-    let rem = amountCents - base * n;
+    const rem = amountCents - base * n;
     return listPricePerTicket.map((_, i) => base + (i < rem ? 1 : 0));
   }
 
   const floors = listPricePerTicket.map((w) => Math.floor((amountCents * w) / subtotalCents));
-  let sumFloors = floors.reduce((a, b) => a + b, 0);
-  let rem = amountCents - sumFloors;
+  const sumFloors = floors.reduce((a, b) => a + b, 0);
+  const rem = amountCents - sumFloors;
   const fractional = listPricePerTicket.map((w, i) => ({
     i,
     frac: (amountCents * w) / subtotalCents - (floors[i] ?? 0),

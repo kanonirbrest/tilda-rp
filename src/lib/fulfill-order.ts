@@ -61,7 +61,6 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
     const qrUrl = `${base}/staff/quick?t=${t.publicToken}`;
     const pdfBytes = await buildTicketPdf({
       title: full.slot.title,
-      customerName: full.customer.name,
       startsAt: full.slot.startsAt,
       amountCents: paidCentsForOrderTicketAtIndex(full, i, tickets.length),
       currency: full.currency,
