@@ -53,6 +53,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
         multiPdf && idx >= 0
           ? { index: idx + 1, total: ordered.length }
           : undefined,
+      slotKind: ticket.order.slot.kind,
     });
 
     return new NextResponse(Buffer.from(pdfBytes), {

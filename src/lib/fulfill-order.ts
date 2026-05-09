@@ -71,6 +71,7 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
       ticketOrdinal: multiPdf
         ? { index: i + 1, total: tickets.length }
         : undefined,
+      slotKind: full.slot.kind,
     });
     pdfAttachments.push({
       filename: multiPdf

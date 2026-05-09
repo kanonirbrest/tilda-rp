@@ -116,6 +116,16 @@ function isoToTimeLocalHHmm(iso: string): string {
   return t ?? "";
 }
 
+function hhMmToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map((x) => Number.parseInt(x, 10));
+  return h * 60 + m;
+}
+
+/** Через полночь допустимо (например 21:00–00:00); только нулевая длина интервала — нет. */
+function isValidNightOfMuseumsTimeRange(from: string, to: string): boolean {
+  return hhMmToMinutes(from) !== hhMmToMinutes(to);
+}
+
 /** Подпись кнопки даты: 2026-04-03 → «3 апр.» без сдвига по TZ */
 function formatDateKeyShort(dateKey: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
@@ -959,8 +969,12 @@ export default function AdminDashboard() {
       setErrMsg("Укажите дату и диапазон времени для Night of Museums.");
       return;
     }
-    if (!/^\d{2}:\d{2}$/.test(from) || !/^\d{2}:\d{2}$/.test(to) || from >= to) {
-      setErrMsg("Проверьте диапазон: время «с» должно быть раньше времени «по».");
+    if (!/^\d{2}:\d{2}$/.test(from) || !/^\d{2}:\d{2}$/.test(to)) {
+      setErrMsg("Укажите время «с» и «по» в формате ЧЧ:ММ.");
+      return;
+    }
+    if (!isValidNightOfMuseumsTimeRange(from, to)) {
+      setErrMsg("Время начала и конца не должны совпадать. До полуночи следующего дня укажите конец как 00:00 (например 21:00–00:00).");
       return;
     }
     if (standardPrice < 0) {
@@ -1942,7 +1956,9 @@ export default function AdminDashboard() {
           >
             <p className="admin-hint admin-hint--tight">
               Создаётся один слот с витриной <span className="mono">{NIGHT_OF_MUSEUMS_SLOT_KIND}</span>. Диапазон
-              времени сохраняется в названии, цена единая (стандартная) для всех типов билетов.
+              времени сохраняется в названии, цена единая (стандартная) для всех типов билетов. Через полночь укажите
+              конец как <span className="mono">00:00</span> (например <span className="mono">21:00</span>–
+              <span className="mono">00:00</span>).
             </p>
             <div className="admin-row admin-row--modal">
               <div className="admin-field admin-field-narrow">

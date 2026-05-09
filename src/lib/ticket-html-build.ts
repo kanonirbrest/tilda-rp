@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
 import { formatMinorUnits } from "@/lib/money";
 import { DEFAULT_TICKET_LEGAL_BLOCK } from "@/lib/ticket-legal-default";
+import { NIGHT_OF_MUSEUMS_SLOT_KIND } from "@/lib/slot-kind";
 
 export type TicketPdfInput = {
   title: string;
@@ -15,6 +16,8 @@ export type TicketPdfInput = {
   ticketTierLabel?: string;
   admissionCount?: number;
   ticketOrdinal?: { index: number; total: number };
+  /** Для `NIGHT_OF_MUSEUMS`: «Дата и время» — две строки (дата из слота, диапазон из названия `Night of Museums …`). */
+  slotKind?: string;
 };
 
 const VENUE_LINE =
@@ -171,6 +174,28 @@ function formatWhenRuUpper(iso: Date): string {
   );
 }
 
+/** Дата события одной строкой (как на билете Ночи музеев). */
+function formatEventDateOnlyRuUpper(d: Date): string {
+  return sanitizeForPdfText(
+    d
+      .toLocaleDateString("ru-RU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+      .replace(/\s+/g, " ")
+      .trim()
+      .toUpperCase(),
+  );
+}
+
+/** Диапазон времени из заголовка слота: «Night of Museums 21:00-00:00» → «21:00-00:00». */
+function parseNightOfMuseumsTimeRangeFromTitle(title: string): string | null {
+  const m = /^Night\s+of\s+Museums\s+(.+)$/i.exec(title.trim());
+  const rest = m?.[1]?.trim();
+  return rest || null;
+}
+
 function formatPriceTicket(isoMinor: number, currency: string): string {
   const s = formatMinorUnits(isoMinor, currency).toUpperCase();
   return s.replace(/\.00(?=\s)/, "");
@@ -198,6 +223,17 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
   const hasBg = Boolean(bg.dataUrl);
 
   const whenStr = formatWhenRuUpper(opts.startsAt);
+  const nightTimeRange =
+    opts.slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND ?
+      parseNightOfMuseumsTimeRangeFromTitle(opts.title)
+    : null;
+  const whenValueHtml =
+    opts.slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND && nightTimeRange ?
+      `<div class="field-value value-wide value-when-stacked">
+          <span class="when-stacked-line when-stacked-line--date">${escapeHtml(formatEventDateOnlyRuUpper(opts.startsAt))}</span>
+          <span class="when-stacked-line when-stacked-line--time">${escapeHtml(sanitizeForPdfText(nightTimeRange))}</span>
+        </div>`
+    : `<div class="field-value value-wide">${escapeHtml(whenStr)}</div>`;
   const priceStr = sanitizeForPdfText(formatPriceTicket(opts.amountCents, opts.currency));
   const legalHtml = legalToHtml(resolveLegalBlock());
 
@@ -489,6 +525,19 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       line-height: 1.2;
       letter-spacing: 0.04em;
     }
+    .value-when-stacked {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2mm;
+    }
+    .value-when-stacked .when-stacked-line--date {
+      text-transform: uppercase;
+    }
+    .value-when-stacked .when-stacked-line--time {
+      text-transform: none;
+      font-variant-numeric: tabular-nums;
+    }
     .venue-wrap {
       display: flex;
       flex-direction: row;
@@ -610,7 +659,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     <div class="blocks">
       <section class="field-block">
         <div class="field-label">Дата и время</div>
-        <div class="field-value value-wide">${escapeHtml(whenStr)}</div>
+        ${whenValueHtml}
       </section>
       ${tierBlock}
       <section class="field-block">
