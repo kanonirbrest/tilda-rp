@@ -1,7 +1,15 @@
 /* Как buy-tickets plain-checkout: public/buy-tickets/slot.html → .dei-plain-checkout, .dei-plain-heading, .t-input */
 
+@font-face {
+  font-family: "Cy Grotesk Grand";
+  src: url("/fonts/cy-grotesk-grand-2.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 .nom-page {
-  --t-headline-font: var(--nom-font), Arial, sans-serif;
+  --t-headline-font: "Cy Grotesk Grand", system-ui, sans-serif;
   --t-text-font: var(--nom-font), Arial, sans-serif;
   --nom-accent: rgb(255, 98, 130);
   --nom-accent-hover: rgb(236, 78, 112);
@@ -55,51 +63,29 @@
   margin-bottom: 32px;
 }
 
-/* Как .dei-plain-heading */
+/* Заголовок страницы: 26px / 500 */
 .nom-head__title {
   margin: 0 0 20px;
   font-family: var(--t-headline-font);
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 500;
-  letter-spacing: normal;
-  line-height: 1.55;
+  font-style: normal;
+  letter-spacing: 0;
+  line-height: 1.2;
   color: #fff;
 }
 
-@media screen and (max-width: 1199px) {
-  .nom-head__title {
-    font-size: 26px;
-  }
-}
-
-@media screen and (max-width: 479px) {
-  .nom-head__title {
-    font-size: 22px;
-    line-height: 1.35;
-  }
-}
-
-/* Подзаголовки секций — как плотность .dei-plain-ticket-hint на десктопе */
+/* «Выбор билетов»: 18px / 500 (tilda-forms перебивает p внутри .t-form — см. ниже) */
 .nom-block-label {
   margin: 0 0 14px;
   font-family: var(--t-headline-font);
   font-size: 18px;
-  font-weight: 200;
-  line-height: 1.55;
+  font-weight: 500;
+  font-style: normal;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: none;
   color: rgba(255, 255, 255, 0.95);
-}
-
-@media screen and (max-width: 1199px) {
-  .nom-block-label {
-    font-size: 16px;
-  }
-}
-
-@media screen and (max-width: 479px) {
-  .nom-block-label {
-    font-size: 12px;
-    line-height: 1.45;
-  }
 }
 
 .nom-block {
@@ -110,70 +96,40 @@
   margin-bottom: 0;
 }
 
+/* «16 мая»: 18px / 500 */
 .nom-session-date {
   margin: 0;
   font-family: var(--t-headline-font);
   font-size: 18px;
   font-weight: 500;
-  line-height: 1.55;
+  font-style: normal;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: none;
   color: #fff;
 }
 
-@media screen and (max-width: 1199px) {
-  .nom-session-date {
-    font-size: 16px;
-  }
-}
-
-@media screen and (max-width: 479px) {
-  .nom-session-date {
-    font-size: 15px;
-    line-height: 1.35;
-  }
-}
-
+/* «Время сеанса …»: 16px / 200 */
 .nom-session-time {
   margin: 8px 0 0;
   font-family: var(--t-headline-font);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 200;
-  line-height: 1.55;
+  font-style: normal;
+  letter-spacing: 0;
+  line-height: 1.25;
   color: rgba(255, 255, 255, 0.95);
 }
 
-@media screen and (max-width: 1199px) {
-  .nom-session-time {
-    font-size: 16px;
-  }
-}
-
-@media screen and (max-width: 479px) {
-  .nom-session-time {
-    font-size: 12px;
-    line-height: 1.45;
-  }
-}
-
-/* Как .dei-plain-ticket-title */
+/* «Стандартный билет …»: 16px / 200 */
 .nom-ticket-line {
   font-family: var(--t-headline-font);
-  font-size: 24px;
-  font-weight: 500;
-  line-height: 1.55;
+  font-size: 16px;
+  font-weight: 200;
+  font-style: normal;
+  letter-spacing: 0;
+  line-height: 1.25;
   color: #fff;
-}
-
-@media screen and (max-width: 1199px) {
-  .nom-ticket-line {
-    font-size: 18px;
-  }
-}
-
-@media screen and (max-width: 479px) {
-  .nom-ticket-line {
-    font-size: 18px;
-    line-height: 1.2;
-  }
 }
 
 .nom-ticket-row {
@@ -262,32 +218,33 @@
   }
 }
 
+/* Итог: «N билет(ов) на сумму …» — 18px / 500, по левому краю */
 .nom-summary {
   margin: 22px 0 20px;
-  font-family: var(--t-text-font);
+  font-family: var(--t-headline-font);
   font-size: 18px;
-  font-weight: 200;
-  line-height: 1.55;
+  font-weight: 500;
+  font-style: normal;
+  letter-spacing: 0;
+  line-height: 1.25;
   color: rgba(255, 255, 255, 0.95);
-  text-align: center;
-}
-
-@media screen and (max-width: 1199px) {
-  .nom-summary {
-    font-size: 16px;
-  }
-}
-
-@media screen and (max-width: 479px) {
-  .nom-summary {
-    font-size: 12px;
-    line-height: 1.45;
-  }
+  text-align: left;
 }
 
 .nom-summary strong {
-  font-weight: 600;
+  font-weight: 500;
   color: #fff;
+}
+
+/* Иначе `.nom-plain-msg` (ниже по файлу) уменьшает кегль у строки котировки */
+.nom-summary.nom-plain-msg,
+.nom-summary.nom-plain-msg--muted {
+  font-family: var(--t-headline-font);
+  font-size: 18px;
+  font-weight: 500;
+  text-align: left;
+  line-height: 1.25;
+  margin: 22px 0 20px;
 }
 
 .nom-form-block {
@@ -300,6 +257,31 @@
  */
 #nom-checkout-form.t-form {
   margin: 0;
+}
+
+/* tilda-forms задаёт p внутри .t-form лёгким/мелким — фиксируем подпись «Выбор билетов» */
+#nom-checkout-form.t-form p.nom-block-label {
+  font-family: var(--t-headline-font) !important;
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+#nom-checkout-form.t-form p.nom-summary {
+  font-family: var(--t-headline-font) !important;
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  line-height: 1.25 !important;
+  text-align: left !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+#nom-checkout-form.t-form p.nom-summary strong {
+  font-weight: 500 !important;
+  color: #fff !important;
 }
 
 #nom-checkout-form .t-input-error {

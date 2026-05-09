@@ -28,18 +28,51 @@ function resolveResendApiUrl(): string {
 }
 
 function buildTicketEmailText(opts: TicketEmailInput): { subject: string; text: string } {
-  const linksBlock =
-    opts.downloadUrls.length > 1 ?
-      opts.downloadUrls.map((u, i) => `${i + 1}. ${u}`).join("\n")
-    : (opts.downloadUrls[0] ?? "");
   const multiple = opts.pdfAttachments.length > 1;
+  const urls = opts.downloadUrls.filter(Boolean);
+  const linksBlock =
+    urls.length > 1 ? urls.map((u, i) => `${i + 1}. ${u}`).join("\n") : (urls[0] ?? "");
+
+  const ticketLead = multiple ? "Ваши билеты уже ждут вас:" : "Ваш билет уже ждёт вас:";
+  const downloadBlock =
+    multiple ?
+      `Скачать билеты можно здесь:\n${linksBlock}\n`
+    : `Скачать билет можно здесь:\n${linksBlock}\n`;
+  const attachmentLine = multiple ?
+    "Билеты также прикреплены к этому письму во вложении."
+  : "Билет также прикреплён к этому письму во вложении.";
+
+  const text = `Добрый день, на связи Razman Production!
+
+Благодарим, что выбрали иммерсивную медиа-выставку «Небо.Река – Планета после шума»! Вы вот-вот погрузитесь в масштабный мир, где природа вдохновляет, технологии удивляют, живая музыка трогает!
+
+${ticketLead}
+
+${downloadBlock}
+${attachmentLine}
+
+Готовы к встрече?
+
+• Наш адрес: DEI - Дом Экспериментального искусства (https://yandex.ru/maps/-/CPbP4Qi2) — Минск, Машерова 15/1 (вход со двора).
+Возле пространства работает платная парковка (https://yandex.ru/maps?whatshere%5Bzoom%5D=19&whatshere%5Bpoint%5D=27.567001,53.914411&si=ba5qnxud4b19pa7k85ky7a09a4) — 3 р/час (заезд под шлагбаум возле бара Louis Prima)
+
+Узнайте, как до нас добраться (https://dei.by/contacts#ways) — мы выбрали удобные маршруты для вас.
+
+• Присоединяйтесь к Клубу друзей Razman Production в Telegram (https://t.me/RazmanProductionBot?start=qr): здесь эксклюзивная информация о текущих проектах, анонсы событий, спецпредложения и сюрпризы для друзей!
+
+Ждем вас на «Небо.Река» — пусть это путешествие станет незабываемым!
+
+————————
+С теплом,
+Команда Razman Production и служба заботы о клиентах
+
+Колл центр +375 (44) 738-33-33 | info@dei.by
+Instagram: @deii.rp (https://www.instagram.com/deii.rp)
+`;
+
   return {
-    subject: multiple ? "Ваши билеты" : "Ваш билет",
-    text: `Здравствуйте, ${opts.customerName}.\n\n${
-      multiple ?
-        `Билеты во вложении (${opts.pdfAttachments.length} файла). Также можно скачать по ссылкам:\n${linksBlock}\n`
-      : `Билет во вложении. Также можно скачать по ссылке: ${linksBlock}\n`
-    }`,
+    subject: multiple ? "Ваши билеты — «Небо.Река»" : "Ваш билет — «Небо.Река»",
+    text,
   };
 }
 

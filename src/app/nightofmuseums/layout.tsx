@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./nightofmuseums.css";
 
-/** Как на buy-tickets: Inter + вес 200 для полей/stepper (см. .dei-plain-checkout в slot.html). */
+/** Поля формы / fallback — как на buy-tickets (Inter). Заголовки Ночи музеев — Cy Grotesk Grand из `nightofmuseums.css` + `/fonts/`. */
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
   weight: ["200", "300", "400", "500", "600", "700"],
