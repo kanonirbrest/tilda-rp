@@ -1,13 +1,12 @@
-/* Стиль как у потока «Билеты на стенд» (buy-tickets / slot.html): Inter + CSS-переменные Тильды */
+/* Как buy-tickets plain-checkout: public/buy-tickets/slot.html → .dei-plain-checkout, .dei-plain-heading, .t-input */
 
 .nom-page {
-  /* Как var(--t-headline-font) / var(--t-text-font) на странице Тильды — оба Inter */
   --t-headline-font: var(--nom-font), Arial, sans-serif;
   --t-text-font: var(--nom-font), Arial, sans-serif;
-  /* Как rgb(255, 98, 130) / --dei-cal-day-accent в slot.html */
   --nom-accent: rgb(255, 98, 130);
   --nom-accent-hover: rgb(236, 78, 112);
-  --nom-outline: rgba(255, 255, 255, 0.82);
+  --nom-input-border: rgba(255, 255, 255, 0.88);
+  --dei-cal-day-accent: rgb(255, 98, 130);
   position: relative;
   box-sizing: border-box;
   width: 100%;
@@ -35,38 +34,68 @@
     linear-gradient(168deg, #0b1220 0%, #151032 42%, #1e1040 72%, #241848 100%);
 }
 
+/* Ширина и отступы как у .dei-plain-checkout; наружная колонка как у попапа min(96vw, 760px) */
 .nom-shell {
   position: relative;
   z-index: 2;
   box-sizing: border-box;
   width: 100%;
-  max-width: 420px;
+  max-width: min(96vw, 760px);
   margin: 0 auto;
   flex: 1 1 auto;
   min-height: 0;
-  padding: 28px clamp(18px, 5vw, 24px) calc(88px + env(safe-area-inset-bottom, 0px));
+  padding: 16px clamp(14px, 4vw, 28px) calc(72px + env(safe-area-inset-bottom, 0px));
 }
 
 .nom-head {
-  margin-bottom: 28px;
+  margin-bottom: 32px;
 }
 
+/* Как .dei-plain-heading */
 .nom-head__title {
-  margin: 0;
+  margin: 0 0 20px;
   font-family: var(--t-headline-font);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.3;
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: normal;
+  line-height: 1.55;
   color: #fff;
 }
 
+@media screen and (max-width: 1199px) {
+  .nom-head__title {
+    font-size: 26px;
+  }
+}
+
+@media screen and (max-width: 479px) {
+  .nom-head__title {
+    font-size: 22px;
+    line-height: 1.35;
+  }
+}
+
+/* Подзаголовки секций — как плотность .dei-plain-ticket-hint на десктопе */
 .nom-block-label {
   margin: 0 0 14px;
-  font-family: var(--t-text-font);
-  font-size: 14px;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.88);
+  font-family: var(--t-headline-font);
+  font-size: 18px;
+  font-weight: 200;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+@media screen and (max-width: 1199px) {
+  .nom-block-label {
+    font-size: 16px;
+  }
+}
+
+@media screen and (max-width: 479px) {
+  .nom-block-label {
+    font-size: 12px;
+    line-height: 1.45;
+  }
 }
 
 .nom-block {
@@ -77,88 +106,78 @@
   margin-bottom: 0;
 }
 
-/* Дата: горизонтальный ряд «чипов» */
-.nom-date-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.nom-chip {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 10px 18px;
-  border-radius: 999px;
-  border: 1px solid var(--nom-outline);
-  background: rgba(255, 255, 255, 0.06);
+.nom-session-date {
+  margin: 0;
+  font-family: var(--t-headline-font);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.55;
   color: #fff;
-  font-family: var(--t-text-font);
-  font-size: 15px;
-  font-weight: 400;
 }
 
-.nom-chip--selected {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.95);
-}
-
-.nom-session-time {
-  margin: 12px 0 0;
-  font-family: var(--t-text-font);
-  font-size: 15px;
-  font-weight: 300;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.92);
-}
-
-/* Время: сетка, выбранный слот — белая «таблетка» с тёмным текстом */
-.nom-time-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.nom-time-grid--single {
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 380px) {
-  .nom-time-grid:not(.nom-time-grid--single) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+@media screen and (max-width: 1199px) {
+  .nom-session-date {
+    font-size: 16px;
   }
 }
 
-.nom-time-slot {
-  box-sizing: border-box;
-  min-height: 48px;
-  padding: 10px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--nom-outline);
-  background: transparent;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 400;
-  text-align: center;
-  cursor: default;
+@media screen and (max-width: 479px) {
+  .nom-session-date {
+    font-size: 15px;
+    line-height: 1.35;
+  }
 }
 
-.nom-time-slot--selected {
-  background: #ffffff;
-  border-color: #ffffff;
-  color: #0f172a;
+.nom-session-time {
+  margin: 8px 0 0;
+  font-family: var(--t-headline-font);
+  font-size: 18px;
+  font-weight: 200;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+@media screen and (max-width: 1199px) {
+  .nom-session-time {
+    font-size: 16px;
+  }
+}
+
+@media screen and (max-width: 479px) {
+  .nom-session-time {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+}
+
+/* Как .dei-plain-ticket-title */
+.nom-ticket-line {
+  font-family: var(--t-headline-font);
+  font-size: 24px;
   font-weight: 500;
+  line-height: 1.55;
+  color: #fff;
 }
 
-/* Строка билета (как на референсе): жирный заголовок + тонкий подзаголовок */
+@media screen and (max-width: 1199px) {
+  .nom-ticket-line {
+    font-size: 18px;
+  }
+}
+
+@media screen and (max-width: 479px) {
+  .nom-ticket-line {
+    font-size: 18px;
+    line-height: 1.2;
+  }
+}
+
 .nom-ticket-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  margin-bottom: 28px;
 }
 
 .nom-ticket-text {
@@ -166,19 +185,11 @@
   min-width: 0;
 }
 
-.nom-ticket-line {
-  font-family: var(--t-headline-font);
-  font-size: 17px;
-  font-weight: 700;
-  line-height: 1.35;
-  color: #fff;
-}
-
-/* Счётчик: − и + без кругов, число в тонком круге */
+/* Как .dei-plain-stepper / .dei-plain-step / .dei-plain-stepper-val */
 .nom-qty {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 18px;
   flex-shrink: 0;
 }
 
@@ -187,14 +198,14 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.95);
+  color: rgba(255, 255, 255, 0.92);
   font-family: var(--t-headline-font);
-  font-size: 26px;
-  font-weight: 300;
+  font-size: 28px;
+  font-weight: 200;
   line-height: 1;
   cursor: pointer;
   min-width: 28px;
-  min-height: 40px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -221,41 +232,53 @@
   height: 40px;
   padding: 0 8px;
   border-radius: 50%;
-  border: 1px solid var(--nom-outline);
+  border: 1px solid var(--nom-input-border);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-family: var(--t-headline-font);
-  font-size: 16px;
-  font-weight: 300;
+  font-size: 18px;
+  font-weight: 200;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
   color: #fff;
 }
 
-@media (max-width: 379px) {
-  .nom-qty {
-    gap: 10px;
+@media screen and (max-width: 479px) {
+  .nom-qty-ring {
+    font-size: 16px;
   }
 
   .nom-qty-btn {
-    font-size: 22px;
+    font-size: 24px;
   }
 
-  .nom-qty-ring {
-    min-width: 36px;
-    height: 36px;
-    font-size: 15px;
+  .nom-qty {
+    gap: 14px;
   }
 }
 
 .nom-summary {
   margin: 22px 0 20px;
   font-family: var(--t-text-font);
-  font-size: 15px;
-  font-weight: 300;
-  line-height: 1.45;
-  color: rgba(255, 255, 255, 0.9);
+  font-size: 18px;
+  font-weight: 200;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.95);
   text-align: center;
+}
+
+@media screen and (max-width: 1199px) {
+  .nom-summary {
+    font-size: 16px;
+  }
+}
+
+@media screen and (max-width: 479px) {
+  .nom-summary {
+    font-size: 12px;
+    line-height: 1.45;
+  }
 }
 
 .nom-summary strong {
@@ -264,44 +287,185 @@
 }
 
 .nom-form-block {
-  margin-top: 28px;
+  margin-top: 18px;
 }
 
-.nom-plain-input-group {
-  margin-bottom: 18px;
+/*
+ * Поля как в попапе buy-tickets (slot.html #form1961449631 + plain-checkout).
+ * Разметка: .t-input-group_em | _nm | _ph + .t-input-phonemask__wrap
+ */
+#nom-checkout-form.t-form {
+  margin: 0;
 }
 
-.nom-plain-input-group:last-of-type {
-  margin-bottom: 0;
+#nom-checkout-form .t-input-error {
+  display: none !important;
 }
 
-.nom-input {
-  box-sizing: border-box;
+#nom-checkout-form .t-input-group,
+#nom-checkout-form .t-form__inputsbox .t-input-group {
+  margin-bottom: 25px !important;
+}
+
+/* Email и имя: одиночный .t-input в блоке (не путать с .t-input-phonemask__wrap) */
+#nom-checkout-form .t-input-group_em .t-input,
+#nom-checkout-form .t-input-group_nm .t-input,
+#nom-checkout-form textarea.t-input {
+  box-sizing: border-box !important;
   width: 100%;
-  height: 50px;
-  padding-left: 22px;
-  padding-right: 22px;
-  border-radius: 999px;
-  border: 1px solid var(--nom-outline);
-  background: rgba(0, 0, 0, 0.18);
-  color: rgba(255, 255, 255, 0.98);
-  font-family: var(--t-text-font);
-  font-size: 16px;
-  font-weight: 300;
-  letter-spacing: 0.02em;
-  line-height: 1.4;
+  font-family: var(--t-text-font), Arial, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 200 !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.4 !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--nom-input-border) !important;
+  background-color: transparent !important;
+  color: rgba(255, 255, 255, 0.98) !important;
+  padding-left: 32px !important;
+  padding-right: 32px !important;
+  height: 48px !important;
 }
 
-.nom-input::placeholder {
-  color: rgba(255, 255, 255, 0.48);
-  font-weight: 300;
+#nom-checkout-form .t-input-group_em .t-input::placeholder,
+#nom-checkout-form .t-input-group_nm .t-input::placeholder,
+#nom-checkout-form textarea.t-input::placeholder {
+  color: rgba(255, 255, 255, 0.55) !important;
+  font-weight: 200 !important;
+  letter-spacing: 0.06em !important;
+}
+
+#nom-checkout-form .t-input-group_em .t-input::-webkit-input-placeholder,
+#nom-checkout-form .t-input-group_nm .t-input::-webkit-input-placeholder,
+#nom-checkout-form textarea.t-input::-webkit-input-placeholder {
+  color: rgba(255, 255, 255, 0.55) !important;
+  font-weight: 200 !important;
+  letter-spacing: 0.06em !important;
+}
+
+#nom-checkout-form .t-input-group_em .t-input::-moz-placeholder,
+#nom-checkout-form .t-input-group_nm .t-input::-moz-placeholder,
+#nom-checkout-form textarea.t-input::-moz-placeholder {
+  color: rgba(255, 255, 255, 0.55) !important;
+  font-weight: 200 !important;
+  letter-spacing: 0.06em !important;
+  opacity: 1 !important;
+}
+
+#nom-checkout-form .t-input-phonemask__wrap {
+  font-family: var(--t-text-font), Arial, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 200 !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.4 !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--nom-input-border) !important;
+  background-color: transparent !important;
+  color: rgba(255, 255, 255, 0.98) !important;
+  padding-left: 12px !important;
+  padding-right: 14px !important;
+  height: 48px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex-wrap: nowrap !important;
+}
+
+#nom-checkout-form .t-input-phonemask__select {
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+  padding: 0 6px 0 0 !important;
+}
+
+#nom-checkout-form .t-input-phonemask__select-code {
+  margin-left: 4px !important;
+}
+
+#nom-checkout-form .t-input-phonemask__select-triangle {
+  margin-left: 2px !important;
+}
+
+#nom-checkout-form .t-input-phonemask__wrap .t-input.t-input-phonemask,
+#nom-checkout-form .t-input-phonemask__wrap input.t-input-phonemask {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border-radius: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  width: 0 !important;
+  padding-left: 6px !important;
+  padding-right: 0 !important;
+  margin: 0 !important;
+  text-align: left !important;
+}
+
+#nom-checkout-form .t-input-phonemask {
+  font-family: var(--t-text-font), Arial, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 200 !important;
+  letter-spacing: 0 !important;
+  color: rgba(255, 255, 255, 0.98) !important;
+}
+
+#nom-checkout-form .t-input-phonemask::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+  letter-spacing: 0.06em !important;
+}
+
+#nom-checkout-form .t-input-phonemask::-webkit-input-placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+  letter-spacing: 0.06em !important;
+}
+
+#nom-checkout-form .t-input-phonemask::-moz-placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+  letter-spacing: 0.06em !important;
+  opacity: 1 !important;
+}
+
+/* Автозаполнение как в slot.html для #form1961449631 */
+#nom-checkout-form input:-webkit-autofill,
+#nom-checkout-form input:-webkit-autofill:hover,
+#nom-checkout-form input:-webkit-autofill:focus,
+#nom-checkout-form input:-webkit-autofill:active,
+#nom-checkout-form textarea:-webkit-autofill,
+#nom-checkout-form textarea:-webkit-autofill:hover,
+#nom-checkout-form textarea:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  -webkit-text-fill-color: rgb(255, 255, 255) !important;
+  caret-color: rgb(255, 255, 255);
+  transition: background-color 99999s ease-out 0s;
+}
+
+#nom-checkout-form input:autofill,
+#nom-checkout-form textarea:autofill {
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  -webkit-text-fill-color: rgb(255, 255, 255) !important;
+  caret-color: rgb(255, 255, 255);
+}
+
+#nom-checkout-form input:-internal-autofill-selected,
+#nom-checkout-form textarea:-internal-autofill-selected {
+  appearance: auto !important;
+  background-image: none !important;
+  background-color: transparent !important;
+  color: rgb(255, 255, 255) !important;
 }
 
 .nom-plain-msg {
   font-family: var(--t-text-font);
   font-size: 14px;
+  font-weight: 200;
   line-height: 1.45;
-  color: #ff8a80;
+  color: #f95d51;
   margin: 0 0 14px;
 }
 
@@ -309,36 +473,41 @@
   color: rgba(255, 255, 255, 0.65);
 }
 
-.nom-submit {
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 54px;
-  padding: 16px 22px;
+/* Как button.t-submit в plain-checkout */
+#nom-checkout-form button.t-submit.nom-submit,
+#nom-checkout-form button.nom-submit.t-submit {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: 52px !important;
+  padding: 14px 20px !important;
   margin-top: 8px;
-  border-radius: 999px;
-  border: none;
+  border-radius: 999px !important;
+  border: none !important;
   font-family: var(--t-text-font), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    sans-serif;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  background: var(--nom-accent);
-  color: #fff;
+    sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+  background: var(--dei-cal-day-accent, var(--nom-accent)) !important;
+  color: #fff !important;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s ease, transform 0.1s ease;
   cursor: pointer;
 }
 
-.nom-submit:hover:not(:disabled) {
-  background: var(--nom-accent-hover);
+#nom-checkout-form button.t-submit.nom-submit:hover:not(:disabled),
+#nom-checkout-form button.nom-submit.t-submit:hover:not(:disabled) {
+  background: var(--nom-accent-hover) !important;
 }
 
-.nom-submit:active:not(:disabled) {
+#nom-checkout-form button.t-submit.nom-submit:active:not(:disabled),
+#nom-checkout-form button.nom-submit.t-submit:active:not(:disabled) {
   transform: scale(0.99);
 }
 
-.nom-submit:disabled {
+#nom-checkout-form button.t-submit.nom-submit:disabled,
+#nom-checkout-form button.nom-submit.t-submit:disabled {
   opacity: 0.55;
   cursor: wait;
 }

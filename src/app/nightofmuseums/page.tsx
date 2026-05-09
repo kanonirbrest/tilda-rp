@@ -228,19 +228,18 @@ export default function NightOfMuseumsPage() {
 
         {!loading && !error && date && time ? (
           <>
-            <section className="nom-block" aria-labelledby="nom-datetime-label">
-              <p id="nom-datetime-label" className="nom-block-label">
-                Выбор даты и времени
-              </p>
-              <div className="nom-date-row">
-                <div className="nom-chip nom-chip--selected">{formatDateShortRu(date)}</div>
-              </div>
+            <section className="nom-block nom-block--session" aria-label="Дата и время сеанса">
+              <p className="nom-session-date">{formatDateShortRu(date)}</p>
               <p className="nom-session-time">
                 Время сеанса {sessionTimeLabel}
               </p>
             </section>
 
-            <form className="nom-form-block" onSubmit={(e) => void onSubmit(e)}>
+            <form
+              id="nom-checkout-form"
+              className="nom-form-block nom-tilda-form t-form"
+              onSubmit={(e) => void onSubmit(e)}
+            >
               <section className="nom-block" aria-labelledby="nom-tickets-label">
                 <p id="nom-tickets-label" className="nom-block-label">
                   Выбор билетов
@@ -283,42 +282,75 @@ export default function NightOfMuseumsPage() {
                 <p className="nom-summary nom-plain-msg--muted">{quoteTotalLabel}</p>
               ) : null}
 
-              <div className="nom-plain-input-group">
-                <input
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Почта для отправки билетов"
-                  className="nom-input"
-                  autoComplete="email"
-                />
-              </div>
-              <div className="nom-plain-input-group">
-                <input
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Имя"
-                  className="nom-input"
-                  autoComplete="name"
-                />
-              </div>
-              <div className="nom-plain-input-group">
-                <input
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+375 (00) 000-00-00"
-                  className="nom-input"
-                  autoComplete="tel"
-                  inputMode="tel"
-                />
+              <div className="t-form__inputsbox">
+                <div className="t-input-group t-input-group_em">
+                  <div className="t-input-block">
+                    <input
+                      required
+                      type="email"
+                      name="email"
+                      autoComplete="email"
+                      aria-label="Почта для отправки билетов"
+                      placeholder="Почта для отправки билетов"
+                      className="t-input js-tilda-rule"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                    <div className="t-input-error" aria-hidden />
+                  </div>
+                </div>
+
+                <div className="t-input-group t-input-group_nm">
+                  <div className="t-input-block">
+                    <input
+                      required
+                      type="text"
+                      name="name"
+                      autoComplete="name"
+                      aria-label="Имя"
+                      placeholder="Имя"
+                      className="t-input js-tilda-rule"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                    />
+                    <div className="t-input-error" aria-hidden />
+                  </div>
+                </div>
+
+                <div className="t-input-group t-input-group_ph">
+                  <div className="t-input-block" style={{ overflow: "visible" }}>
+                    <div className="t-input t-input-phonemask__wrap">
+                      <div className="t-input-phonemask__select" aria-hidden>
+                        <span className="t-input-phonemask__select-flag" data-phonemask-flag="by" />
+                        <span className="t-input-phonemask__select-triangle" />
+                        <span
+                          className="t-input-phonemask__select-code"
+                          style={{ fontSize: 16, fontWeight: 200 }}
+                        >
+                          +375
+                        </span>
+                      </div>
+                      <input
+                        required
+                        type="tel"
+                        name="phoneLocal"
+                        autoComplete="tel"
+                        aria-label="Телефон"
+                        placeholder="(00) 000-00-00"
+                        className="t-input t-input-phonemask"
+                        inputMode="numeric"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                      />
+                    </div>
+                    <div className="t-input-error" aria-hidden />
+                  </div>
+                </div>
               </div>
 
               {formError ? <p className="nom-plain-msg">{formError}</p> : null}
 
-              <button type="submit" disabled={busy} className="nom-submit">
+              <button type="submit" disabled={busy} className="t-submit nom-submit">
                 {busy ? "Оформляем..." : "Перейти к оплате"}
               </button>
             </form>

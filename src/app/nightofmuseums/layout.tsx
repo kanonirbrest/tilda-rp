@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./nightofmuseums.css";
 
-/** Те же начертания Inter, что на buy-tickets (public/buy-tickets/slot.html → Google Fonts Inter 300–700). */
+/** Как на buy-tickets: Inter + вес 200 для полей/stepper (см. .dei-plain-checkout в slot.html). */
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["200", "300", "400", "500", "600", "700"],
   variable: "--nom-font",
   display: "swap",
 });
@@ -21,6 +21,14 @@ export default function NightOfMuseumsLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className={`${inter.variable} ${inter.className} min-h-full flex-1 bg-transparent`}>{children}</div>
+    <>
+      {/* Те же базовые стили полей, что в попапе buy-tickets (Tilda Forms). */}
+      <link rel="stylesheet" href="https://static.tildacdn.biz/css/tilda-forms-1.0.min.css" />
+      <div
+        className={`${inter.variable} ${inter.className} min-h-full flex-1 bg-transparent nom-tilda-root`}
+      >
+        {children}
+      </div>
+    </>
   );
 }
