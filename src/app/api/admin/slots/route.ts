@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
 import { getExhibitionTimezone, dateKeyInTz, timeKeyInTz } from "@/lib/exhibition-time";
 import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
+import { normalizeSlotKind } from "@/lib/slot-kind";
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
@@ -56,6 +57,7 @@ export async function GET(req: Request) {
     const st = stats.get(s.id)!;
     return {
       id: s.id,
+      kind: s.kind,
       title: s.title,
       startsAt: s.startsAt.toISOString(),
       dateKey: dateKeyInTz(s.startsAt, tz),
@@ -76,6 +78,7 @@ export async function GET(req: Request) {
 }
 
 const createBody = z.object({
+  kind: z.string().trim().max(64).optional(),
   title: z.string().min(1).max(500),
   startsAt: z.string().datetime({ offset: true }),
   capacity: z.number().int().positive().nullable().optional(),
@@ -101,6 +104,7 @@ export async function POST(req: Request) {
   const slot = await prisma.slot.create({
     data: {
       title: body.title.trim(),
+      kind: normalizeSlotKind(body.kind),
       startsAt: new Date(body.startsAt),
       capacity: body.capacity ?? null,
       priceCents: body.priceCents,

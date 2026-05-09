@@ -8,6 +8,7 @@ import {
   normalizePromoCode,
 } from "@/lib/promo-code";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
+import { normalizeSlotKind } from "@/lib/slot-kind";
 import { buildLinesFromCounts, totalCentsForLines } from "@/lib/slot-pricing";
 import { parseTicketCountParam } from "@/lib/ticket-checkout-params";
 
@@ -37,6 +38,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date")?.trim() ?? "";
   const time = searchParams.get("time")?.trim() ?? "";
+  const slotKind = normalizeSlotKind(searchParams.get("kind"));
   const adult = parseTicketCountParam(searchParams.get("adult"));
   const child = parseTicketCountParam(searchParams.get("child"));
   const concession = parseTicketCountParam(searchParams.get("concession"));
@@ -50,7 +52,7 @@ export async function GET(req: Request) {
     return jsonPublicReadResponse(req, { error: "TIME_REQUIRED", hint: "Укажите time (например 14:00)" }, 400);
   }
 
-  const resolved = await resolveCheckoutSlot({ slotId: null, date, time });
+  const resolved = await resolveCheckoutSlot({ slotId: null, date, time, slotKind });
   if (!resolved.ok) {
     const code = resolved.code;
     const status =
@@ -130,6 +132,7 @@ export async function GET(req: Request) {
     {
       totalCents,
       currency,
+      kind: slotKind,
       formattedTotal,
       promo,
     },

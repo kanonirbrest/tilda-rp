@@ -9,6 +9,8 @@ datasource db {
 
 model Slot {
   id         String   @id @default(cuid())
+  /// Идентификатор витрины/канала продажи (например NEBO_REKA, NIGHT_OF_MUSEUMS).
+  kind       String   @default("NEBO_REKA")
   title      String
   startsAt   DateTime
   /// Базовая цена в копейках (минорные единицы BYN; в админке ввод в рублях → ×100).

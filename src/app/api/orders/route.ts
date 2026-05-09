@@ -6,6 +6,7 @@ import { jsonOrdersResponse, publicOrdersCorsHeaders } from "@/lib/public-orders
 import { getRequestOrigin } from "@/lib/request-origin";
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
+import { normalizeSlotKind } from "@/lib/slot-kind";
 import { buildLinesFromCounts, type LineInput } from "@/lib/slot-pricing";
 import {
   hasDateAndTimeInQuery,
@@ -19,6 +20,7 @@ const lineSchema = z.object({
 
 const bodySchema = z
   .object({
+    slotKind: z.string().trim().max(64).optional(),
     slotId: z.string().trim().min(1).optional(),
     date: z.string().optional(),
     time: z.string().optional(),
@@ -78,6 +80,7 @@ export async function POST(req: Request) {
   }
 
   const d = parsed.data;
+  const slotKind = normalizeSlotKind(d.slotKind);
   const { name, email, phone } = d;
   const lineItems = (d.lines ?? []).filter((l) => l.quantity > 0);
 
@@ -85,6 +88,7 @@ export async function POST(req: Request) {
     slotId: d.slotId ?? null,
     date: d.date ?? null,
     time: d.time ?? null,
+    slotKind,
   });
 
   if (!resolved.ok) {

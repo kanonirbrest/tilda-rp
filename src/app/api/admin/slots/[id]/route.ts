@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
 import { reservedSeatsForSlot } from "@/lib/slot-reserved";
+import { parseOptionalSlotKind } from "@/lib/slot-kind";
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
@@ -10,6 +11,7 @@ export async function OPTIONS(req: Request) {
 
 const patchBody = z
   .object({
+    kind: z.string().trim().max(64).optional(),
     title: z.string().min(1).max(500).optional(),
     startsAt: z.string().datetime({ offset: true }).optional(),
     capacity: z.number().int().positive().nullable().optional(),
@@ -37,6 +39,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
 
   const data: Prisma.SlotUpdateInput = {};
+  if (body.kind !== undefined) {
+    const parsedKind = parseOptionalSlotKind(body.kind);
+    if (!parsedKind) {
+      return jsonWithCors(
+        req,
+        { error: "BAD_REQUEST", message: "kind должен быть одним из: NEBO_REKA, NIGHT_OF_MUSEUMS" },
+        { status: 400 },
+      );
+    }
+    data.kind = parsedKind;
+  }
   if (body.title !== undefined) data.title = body.title.trim();
   if (body.startsAt !== undefined) data.startsAt = new Date(body.startsAt);
   if (body.capacity !== undefined) data.capacity = body.capacity;

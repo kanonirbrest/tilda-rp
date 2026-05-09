@@ -7,12 +7,14 @@ import {
   parseMajorUnitsToMinor,
   parseOptionalMajorUnitsToMinor,
 } from "@/lib/money";
+import { NEBO_REKA_SLOT_KIND, NIGHT_OF_MUSEUMS_SLOT_KIND } from "@/lib/slot-kind";
 import { formatDisplayDateTime } from "@/lib/format-display-datetime";
 import { tierTicketSingularRu } from "@/lib/slot-pricing";
 import type { TicketTier } from "@prisma/client";
 
 type SlotRow = {
   id: string;
+  kind: string;
   title: string;
   startsAt: string;
   dateKey: string;
@@ -82,11 +84,13 @@ type OrdersResponse = {
 };
 
 type TabId = "orders" | "schedule" | "promos";
+const SLOT_KIND_CHOICES = [NEBO_REKA_SLOT_KIND, NIGHT_OF_MUSEUMS_SLOT_KIND] as const;
 
 type AdminModal =
   | { type: "none" }
   | { type: "order"; order: OrderRow }
   | { type: "slot-single" }
+  | { type: "slot-night" }
   | { type: "slot-bulk" }
   | { type: "slot-edit"; slot: SlotRow }
   | { type: "promo-new" }
@@ -898,6 +902,7 @@ export default function AdminDashboard() {
     const startsLocal = String(fd.get("startsAt") || "");
     const capRaw = String(fd.get("capacity") || "").trim();
     const currency = String(fd.get("currency") || "BYN").trim() || "BYN";
+    const kind = String(fd.get("kind") || NEBO_REKA_SLOT_KIND).trim().toUpperCase() || NEBO_REKA_SLOT_KIND;
     const pa =
       parseOptionalMajorUnitsToMinor(String(fd.get("priceAdultCents") ?? "")) ??
       parseMajorUnitsToMinor("58");
@@ -911,6 +916,7 @@ export default function AdminDashboard() {
     if (!startsLocal) return;
     const startsAt = new Date(startsLocal).toISOString();
     const body: Record<string, unknown> = {
+      kind,
       title,
       startsAt,
       priceCents,
@@ -931,6 +937,63 @@ export default function AdminDashboard() {
       const d = new Date(startsLocal);
       const p = (n: number) => String(n).padStart(2, "0");
       setSelectedDate(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`);
+    } catch (err: unknown) {
+      setErrMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onNewNightSlot(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const date = String(fd.get("nightDate") ?? "").trim();
+    const from = String(fd.get("nightFrom") ?? "").trim();
+    const to = String(fd.get("nightTo") ?? "").trim();
+    const capRaw = String(fd.get("nightCapacity") ?? "").trim();
+    const currency = String(fd.get("nightCurrency") ?? "BYN").trim() || "BYN";
+    const standardPrice = parseMajorUnitsToMinor(String(fd.get("nightPriceMajor") ?? "0"));
+
+    if (!date || !from || !to) {
+      setErrMsg("Укажите дату и диапазон времени для Night of Museums.");
+      return;
+    }
+    if (!/^\d{2}:\d{2}$/.test(from) || !/^\d{2}:\d{2}$/.test(to) || from >= to) {
+      setErrMsg("Проверьте диапазон: время «с» должно быть раньше времени «по».");
+      return;
+    }
+    if (standardPrice < 0) {
+      setErrMsg("Цена не может быть отрицательной.");
+      return;
+    }
+
+    const startsAt = new Date(`${date}T${from}:00`).toISOString();
+    const title = `Night of Museums ${from}-${to}`;
+    const body: Record<string, unknown> = {
+      kind: NIGHT_OF_MUSEUMS_SLOT_KIND,
+      title,
+      startsAt,
+      priceCents: standardPrice,
+      priceAdultCents: standardPrice,
+      priceChildCents: standardPrice,
+      priceConcessionCents: standardPrice,
+      currency,
+      active: true,
+    };
+    if (capRaw) body.capacity = Number.parseInt(capRaw, 10);
+
+    setErrMsg("");
+    setInfoMsg("");
+    setLoading(true);
+    try {
+      await apiFetch("/api/admin/slots", { method: "POST", body: JSON.stringify(body) });
+      setModal({ type: "none" });
+      form.reset();
+      setInfoMsg(`Сеанс Night of Museums создан: ${date}, ${from}-${to}.`);
+      await loadSlots();
+      setTab("schedule");
+      setSelectedDate(date);
     } catch (err: unknown) {
       setErrMsg(err instanceof Error ? err.message : String(err));
     } finally {
@@ -993,6 +1056,8 @@ export default function AdminDashboard() {
     const firstHour = Number.parseInt(String(fd.get("bulkFirstHour") ?? "10"), 10);
     const lastHour = Number.parseInt(String(fd.get("bulkLastHour") ?? "19"), 10);
     const title = String(fd.get("bulkTitle") ?? "").trim();
+    const kind =
+      String(fd.get("bulkKind") ?? NEBO_REKA_SLOT_KIND).trim().toUpperCase() || NEBO_REKA_SLOT_KIND;
     const currency = String(fd.get("bulkCurrency") ?? "BYN").trim() || "BYN";
     const capRaw = String(fd.get("bulkCapacity") ?? "").trim();
     const skipExisting = (fd.get("bulkSkipExisting") as string | null) === "on";
@@ -1025,6 +1090,7 @@ export default function AdminDashboard() {
     }
 
     const body: Record<string, unknown> = {
+      kind,
       date: selectedDate,
       firstHour,
       lastHour,
@@ -1065,6 +1131,7 @@ export default function AdminDashboard() {
     const fd = new FormData(form);
     const slot = slotsData?.slots.find((x) => x.id === slotId);
     const title = String(fd.get("title") ?? "");
+    const kind = String(fd.get("kind") ?? "").trim().toUpperCase();
     const timePart = String(fd.get("slotTime") ?? "");
     const dateFromForm = String(fd.get("slotDate") ?? "").trim();
     const datePart =
@@ -1083,6 +1150,7 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       const patch: Record<string, unknown> = {
+        kind,
         title: title.trim(),
         active,
         priceCents: priceCents >= 0 ? priceCents : 0,
@@ -1450,6 +1518,9 @@ export default function AdminDashboard() {
               <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "slot-single" })}>
                 + Один сеанс
               </button>
+              <button type="button" className="btn" onClick={() => setModal({ type: "slot-night" })}>
+                + Night of Museums
+              </button>
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -1499,7 +1570,7 @@ export default function AdminDashboard() {
                         <div className="admin-slot-row__main">
                           <span className="admin-slot-row__title">{truncateText(s.title, 48)}</span>
                           <span className="admin-slot-row__meta mono">
-                            {formatMinorUnits(s.priceCents, s.currency)} · опл. {s.soldPaid} · ожид.{" "}
+                            {s.kind} · {formatMinorUnits(s.priceCents, s.currency)} · опл. {s.soldPaid} · ожид.{" "}
                             {s.pendingReserved} · места {free}/{cap}
                           </span>
                         </div>
@@ -1818,6 +1889,16 @@ export default function AdminDashboard() {
             </div>
             <div className="admin-row admin-row--modal">
               <div className="admin-field admin-field-narrow">
+                <label>Витрина / канал продажи</label>
+                <select name="kind" defaultValue={NEBO_REKA_SLOT_KIND} required>
+                  {SLOT_KIND_CHOICES.map((k) => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="admin-field admin-field-narrow">
                 <label>Лимит мест</label>
                 <input name="capacity" type="number" min={1} defaultValue={1000} placeholder="∞" />
               </div>
@@ -1852,6 +1933,72 @@ export default function AdminDashboard() {
         </AdminModalFrame>
       ) : null}
 
+      {modal.type === "slot-night" ? (
+        <AdminModalFrame title="Новый сеанс Night of Museums" onClose={() => setModal({ type: "none" })}>
+          <form
+            key={`slot-night-${selectedDate}`}
+            onSubmit={(e) => void onNewNightSlot(e)}
+            className="admin-modal-form"
+          >
+            <p className="admin-hint admin-hint--tight">
+              Создаётся один слот с витриной <span className="mono">{NIGHT_OF_MUSEUMS_SLOT_KIND}</span>. Диапазон
+              времени сохраняется в названии, цена единая (стандартная) для всех типов билетов.
+            </p>
+            <div className="admin-row admin-row--modal">
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="night-date">Дата</label>
+                <input id="night-date" name="nightDate" type="date" defaultValue={selectedDate} required />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="night-from">С</label>
+                <input id="night-from" name="nightFrom" type="time" step={60} defaultValue="19:00" required />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="night-to">По</label>
+                <input id="night-to" name="nightTo" type="time" step={60} defaultValue="23:00" required />
+              </div>
+            </div>
+            <div className="admin-row admin-row--modal">
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="night-price">Стандартный билет, BYN</label>
+                <input
+                  id="night-price"
+                  name="nightPriceMajor"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  defaultValue={58}
+                  required
+                />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="night-capacity">Лимит мест</label>
+                <input
+                  id="night-capacity"
+                  name="nightCapacity"
+                  type="number"
+                  min={1}
+                  defaultValue={1000}
+                  placeholder="∞"
+                />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="night-currency">Валюта</label>
+                <input id="night-currency" name="nightCurrency" defaultValue="BYN" maxLength={8} />
+              </div>
+            </div>
+            <div className="admin-modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "none" })}>
+                Отмена
+              </button>
+              <button type="submit" className="btn" disabled={loading}>
+                Создать
+              </button>
+            </div>
+          </form>
+        </AdminModalFrame>
+      ) : null}
+
       {modal.type === "slot-edit" && slotsData ? (
         <AdminModalFrame
           size="wide"
@@ -1867,6 +2014,7 @@ export default function AdminDashboard() {
                 onSubmit={(e) => void saveSlotFromForm(e, s.id)}
               >
                 <p className="admin-hint admin-hint--tight mono">id: {s.id}</p>
+                <p className="admin-hint admin-hint--tight mono">kind: {s.kind}</p>
                 <p className="admin-hint admin-hint--tight">Часовой пояс: {slotsData.timezone}</p>
                 <div className="admin-row admin-row--modal">
                   <div className="admin-field admin-field-narrow">
@@ -1936,6 +2084,16 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="admin-row admin-row--modal">
+                  <div className="admin-field admin-field-narrow">
+                    <label htmlFor="edit-slot-kind">Витрина / канал продажи</label>
+                    <select id="edit-slot-kind" name="kind" defaultValue={s.kind} required>
+                      {SLOT_KIND_CHOICES.map((k) => (
+                        <option key={k} value={k}>
+                          {k}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="admin-field admin-field-narrow">
                     <label htmlFor="edit-slot-cap">Лимит мест</label>
                     <input
@@ -2016,6 +2174,16 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="admin-row admin-row--modal">
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="bulk-kind">Витрина / канал продажи</label>
+                <select id="bulk-kind" name="bulkKind" defaultValue={NEBO_REKA_SLOT_KIND} required>
+                  {SLOT_KIND_CHOICES.map((k) => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="admin-field admin-field-narrow">
                 <label htmlFor="bulk-cap">Лимит мест</label>
                 <input

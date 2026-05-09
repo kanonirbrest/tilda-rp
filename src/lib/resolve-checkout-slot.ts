@@ -12,12 +12,15 @@ export async function resolveCheckoutSlot(params: {
   slotId?: string | null;
   date?: string | null;
   time?: string | null;
+  slotKind?: string | null;
 }): Promise<
   { ok: true; slot: Slot } | { ok: false; code: "SLOT_NOT_FOUND" | "DATE_REQUIRED" | "TIME_REQUIRED" | "AMBIGUOUS" }
 > {
+  const slotKind = params.slotKind?.trim() || null;
+  const kindWhere = slotKind ? { kind: slotKind } : {};
   const sid = params.slotId?.trim();
   if (sid) {
-    const slot = await prisma.slot.findFirst({ where: { id: sid, active: true } });
+    const slot = await prisma.slot.findFirst({ where: { id: sid, active: true, ...kindWhere } });
     if (!slot) return { ok: false, code: "SLOT_NOT_FOUND" };
     return { ok: true, slot };
   }
@@ -43,6 +46,7 @@ export async function resolveCheckoutSlot(params: {
   const matched = await prisma.slot.findMany({
     where: {
       active: true,
+      ...kindWhere,
       startsAt: {
         gte: new Date(t - windowMs),
         lte: new Date(t + windowMs),
@@ -56,6 +60,7 @@ export async function resolveCheckoutSlot(params: {
       const daySlots = await prisma.slot.findMany({
         where: {
           active: true,
+          ...kindWhere,
           startsAt: { gte: range.start, lte: range.end },
         },
       });

@@ -4,6 +4,7 @@ import { getRequestOrigin } from "@/lib/request-origin";
 import { absoluteRedirectFromRequest, payHtmlError } from "@/lib/pay-http";
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
+import { normalizeSlotKind } from "@/lib/slot-kind";
 import { buildLinesFromCounts } from "@/lib/slot-pricing";
 import {
   hasDateAndTimeInQuery,
@@ -36,6 +37,7 @@ export async function GET(req: Request) {
   }
 
   const slotIdParam = searchParams.get("slotId");
+  const slotKind = normalizeSlotKind(searchParams.get("slotKind"));
   const date = searchParams.get("date");
   const time = searchParams.get("time");
   const adult = parseTicketCountParam(searchParams.get("adult"));
@@ -46,6 +48,7 @@ export async function GET(req: Request) {
     slotId: slotIdParam,
     date,
     time,
+    slotKind,
   });
 
   if (!resolved.ok) {

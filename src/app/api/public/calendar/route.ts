@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
 import { dateKeyInTz, getExhibitionTimezone } from "@/lib/exhibition-time";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
+import { normalizeSlotKind } from "@/lib/slot-kind";
 import { slotOrderLineStatsMap } from "@/lib/slot-order-line-stats";
 
 type DayAgg = {
@@ -16,9 +17,11 @@ export async function OPTIONS(req: Request) {
 /** Сводка по календарным дням: доступность и текст подсказки только если билетов на день нет. */
 export async function GET(req: Request) {
   await expireStalePendingOrders();
+  const { searchParams } = new URL(req.url);
+  const slotKind = normalizeSlotKind(searchParams.get("kind"));
 
   const slots = await prisma.slot.findMany({
-    where: { active: true },
+    where: { active: true, kind: slotKind },
     orderBy: { startsAt: "asc" },
     select: { id: true, capacity: true, startsAt: true },
   });
@@ -57,5 +60,5 @@ export async function GET(req: Request) {
     days[date] = { bookable: agg.bookable, hover };
   }
 
-  return jsonPublicReadResponse(req, { timezone: tz, days }, 200);
+  return jsonPublicReadResponse(req, { timezone: tz, kind: slotKind, days }, 200);
 }

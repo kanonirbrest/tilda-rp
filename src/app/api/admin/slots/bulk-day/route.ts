@@ -7,6 +7,7 @@ import {
   wallDayUtcRange,
   timeKeyInTz,
 } from "@/lib/exhibition-time";
+import { normalizeSlotKind } from "@/lib/slot-kind";
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
@@ -14,6 +15,7 @@ export async function OPTIONS(req: Request) {
 
 const bulkBody = z
   .object({
+    kind: z.string().trim().max(64).optional(),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     firstHour: z.number().int().min(0).max(23),
     lastHour: z.number().int().min(0).max(23),
@@ -61,6 +63,7 @@ export async function POST(req: Request) {
   const currency = body.currency ?? "BYN";
   const active = body.active ?? true;
   const cap = body.capacity ?? null;
+  const kind = normalizeSlotKind(body.kind);
 
   let created = 0;
   let skipped = 0;
@@ -76,6 +79,7 @@ export async function POST(req: Request) {
       if (!startsAt) continue;
       await tx.slot.create({
         data: {
+          kind,
           title: body.title.trim(),
           startsAt,
           capacity: cap,

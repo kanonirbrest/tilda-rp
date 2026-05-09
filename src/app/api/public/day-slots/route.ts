@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
 import { getExhibitionTimezone, timeKeyInTz, wallDayUtcRange } from "@/lib/exhibition-time";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
+import { normalizeSlotKind } from "@/lib/slot-kind";
 import { slotOrderLineStatsMap } from "@/lib/slot-order-line-stats";
 
 export async function OPTIONS(req: Request) {
@@ -18,6 +19,7 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date")?.trim() ?? "";
+  const slotKind = normalizeSlotKind(searchParams.get("kind"));
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return jsonPublicReadResponse(
       req,
@@ -35,6 +37,7 @@ export async function GET(req: Request) {
   const slots = await prisma.slot.findMany({
     where: {
       active: true,
+      kind: slotKind,
       startsAt: { gte: range.start, lte: range.end },
     },
     orderBy: { startsAt: "asc" },
@@ -57,5 +60,5 @@ export async function GET(req: Request) {
     times.push(tk);
   }
 
-  return jsonPublicReadResponse(req, { timezone: tz, date, times }, 200);
+  return jsonPublicReadResponse(req, { timezone: tz, date, kind: slotKind, times }, 200);
 }
