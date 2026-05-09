@@ -52,6 +52,8 @@ type OrderRow = {
   visitedAt: string | null;
   tickets: {
     id: string;
+    /** Для ссылки «Скачать PDF» (`/api/tickets/:token/pdf`). */
+    publicToken: string;
     tier: TicketTier | null;
     admissionCount: number;
     usedAt: string | null;
@@ -559,6 +561,21 @@ function OrderModalBody({
                     {scanPart}
                     {cntPart}
                   </span>
+                  {o.status.toUpperCase() === "PAID" && !t.refundedAt ? (
+                    <div style={{ marginTop: "0.35rem" }}>
+                      <a
+                        href={`/api/tickets/${encodeURIComponent(t.publicToken)}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-secondary btn-compact"
+                      >
+                        Скачать PDF билета
+                      </a>
+                      <span className="admin-muted-text" style={{ marginLeft: "0.5rem", fontSize: "12px" }}>
+                        генерируется заново при каждом скачивании
+                      </span>
+                    </div>
+                  ) : null}
                   <OrderTicketRefundButton
                     order={o}
                     ticket={t}

@@ -1,5 +1,44 @@
 import { chromium, type Browser } from "playwright";
 
+/** Ограничивает число одновременных `page.pdf()` в одном Chromium — без этого пики нагрузки на дешёлых инстансах. */
+class PdfRenderSemaphore {
+  private available: number;
+  private readonly waiters: Array<() => void> = [];
+
+  constructor(maxConcurrent: number) {
+    this.available = Math.max(1, maxConcurrent);
+  }
+
+  async acquire(): Promise<void> {
+    if (this.available > 0) {
+      this.available--;
+      return;
+    }
+    await new Promise<void>((resolve) => {
+      this.waiters.push(resolve);
+    });
+  }
+
+  release(): void {
+    const next = this.waiters.shift();
+    if (next) {
+      next();
+    } else {
+      this.available++;
+    }
+  }
+}
+
+function resolvePlaywrightMaxConcurrent(): number {
+  const raw = process.env.TICKET_PDF_MAX_CONCURRENT?.trim();
+  const fallback = 5;
+  const n = raw ? Number.parseInt(raw, 10) : fallback;
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(32, Math.max(1, Math.floor(n)));
+}
+
+const pdfRenderSemaphore = new PdfRenderSemaphore(resolvePlaywrightMaxConcurrent());
+
 let browserSingleton: Browser | null = null;
 
 async function getBrowser(): Promise<Browser> {
@@ -30,21 +69,26 @@ const SETCONTENT_TIMEOUT_MS = Number(process.env.TICKET_PDF_SETCONTENT_TIMEOUT_M
 
 /** HTML-документ → PDF A4 (печать как в браузере: потоковая вёрстка без координат). */
 export async function renderHtmlToPdfBuffer(html: string): Promise<Uint8Array> {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
+  await pdfRenderSemaphore.acquire();
   try {
-    // Билет — только inline/data URL, без сети; `networkidle` на проде может не наступить или висеть до таймаута.
-    await page.setContent(html, {
-      waitUntil: "load",
-      timeout: SETCONTENT_TIMEOUT_MS,
-    });
-    const buf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "0", right: "0", bottom: "0", left: "0" },
-    });
-    return new Uint8Array(buf);
+    const browser = await getBrowser();
+    const page = await browser.newPage();
+    try {
+      // Билет — только inline/data URL, без сети; `networkidle` на проде может не наступить или висеть до таймаута.
+      await page.setContent(html, {
+        waitUntil: "load",
+        timeout: SETCONTENT_TIMEOUT_MS,
+      });
+      const buf = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        margin: { top: "0", right: "0", bottom: "0", left: "0" },
+      });
+      return new Uint8Array(buf);
+    } finally {
+      await page.close();
+    }
   } finally {
-    await page.close();
+    pdfRenderSemaphore.release();
   }
 }

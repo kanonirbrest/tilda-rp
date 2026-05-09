@@ -5,6 +5,9 @@ import { getPublicAppBaseUrl } from "@/lib/request-origin";
 import { paidCentsForOrderTicketAtIndex } from "@/lib/ticket-refund-alloc";
 import { tierTicketSingularRu } from "@/lib/slot-pricing";
 
+/** На Vercel и др. поднимает лимит выполнения route (иначе PDF + очередь семафора могут обрезаться). На self-hosted `next start` часто игнорируется. */
+export const maxDuration = 300;
+
 export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
 

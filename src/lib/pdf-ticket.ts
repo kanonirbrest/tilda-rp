@@ -4,7 +4,7 @@
  * - `playwright` (по умолчанию): Chromium + `page.pdf()` — без отдельной установки.
  * - `prince`: Prince XML — нужен бинарник Prince (коммерческая лицензия для продакшена).
  *
- * Переменные: `TICKET_PDF_RENDERER`, `PRINCE_BIN`.
+ * Переменные: `TICKET_PDF_RENDERER`, `PRINCE_BIN`, `TICKET_PDF_MAX_CONCURRENT` (только Playwright).
  * Chromium: `npx playwright install chromium`
  */
 import { buildTicketHtml, type TicketPdfInput } from "./ticket-html-build";

@@ -54,6 +54,7 @@ export async function GET(req: Request) {
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
+            publicToken: true,
             usedAt: true,
             refundedAt: true,
             admissionCount: true,
@@ -87,6 +88,7 @@ export async function GET(req: Request) {
       visitedAt,
       tickets: o.tickets.map((t) => ({
         id: t.id,
+        publicToken: t.publicToken,
         tier: t.tier,
         admissionCount: t.admissionCount,
         usedAt: t.usedAt != null ? formatDisplayDateTime(t.usedAt.toISOString()) : null,
