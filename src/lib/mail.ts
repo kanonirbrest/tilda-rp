@@ -3,12 +3,103 @@ import net from "node:net";
 import nodemailer from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 
+const DEFAULT_RESEND_API_URL = "https://api.resend.com/emails";
+
+type TicketEmailInput = {
+  to: string;
+  customerName: string;
+  /** Один или несколько PDF — по одному файлу на билет. */
+  pdfAttachments: { filename: string; content: Buffer }[];
+  downloadUrls: string[];
+};
+
 function maskEmail(email: string): string {
   const at = email.indexOf("@");
   if (at <= 0) return "***";
   const local = email.slice(0, at);
   const domain = email.slice(at + 1);
   return `${local.slice(0, 2)}***@${domain}`;
+}
+
+function resolveResendApiUrl(): string {
+  const raw = process.env.RESEND_API_URL?.trim();
+  if (!raw) return DEFAULT_RESEND_API_URL;
+  return raw.replace(/\/+$/, "");
+}
+
+function buildTicketEmailText(opts: TicketEmailInput): { subject: string; text: string } {
+  const linksBlock =
+    opts.downloadUrls.length > 1 ?
+      opts.downloadUrls.map((u, i) => `${i + 1}. ${u}`).join("\n")
+    : (opts.downloadUrls[0] ?? "");
+  const multiple = opts.pdfAttachments.length > 1;
+  return {
+    subject: multiple ? "Ваши билеты" : "Ваш билет",
+    text: `Здравствуйте, ${opts.customerName}.\n\n${
+      multiple ?
+        `Билеты во вложении (${opts.pdfAttachments.length} файла). Также можно скачать по ссылкам:\n${linksBlock}\n`
+      : `Билет во вложении. Также можно скачать по ссылке: ${linksBlock}\n`
+    }`,
+  };
+}
+
+async function sendViaResendApi(
+  opts: TicketEmailInput & { apiKey: string; from: string },
+): Promise<void> {
+  const { subject, text } = buildTicketEmailText(opts);
+  const apiUrl = resolveResendApiUrl();
+  const attachmentBytes = opts.pdfAttachments.reduce((n, a) => n + a.content.length, 0);
+  console.info("[mail][resend] отправка", {
+    apiUrl,
+    from: opts.from,
+    to: maskEmail(opts.to),
+    attachments: opts.pdfAttachments.length,
+    attachmentBytes,
+  });
+
+  const response = await fetch(apiUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${opts.apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      from: opts.from,
+      to: [opts.to],
+      subject,
+      text,
+      attachments: opts.pdfAttachments.map((a) => ({
+        filename: a.filename,
+        content: a.content.toString("base64"),
+      })),
+    }),
+  });
+
+  const raw = await response.text();
+  let parsed: Record<string, unknown> | null = null;
+  try {
+    parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
+  } catch {
+    parsed = null;
+  }
+
+  if (!response.ok) {
+    const message =
+      (parsed && typeof parsed.message === "string" ? parsed.message : "") ||
+      (parsed ? JSON.stringify(parsed) : raw.slice(0, 800)) ||
+      `HTTP ${response.status}`;
+    console.error("[mail][resend] API ошибка", {
+      status: response.status,
+      message,
+    });
+    throw new Error(`RESEND_HTTP_${response.status}: ${message}`);
+  }
+
+  console.info("[mail][resend] отправлено", {
+    id: parsed && typeof parsed.id === "string" ? parsed.id : null,
+    to: maskEmail(opts.to),
+  });
 }
 
 /** На Render исходящий IPv6 часто недоступен; Gmail отдаёт AAAA → nodemailer ходит в ENETUNREACH. */
@@ -32,13 +123,21 @@ async function smtpConnectTarget(hostname: string): Promise<{
   }
 }
 
-export async function sendTicketEmail(opts: {
-  to: string;
-  customerName: string;
-  /** Один или несколько PDF — по одному файлу на билет. */
-  pdfAttachments: { filename: string; content: Buffer }[];
-  downloadUrls: string[];
-}): Promise<void> {
+export async function sendTicketEmail(opts: TicketEmailInput): Promise<void> {
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
+  const resendFrom = (process.env.RESEND_FROM || process.env.SMTP_FROM || "").trim();
+  if (resendApiKey) {
+    if (!resendFrom) {
+      throw new Error("RESEND_FROM_REQUIRED");
+    }
+    await sendViaResendApi({
+      ...opts,
+      apiKey: resendApiKey,
+      from: resendFrom,
+    });
+    return;
+  }
+
   const host = process.env.SMTP_HOST;
   if (!host) {
     console.info(
@@ -90,19 +189,12 @@ export async function sendTicketEmail(opts: {
   } as SMTPTransport.Options);
 
   try {
-    const linksBlock =
-      opts.downloadUrls.length > 1
-        ? opts.downloadUrls.map((u, i) => `${i + 1}. ${u}`).join("\n")
-        : opts.downloadUrls[0] ?? "";
+    const { subject, text } = buildTicketEmailText(opts);
     const info = await transporter.sendMail({
       from,
       to: opts.to,
-      subject: opts.pdfAttachments.length > 1 ? "Ваши билеты" : "Ваш билет",
-      text: `Здравствуйте, ${opts.customerName}.\n\n${
-        opts.pdfAttachments.length > 1
-          ? `Билеты во вложении (${opts.pdfAttachments.length} файла). Также можно скачать по ссылкам:\n${linksBlock}\n`
-          : `Билет во вложении. Также можно скачать по ссылке: ${linksBlock}\n`
-      }`,
+      subject,
+      text,
       attachments: opts.pdfAttachments.map((a) => ({
         filename: a.filename,
         content: a.content,
