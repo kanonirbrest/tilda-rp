@@ -61,6 +61,8 @@ model PromoCode {
   /// Нормализованный код (верхний регистр), уникальный
   code           String            @unique
   active         Boolean           @default(true)
+  /// Если null — промокод для любой витрины (Slot.kind); иначе только для указанного канала (NEBO_REKA, NIGHT_OF_MUSEUMS).
+  slotKind       String?
   discountKind   PromoDiscountKind
   /// PERCENT: 1–100. FIXED_CENTS: вычитаемые копейки (не больше суммы заказа).
   discountValue  Int

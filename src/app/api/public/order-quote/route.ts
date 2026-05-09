@@ -6,6 +6,7 @@ import {
   computePromoAmounts,
   isPromoActiveBySchedule,
   normalizePromoCode,
+  promoAppliesToSlotKind,
 } from "@/lib/promo-code";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
 import { normalizeSlotKind } from "@/lib/slot-kind";
@@ -91,6 +92,12 @@ export async function GET(req: Request) {
           applied: false,
           error: "PROMO_INACTIVE",
           hint: "Промокод недействителен или срок действия истёк",
+        };
+      } else if (!promoAppliesToSlotKind(row, slot.kind)) {
+        promo = {
+          applied: false,
+          error: "PROMO_WRONG_CHANNEL",
+          hint: "Промокод не действует для этого канала продажи",
         };
       } else if (row.maxUses != null) {
         const used = await prisma.order.count({

@@ -68,6 +68,8 @@ type PromoRow = {
   id: string;
   code: string;
   active: boolean;
+  /** null — все витрины */
+  slotKind: string | null;
   discountKind: "PERCENT" | "FIXED_CENTS";
   discountValue: number;
   maxUses: number | null;
@@ -858,10 +860,17 @@ export default function AdminDashboard() {
     const validUntilLocal = String(fd.get("validUntil") ?? "").trim();
     const activeEl = form.elements.namedItem("active");
     const active = activeEl instanceof HTMLInputElement ? activeEl.checked : true;
+    const slotKindRaw = String(fd.get("slotKind") ?? "").trim();
+    const slotKind =
+      slotKindRaw === "" ? null
+      : SLOT_KIND_CHOICES.includes(slotKindRaw as (typeof SLOT_KIND_CHOICES)[number]) ?
+        slotKindRaw
+      : null;
     const body = {
       code,
       discountKind,
       discountValue,
+      slotKind,
       maxUses,
       validFrom: validFromLocal ? new Date(validFromLocal).toISOString() : null,
       validUntil: validUntilLocal ? new Date(validUntilLocal).toISOString() : null,
@@ -904,10 +913,17 @@ export default function AdminDashboard() {
     const validUntilLocal = String(fd.get("validUntil") ?? "").trim();
     const activeEl = form.elements.namedItem("active");
     const active = activeEl instanceof HTMLInputElement ? activeEl.checked : true;
+    const slotKindRaw = String(fd.get("slotKind") ?? "").trim();
+    const slotKind =
+      slotKindRaw === "" ? null
+      : SLOT_KIND_CHOICES.includes(slotKindRaw as (typeof SLOT_KIND_CHOICES)[number]) ?
+        slotKindRaw
+      : null;
     const patch = {
       code,
       discountKind,
       discountValue,
+      slotKind,
       maxUses,
       validFrom: validFromLocal ? new Date(validFromLocal).toISOString() : null,
       validUntil: validUntilLocal ? new Date(validUntilLocal).toISOString() : null,
@@ -1698,7 +1714,8 @@ export default function AdminDashboard() {
             </div>
             <p className="admin-hint admin-hint--inline">
               Код на сайте / в POST <span className="mono">promoCode</span> или в ссылке /pay?promo=КОД.
-              Занято: заявки PENDING+PAID с этим промо.
+              Занято: заявки PENDING+PAID с этим промо. Витрина ограничивает, на каком канале (Небо.Река / Ночь
+              музеев) сработает код; «Все витрины» — везде.
             </p>
           </div>
           {!promosData ? (
@@ -1727,7 +1744,9 @@ export default function AdminDashboard() {
                     </div>
                     <div className="admin-order-row__mid">
                       <span className="mono admin-order-row__name">{p.code}</span>
-                      <span className="admin-order-row__email">скидка {kindLabel}</span>
+                      <span className="admin-order-row__email">
+                        {p.slotKind == null ? "все витрины" : slotSalesChannelLabel(p.slotKind)} · скидка {kindLabel}
+                      </span>
                     </div>
                     <div className="admin-order-row__sum mono">{uses}</div>
                     <div className="admin-order-row__slot">
@@ -1788,11 +1807,23 @@ export default function AdminDashboard() {
         <AdminModalFrame title="Новый промокод" onClose={() => setModal({ type: "none" })}>
           <form onSubmit={(e) => void onCreatePromo(e)} className="admin-modal-form">
             <p className="admin-hint admin-hint--tight">
-              Код сохраняется в верхнем регистре. Фиксированная скидка — в BYN (как цены сеансов).
+              Код сохраняется в верхнем регистре. Фиксированная скидка — в BYN (как цены сеансов). Витрина «Все» —
+              промокод действует и на Небо.Река, и на Ночь музеев.
             </p>
             <div className="admin-field">
               <label htmlFor="promo-code">Код</label>
               <input id="promo-code" name="code" required maxLength={40} placeholder="SUMMER2026" />
+            </div>
+            <div className="admin-field">
+              <label htmlFor="promo-slot-kind">Витрина / канал продажи</label>
+              <select id="promo-slot-kind" name="slotKind" defaultValue="">
+                <option value="">Все витрины</option>
+                {SLOT_KIND_CHOICES.map((k) => (
+                  <option key={k} value={k}>
+                    {slotSalesChannelLabel(k)}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="admin-field">
               <label htmlFor="promo-kind">Тип скидки</label>
@@ -1862,6 +1893,21 @@ export default function AdminDashboard() {
                 <div className="admin-field">
                   <label htmlFor="edit-promo-code">Код</label>
                   <input id="edit-promo-code" name="code" required maxLength={40} defaultValue={p.code} />
+                </div>
+                <div className="admin-field">
+                  <label htmlFor="edit-promo-slot-kind">Витрина / канал продажи</label>
+                  <select
+                    id="edit-promo-slot-kind"
+                    name="slotKind"
+                    defaultValue={p.slotKind ?? ""}
+                  >
+                    <option value="">Все витрины</option>
+                    {SLOT_KIND_CHOICES.map((k) => (
+                      <option key={k} value={k}>
+                        {slotSalesChannelLabel(k)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="admin-field">
                   <label htmlFor="edit-promo-kind">Тип скидки</label>

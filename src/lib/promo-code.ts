@@ -7,11 +7,21 @@ export class PromoApplyError extends Error {
       | "INVALID_PROMO"
       | "PROMO_INACTIVE"
       | "PROMO_EXHAUSTED"
-      | "PROMO_ZERO_PAYMENT",
+      | "PROMO_ZERO_PAYMENT"
+      | "PROMO_WRONG_CHANNEL",
   ) {
     super(message);
     this.name = "PromoApplyError";
   }
+}
+
+/** Промокод без slotKind действует на любую витрину; иначе только при совпадении с Slot.kind. */
+export function promoAppliesToSlotKind(
+  promo: Pick<PromoCode, "slotKind">,
+  slotKind: string,
+): boolean {
+  if (promo.slotKind == null || promo.slotKind.trim() === "") return true;
+  return promo.slotKind === slotKind;
 }
 
 export function normalizePromoCode(raw: string): string {

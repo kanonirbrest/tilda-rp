@@ -7,6 +7,7 @@ import {
   computePromoAmounts,
   isPromoActiveBySchedule,
   normalizePromoCode,
+  promoAppliesToSlotKind,
   PromoApplyError,
 } from "@/lib/promo-code";
 import {
@@ -125,6 +126,12 @@ export async function createOrderCheckout(
           throw new PromoApplyError(
             "Промокод недействителен или срок действия истёк",
             "PROMO_INACTIVE",
+          );
+        }
+        if (!promoAppliesToSlotKind(promo, slot.kind)) {
+          throw new PromoApplyError(
+            "Промокод не действует для этого канала продажи",
+            "PROMO_WRONG_CHANNEL",
           );
         }
         if (promo.maxUses != null) {

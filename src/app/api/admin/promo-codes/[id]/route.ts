@@ -2,18 +2,21 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
 import { normalizePromoCode } from "@/lib/promo-code";
+import { normalizeSlotKind } from "@/lib/slot-kind";
 
 const isoOrNull = z.union([z.string().datetime(), z.null()]);
 
 const patchSchema = z.object({
   code: z.string().trim().min(2).max(40).optional(),
   active: z.boolean().optional(),
+  slotKind: z.union([z.string().trim().max(64), z.null()]).optional(),
   discountKind: z.enum(["PERCENT", "FIXED_CENTS"]).optional(),
   discountValue: z.number().int().positive().optional(),
   maxUses: z.number().int().positive().nullable().optional(),
   validFrom: isoOrNull.optional(),
   validUntil: isoOrNull.optional(),
 });
+
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
@@ -53,6 +56,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const data: {
     code?: string;
     active?: boolean;
+    slotKind?: string | null;
     discountKind?: "PERCENT" | "FIXED_CENTS";
     discountValue?: number;
     maxUses?: number | null;
@@ -61,6 +65,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   } = {};
   if (d.code != null) data.code = normalizePromoCode(d.code);
   if (d.active != null) data.active = d.active;
+  if (d.slotKind !== undefined) {
+    data.slotKind =
+      d.slotKind === null ? null
+      : String(d.slotKind).trim() === "" ? null
+      : normalizeSlotKind(String(d.slotKind));
+  }
   if (d.discountKind != null) data.discountKind = d.discountKind;
   if (d.discountValue != null) data.discountValue = d.discountValue;
   if (d.maxUses !== undefined) data.maxUses = d.maxUses;

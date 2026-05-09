@@ -2,16 +2,26 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
 import { normalizePromoCode } from "@/lib/promo-code";
+import { normalizeSlotKind } from "@/lib/slot-kind";
 
 const createSchema = z.object({
   code: z.string().trim().min(2).max(40),
   discountKind: z.enum(["PERCENT", "FIXED_CENTS"]),
   discountValue: z.number().int().positive(),
+  /** null / не передано — все витрины; иначе после normalizeSlotKind */
+  slotKind: z.union([z.string().trim().max(64), z.null()]).optional(),
   maxUses: z.number().int().positive().nullable().optional(),
   validFrom: z.union([z.string().datetime(), z.null()]).optional(),
   validUntil: z.union([z.string().datetime(), z.null()]).optional(),
   active: z.boolean().optional(),
 });
+
+function parsePromoSlotKind(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
+  const s = String(v).trim();
+  if (s === "") return null;
+  return normalizeSlotKind(s);
+}
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
@@ -46,6 +56,7 @@ export async function GET(req: Request) {
       id: p.id,
       code: p.code,
       active: p.active,
+      slotKind: p.slotKind,
       discountKind: p.discountKind,
       discountValue: p.discountValue,
       maxUses: p.maxUses,
@@ -86,6 +97,7 @@ export async function POST(req: Request) {
       data: {
         code,
         active: d.active ?? true,
+        slotKind: parsePromoSlotKind(d.slotKind),
         discountKind: d.discountKind,
         discountValue: d.discountValue,
         maxUses: d.maxUses ?? null,
