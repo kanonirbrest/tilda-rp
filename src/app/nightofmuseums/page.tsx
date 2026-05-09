@@ -30,12 +30,21 @@ function sortDateKeysAsc(keys: string[]): string[] {
   return [...keys].sort((a, b) => a.localeCompare(b));
 }
 
+function formatDateRu(dateKey: string): string {
+  const parts = dateKey.split("-").map((x) => Number(x));
+  const y = parts[0];
+  const m = parts[1];
+  const d = parts[2];
+  if (!y || !m || !d) return dateKey;
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+}
+
 export default function NightOfMuseumsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
-  const [timezone, setTimezone] = useState("");
   const [qty, setQty] = useState(1);
   const [totalLabel, setTotalLabel] = useState("—");
   const [busy, setBusy] = useState(false);
@@ -74,7 +83,6 @@ export default function NightOfMuseumsPage() {
         if (!cancelled) {
           setDate(firstDay);
           setTime(daySlotsJson.times[0]!);
-          setTimezone(daySlotsJson.timezone || calJson.timezone || "");
         }
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Не удалось загрузить слоты.");
@@ -152,89 +160,96 @@ export default function NightOfMuseumsPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-full w-full max-w-xl flex-col px-4 py-10 sm:px-6">
-      <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">{pageTitle}</h1>
-      <p className="mt-2 text-sm text-zinc-600">Покупка билетов на специальный слот.</p>
+    <main className="nom-page">
+      <div className="nom-page__bg" aria-hidden />
+      <div className="nom-plain-checkout">
+        <div className="nom-plain-section">
+          <h1 className="nom-plain-heading">{pageTitle}</h1>
+          {loading ? <p className="nom-plain-msg nom-plain-msg--muted">Загрузка слота...</p> : null}
+          {!loading && error ? <p className="nom-plain-msg">{error}</p> : null}
+          {!loading && !error && date && time ? (
+            <>
+              <p className="nom-plain-meta">{formatDateRu(date)}</p>
+              <div className="nom-plain-times">
+                <div className="nom-plain-time">{time}</div>
+              </div>
+            </>
+          ) : null}
+        </div>
 
-      <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-        {loading ? <p className="text-sm text-zinc-600">Загрузка слота...</p> : null}
-        {!loading && error ? <p className="text-sm text-rose-600">{error}</p> : null}
         {!loading && !error ? (
-          <>
-            <div className="space-y-1">
-              <p className="text-sm text-zinc-500">Дата</p>
-              <p className="font-medium text-zinc-900">{date}</p>
+          <form className="nom-plain-section nom-plain-form-slot" onSubmit={(e) => void onSubmit(e)}>
+            <div className="nom-plain-ticket-row">
+              <div className="nom-plain-ticket-text">
+                <span className="nom-plain-ticket-title">Билеты</span>
+                <span className="nom-plain-ticket-hint">Ночь музеев</span>
+              </div>
+              <div className="nom-plain-stepper">
+                <button
+                  type="button"
+                  className="nom-plain-step"
+                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  disabled={qty <= 1 || busy}
+                  aria-label="Уменьшить количество"
+                >
+                  -
+                </button>
+                <span className="nom-plain-stepper-val">{qty}</span>
+                <button
+                  type="button"
+                  className="nom-plain-step"
+                  onClick={() => setQty((q) => Math.min(30, q + 1))}
+                  disabled={busy}
+                  aria-label="Увеличить количество"
+                >
+                  +
+                </button>
+              </div>
             </div>
-            <div className="mt-3 space-y-1">
-              <p className="text-sm text-zinc-500">Время</p>
-              <p className="font-medium text-zinc-900">{time}</p>
+
+            <div className="nom-plain-input-group">
+              <input
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ваше имя"
+                className="nom-input"
+                autoComplete="name"
+              />
             </div>
-            {timezone ? <p className="mt-2 text-xs text-zinc-500">Часовой пояс: {timezone}</p> : null}
+            <div className="nom-plain-input-group">
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                className="nom-input"
+                autoComplete="email"
+              />
+            </div>
+            <div className="nom-plain-input-group">
+              <input
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Телефон"
+                className="nom-input"
+                autoComplete="tel"
+                inputMode="tel"
+              />
+            </div>
 
-            <form className="mt-6 space-y-4" onSubmit={(e) => void onSubmit(e)}>
-              <div>
-                <p className="mb-2 text-sm text-zinc-500">Количество билетов</p>
-                <div className="inline-flex items-center rounded-xl border border-zinc-300">
-                  <button
-                    type="button"
-                    className="h-10 w-10 text-lg text-zinc-700 disabled:opacity-40"
-                    onClick={() => setQty((q) => Math.max(1, q - 1))}
-                    disabled={qty <= 1 || busy}
-                  >
-                    -
-                  </button>
-                  <span className="min-w-12 px-2 text-center font-semibold">{qty}</span>
-                  <button
-                    type="button"
-                    className="h-10 w-10 text-lg text-zinc-700 disabled:opacity-40"
-                    onClick={() => setQty((q) => Math.min(30, q + 1))}
-                    disabled={busy}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
+            <p className="nom-plain-total">
+              Сумма заказа: <strong>{totalLabel}</strong>
+            </p>
 
-              <div className="grid gap-3">
-                <input
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ваше имя"
-                  className="h-11 rounded-xl border border-zinc-300 px-3 text-sm"
-                />
-                <input
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email"
-                  className="h-11 rounded-xl border border-zinc-300 px-3 text-sm"
-                />
-                <input
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Телефон"
-                  className="h-11 rounded-xl border border-zinc-300 px-3 text-sm"
-                />
-              </div>
+            {formError ? <p className="nom-plain-msg">{formError}</p> : null}
 
-              <div className="rounded-xl bg-zinc-100 px-3 py-2 text-sm text-zinc-700">
-                Сумма заказа: <span className="font-semibold text-zinc-900">{totalLabel}</span>
-              </div>
-
-              {formError ? <p className="text-sm text-rose-600">{formError}</p> : null}
-
-              <button
-                type="submit"
-                disabled={busy}
-                className="h-11 w-full rounded-xl bg-emerald-800 px-4 text-sm font-medium text-white hover:bg-emerald-900 disabled:opacity-60"
-              >
-                {busy ? "Оформляем..." : "Перейти к оплате"}
-              </button>
-            </form>
-          </>
+            <button type="submit" disabled={busy} className="nom-submit">
+              {busy ? "Оформляем..." : "Перейти к оплате"}
+            </button>
+          </form>
         ) : null}
       </div>
     </main>
