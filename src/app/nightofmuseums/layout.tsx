@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./nightofmuseums.css";
 
+/** Те же начертания Inter, что на buy-tickets (public/buy-tickets/slot.html → Google Fonts Inter 300–700). */
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
+  weight: ["300", "400", "500", "600", "700"],
   variable: "--nom-font",
   display: "swap",
 });

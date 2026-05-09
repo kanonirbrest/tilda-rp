@@ -1,8 +1,12 @@
-/* Стиль как у потока «Билеты на стенд»: тёмный градиент, контуры-капсулы, белый выбранный слот */
+/* Стиль как у потока «Билеты на стенд» (buy-tickets / slot.html): Inter + CSS-переменные Тильды */
 
 .nom-page {
-  --nom-accent: #f85d7f;
-  --nom-accent-hover: #e04d6f;
+  /* Как var(--t-headline-font) / var(--t-text-font) на странице Тильды — оба Inter */
+  --t-headline-font: var(--nom-font), Arial, sans-serif;
+  --t-text-font: var(--nom-font), Arial, sans-serif;
+  /* Как rgb(255, 98, 130) / --dei-cal-day-accent в slot.html */
+  --nom-accent: rgb(255, 98, 130);
+  --nom-accent-hover: rgb(236, 78, 112);
   --nom-outline: rgba(255, 255, 255, 0.82);
   position: relative;
   box-sizing: border-box;
@@ -14,7 +18,7 @@
   display: flex;
   flex-direction: column;
   color: #ffffff;
-  font-family: var(--nom-font, Arial), Arial, sans-serif;
+  font-family: var(--t-text-font);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -49,6 +53,7 @@
 
 .nom-head__title {
   margin: 0;
+  font-family: var(--t-headline-font);
   font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -58,6 +63,7 @@
 
 .nom-block-label {
   margin: 0 0 14px;
+  font-family: var(--t-text-font);
   font-size: 14px;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.88);
@@ -90,6 +96,7 @@
   border: 1px solid var(--nom-outline);
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
+  font-family: var(--t-text-font);
   font-size: 15px;
   font-weight: 400;
 }
@@ -101,6 +108,7 @@
 
 .nom-session-time {
   margin: 12px 0 0;
+  font-family: var(--t-text-font);
   font-size: 15px;
   font-weight: 300;
   line-height: 1.5;
@@ -159,6 +167,7 @@
 }
 
 .nom-ticket-line {
+  font-family: var(--t-headline-font);
   font-size: 17px;
   font-weight: 700;
   line-height: 1.35;
@@ -179,9 +188,9 @@
   border: none;
   background: transparent;
   color: rgba(255, 255, 255, 0.95);
-  font-family: inherit;
+  font-family: var(--t-headline-font);
   font-size: 26px;
-  font-weight: 200;
+  font-weight: 300;
   line-height: 1;
   cursor: pointer;
   min-width: 28px;
@@ -216,6 +225,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font-family: var(--t-headline-font);
   font-size: 16px;
   font-weight: 300;
   font-variant-numeric: tabular-nums;
@@ -240,6 +250,7 @@
 
 .nom-summary {
   margin: 22px 0 20px;
+  font-family: var(--t-text-font);
   font-size: 15px;
   font-weight: 300;
   line-height: 1.45;
@@ -274,8 +285,8 @@
   border: 1px solid var(--nom-outline);
   background: rgba(0, 0, 0, 0.18);
   color: rgba(255, 255, 255, 0.98);
-  font-family: var(--nom-font, Arial), Arial, sans-serif;
-  font-size: 15px;
+  font-family: var(--t-text-font);
+  font-size: 16px;
   font-weight: 300;
   letter-spacing: 0.02em;
   line-height: 1.4;
@@ -287,6 +298,7 @@
 }
 
 .nom-plain-msg {
+  font-family: var(--t-text-font);
   font-size: 14px;
   line-height: 1.45;
   color: #ff8a80;
@@ -305,10 +317,11 @@
   margin-top: 8px;
   border-radius: 999px;
   border: none;
-  font-family: var(--nom-font, Arial), system-ui, sans-serif;
-  font-size: 15px;
+  font-family: var(--t-text-font), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   background: var(--nom-accent);
   color: #fff;
