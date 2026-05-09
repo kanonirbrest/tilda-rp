@@ -22,16 +22,20 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/*
+ * Фон как на главной buy-tickets (выбор даты): calendar.html / slot.html —
+ * body.t-body::before → 7777.jpg
+ */
 .nom-page__bg {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 85% 55% at 85% 15%, rgba(168, 85, 247, 0.35), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 10% 90%, rgba(236, 72, 153, 0.22), transparent 50%),
-    radial-gradient(ellipse 50% 35% at 50% 40%, rgba(99, 102, 241, 0.15), transparent 60%),
-    linear-gradient(168deg, #0b1220 0%, #151032 42%, #1e1040 72%, #241848 100%);
+  background-color: transparent;
+  background-image: url("https://static.tildacdn.biz/tild3437-3561-4038-a638-663362666335/7777.jpg");
+  background-position: center top;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 /* Ширина и отступы как у .dei-plain-checkout; наружная колонка как у попапа min(96vw, 760px) */
