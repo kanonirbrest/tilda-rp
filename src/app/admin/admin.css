@@ -43,6 +43,21 @@
   flex-wrap: wrap;
 }
 
+.admin-root .admin-header-right {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.admin-root a.btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
 .admin-root .admin-brand {
   display: flex;
   align-items: baseline;

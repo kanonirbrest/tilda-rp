@@ -1321,9 +1321,27 @@ export default function AdminDashboard() {
           <span className="admin-brand-mark">DEI</span>
           <h1 className="admin-brand-title">Админка билетов</h1>
         </div>
-        <button type="button" className="btn-ghost" onClick={() => void logout()}>
-          Выйти
-        </button>
+        <div className="admin-header-right">
+          <a
+            href="/buy-tickets"
+            className="btn btn-secondary btn-compact"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Купить билет
+          </a>
+          <a
+            href="/nightofmuseums"
+            className="btn btn-secondary btn-compact"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Ночь музеев
+          </a>
+          <button type="button" className="btn-ghost" onClick={() => void logout()}>
+            Выйти
+          </button>
+        </div>
       </header>
 
       {errMsg ? <div className="admin-alert admin-alert--err">{errMsg}</div> : null}
