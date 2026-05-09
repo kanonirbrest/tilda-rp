@@ -8,6 +8,27 @@
   font-display: swap;
 }
 
+/*
+ * На мобильном: без просветов светлого body (root layout — bg-zinc-50) при скролле/оверскролле.
+ * 100dvh учитывает панели браузера; -webkit-fill-available — iOS.
+ */
+html:has(.nom-page),
+body:has(.nom-page) {
+  min-height: 100%;
+  background-color: #12082a;
+}
+
+.nom-tilda-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+  background-color: #12082a;
+}
+
 .nom-page {
   --t-headline-font: "Cy Grotesk Grand", system-ui, sans-serif;
   --t-text-font: var(--nom-font), Arial, sans-serif;
@@ -18,8 +39,10 @@
   position: relative;
   box-sizing: border-box;
   width: 100%;
+  flex: 1 1 auto;
   min-height: 100vh;
   min-height: 100dvh;
+  min-height: -webkit-fill-available;
   margin: 0;
   padding: 0;
   display: flex;
@@ -56,7 +79,7 @@
   margin: 0 auto;
   flex: 1 1 auto;
   min-height: 0;
-  padding: 16px clamp(14px, 4vw, 28px) calc(72px + env(safe-area-inset-bottom, 0px));
+  padding: 100px clamp(14px, 4vw, 28px) calc(72px + env(safe-area-inset-bottom, 0px));
 }
 
 .nom-head {

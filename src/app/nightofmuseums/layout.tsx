@@ -25,7 +25,7 @@ export default function NightOfMuseumsLayout({
       {/* Те же базовые стили полей, что в попапе buy-tickets (Tilda Forms). */}
       <link rel="stylesheet" href="https://static.tildacdn.biz/css/tilda-forms-1.0.min.css" />
       <div
-        className={`${inter.variable} ${inter.className} min-h-full flex-1 bg-transparent nom-tilda-root`}
+        className={`${inter.variable} ${inter.className} nom-tilda-root`}
       >
         {children}
       </div>
