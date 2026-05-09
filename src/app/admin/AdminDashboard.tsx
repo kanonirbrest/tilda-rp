@@ -88,6 +88,15 @@ type OrdersResponse = {
 type TabId = "orders" | "schedule" | "promos";
 const SLOT_KIND_CHOICES = [NEBO_REKA_SLOT_KIND, NIGHT_OF_MUSEUMS_SLOT_KIND] as const;
 
+type ScheduleKindFilter = "all" | (typeof SLOT_KIND_CHOICES)[number];
+
+/** Подпись витрины / канала продажи для списка сеансов. */
+function slotSalesChannelLabel(kind: string): string {
+  if (kind === NEBO_REKA_SLOT_KIND) return "Небо.Река";
+  if (kind === NIGHT_OF_MUSEUMS_SLOT_KIND) return "Ночь музеев";
+  return kind;
+}
+
 type AdminModal =
   | { type: "none" }
   | { type: "order"; order: OrderRow }
@@ -691,6 +700,7 @@ export default function AdminDashboard() {
   const [promosData, setPromosData] = useState<PromoRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(todayDateKey);
+  const [scheduleKindFilter, setScheduleKindFilter] = useState<ScheduleKindFilter>("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -1233,6 +1243,11 @@ export default function AdminDashboard() {
       .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   }, [slotsData, selectedDate]);
 
+  const slotsForSelectedDateVisible = useMemo(() => {
+    if (scheduleKindFilter === "all") return slotsForSelectedDate;
+    return slotsForSelectedDate.filter((s) => s.kind === scheduleKindFilter);
+  }, [slotsForSelectedDate, scheduleKindFilter]);
+
   const dateOptions = useMemo(() => {
     if (!slotsData) return [];
     const keys = new Set(slotsData.slots.map((s) => s.dateKey));
@@ -1528,6 +1543,25 @@ export default function AdminDashboard() {
               </label>
               {slotsData ? <span className="admin-hint mono">{slotsData.timezone}</span> : null}
             </div>
+            {slotsData ? (
+              <div className="admin-order-filters admin-schedule-kind-filter">
+                <label>
+                  Канал продаж / витрина
+                  <select
+                    value={scheduleKindFilter}
+                    onChange={(e) => setScheduleKindFilter(e.target.value as ScheduleKindFilter)}
+                    aria-label="Фильтр по каналу продажи"
+                  >
+                    <option value="all">Все каналы</option>
+                    {SLOT_KIND_CHOICES.map((k) => (
+                      <option key={k} value={k}>
+                        {slotSalesChannelLabel(k)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ) : null}
             <div className="admin-field admin-field--dateblock">
               <label htmlFor="slot-date">Дата</label>
               <div className="admin-date-row">
@@ -1599,9 +1633,13 @@ export default function AdminDashboard() {
             <>
               {slotsForSelectedDate.length === 0 ? (
                 <div className="admin-empty admin-empty--compact">На эту дату сеансов нет</div>
+              ) : slotsForSelectedDateVisible.length === 0 ? (
+                <div className="admin-empty admin-empty--compact">
+                  На эту дату нет сеансов для выбранного канала продажи.
+                </div>
               ) : (
                 <div className="admin-slot-list" role="list">
-                  {slotsForSelectedDate.map((s) => {
+                  {slotsForSelectedDateVisible.map((s) => {
                     const cap = s.capacity == null ? "∞" : String(s.capacity);
                     const free =
                       s.capacity == null ?
@@ -1613,13 +1651,16 @@ export default function AdminDashboard() {
                         type="button"
                         className="admin-slot-row"
                         role="listitem"
+                        title={`Канал: ${slotSalesChannelLabel(s.kind)} (${s.kind})`}
                         onClick={() => setModal({ type: "slot-edit", slot: s })}
                       >
                         <div className="admin-slot-row__time mono">{s.timeKey}</div>
                         <div className="admin-slot-row__main">
                           <span className="admin-slot-row__title">{truncateText(s.title, 48)}</span>
                           <span className="admin-slot-row__meta mono">
-                            {s.kind} · {formatMinorUnits(s.priceCents, s.currency)} · опл. {s.soldPaid} · ожид.{" "}
+                            <span className="admin-slot-channel">{slotSalesChannelLabel(s.kind)}</span>
+                            {" · "}
+                            {formatMinorUnits(s.priceCents, s.currency)} · опл. {s.soldPaid} · ожид.{" "}
                             {s.pendingReserved} · места {free}/{cap}
                           </span>
                         </div>

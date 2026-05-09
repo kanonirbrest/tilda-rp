@@ -22,7 +22,7 @@ export default async function SuccessPage({
 }) {
   const sp = await searchParams;
   const { orderId } = sp;
-  const supportEmail = process.env.SUPPORT_EMAIL || "support@dei.by";
+  const supportEmail = process.env.SUPPORT_EMAIL || "info@dei.by";
   const bepaidReturn = parseBepaidReturn(sp.bepaid);
   const gatewayStatusParam =
     typeof sp.status === "string" && sp.status.trim() !== "" ? sp.status.trim() : null;

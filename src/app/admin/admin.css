@@ -470,6 +470,16 @@
   min-width: 11rem;
 }
 
+.admin-root .admin-schedule-kind-filter {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.admin-root .admin-slot-channel {
+  font-weight: 600;
+  color: var(--admin-accent);
+}
+
 .admin-root .admin-order-row__pills {
   display: flex;
   flex-wrap: wrap;
