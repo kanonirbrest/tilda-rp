@@ -299,6 +299,12 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
   };
 
   const cyGroteskFace = cyGroteskGrandFontFaceCss();
+  if (!cyGroteskFace) {
+    console.warn(
+      "[ticket-pdf] Cy Grotesk Grand не встроен в HTML: нет файла assets/fonts/cy-grotesk-grand-2.woff2 " +
+        "(или задайте TICKET_PDF_CY_GROTESK_WOFF2 на абсолютный путь). В PDF будет system-ui/sans-serif.",
+    );
+  }
 
   return `<!DOCTYPE html>
 <html lang="ru">

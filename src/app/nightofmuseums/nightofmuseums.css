@@ -86,11 +86,11 @@ body:has(.nom-page) {
   margin-bottom: 32px;
 }
 
-/* Заголовок страницы: 26px / 500 */
+/* Заголовок страницы: 32px / 500 */
 .nom-head__title {
   margin: 0 0 20px;
   font-family: var(--t-headline-font);
-  font-size: 26px;
+  font-size: 32px;
   font-weight: 500;
   font-style: normal;
   letter-spacing: 0;
@@ -98,11 +98,11 @@ body:has(.nom-page) {
   color: #fff;
 }
 
-/* «Выбор билетов»: 18px / 500 (tilda-forms перебивает p внутри .t-form — см. ниже) */
+/* «Выбор билетов»: 24px / 500 (tilda-forms перебивает p внутри .t-form — см. ниже) */
 .nom-block-label {
   margin: 0 0 14px;
   font-family: var(--t-headline-font);
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 500;
   font-style: normal;
   letter-spacing: 0;
@@ -119,11 +119,11 @@ body:has(.nom-page) {
   margin-bottom: 0;
 }
 
-/* «16 мая»: 18px / 500 */
+/* «16 мая»: 24px / 500 */
 .nom-session-date {
   margin: 0;
   font-family: var(--t-headline-font);
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 500;
   font-style: normal;
   letter-spacing: 0;
@@ -132,11 +132,11 @@ body:has(.nom-page) {
   color: #fff;
 }
 
-/* «Время сеанса …»: 16px / 200 */
+/* «Время сеанса …»: 22px / 200 */
 .nom-session-time {
   margin: 8px 0 0;
   font-family: var(--t-headline-font);
-  font-size: 16px;
+  font-size: 22px;
   font-weight: 200;
   font-style: normal;
   letter-spacing: 0;
@@ -144,10 +144,10 @@ body:has(.nom-page) {
   color: rgba(255, 255, 255, 0.95);
 }
 
-/* «Стандартный билет …»: 16px / 200 */
+/* «Стандартный билет …»: 22px / 200 */
 .nom-ticket-line {
   font-family: var(--t-headline-font);
-  font-size: 16px;
+  font-size: 22px;
   font-weight: 200;
   font-style: normal;
   letter-spacing: 0;
@@ -183,7 +183,7 @@ body:has(.nom-page) {
   background: transparent;
   color: rgba(255, 255, 255, 0.92);
   font-family: var(--t-headline-font);
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 200;
   line-height: 1;
   cursor: pointer;
@@ -220,7 +220,7 @@ body:has(.nom-page) {
   align-items: center;
   justify-content: center;
   font-family: var(--t-headline-font);
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 200;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -229,11 +229,11 @@ body:has(.nom-page) {
 
 @media screen and (max-width: 479px) {
   .nom-qty-ring {
-    font-size: 16px;
+    font-size: 22px;
   }
 
   .nom-qty-btn {
-    font-size: 24px;
+    font-size: 30px;
   }
 
   .nom-qty {
@@ -241,11 +241,11 @@ body:has(.nom-page) {
   }
 }
 
-/* Итог: «N билет(ов) на сумму …» — 18px / 500, по левому краю */
+/* Итог: «N билет(ов) на сумму …» — 24px / 500, по левому краю */
 .nom-summary {
   margin: 22px 0 20px;
   font-family: var(--t-headline-font);
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 500;
   font-style: normal;
   letter-spacing: 0;
@@ -263,7 +263,7 @@ body:has(.nom-page) {
 .nom-summary.nom-plain-msg,
 .nom-summary.nom-plain-msg--muted {
   font-family: var(--t-headline-font);
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 500;
   text-align: left;
   line-height: 1.25;
@@ -285,7 +285,7 @@ body:has(.nom-page) {
 /* tilda-forms задаёт p внутри .t-form лёгким/мелким — фиксируем подпись «Выбор билетов» */
 #nom-checkout-form.t-form p.nom-block-label {
   font-family: var(--t-headline-font) !important;
-  font-size: 18px !important;
+  font-size: 24px !important;
   font-weight: 500 !important;
   line-height: 1.2 !important;
   letter-spacing: 0 !important;
@@ -295,7 +295,7 @@ body:has(.nom-page) {
 
 #nom-checkout-form.t-form p.nom-summary {
   font-family: var(--t-headline-font) !important;
-  font-size: 18px !important;
+  font-size: 24px !important;
   font-weight: 500 !important;
   line-height: 1.25 !important;
   text-align: left !important;

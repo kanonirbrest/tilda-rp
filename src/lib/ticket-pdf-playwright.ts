@@ -1,4 +1,4 @@
-import { chromium, type Browser } from "playwright";
+import { chromium, type Browser, type Page } from "playwright";
 
 /** Ограничивает число одновременных `page.pdf()` в одном Chromium — без этого пики нагрузки на дешёлых инстансах. */
 class PdfRenderSemaphore {
@@ -67,6 +67,37 @@ async function getBrowser(): Promise<Browser> {
 
 const SETCONTENT_TIMEOUT_MS = Number(process.env.TICKET_PDF_SETCONTENT_TIMEOUT_MS ?? "45000");
 
+/**
+ * Дождаться веб-шрифта билета перед `page.pdf()`, иначе часть текста уходит в системный fallback.
+ * Достаточно для variable Cy Grotesk Grand (woff2 в data URL в `@font-face`).
+ */
+async function waitForTicketFonts(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    try {
+      const fam = '"Cy Grotesk Grand"';
+      const specs = [
+        "500 12px",
+        "500 13px",
+        "500 14.5px",
+        "500 17px",
+        "600 24px",
+        "600 26px",
+        "600 32px",
+        "700 22px",
+      ];
+      await Promise.all(specs.map((d) => document.fonts.load(`${d} ${fam}`)));
+    } catch {
+      /* нет @font-face / семейства — билет всё равно соберём fallback-шрифтом */
+    }
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
+  });
+}
+
 /** HTML-документ → PDF A4 (печать как в браузере: потоковая вёрстка без координат). */
 export async function renderHtmlToPdfBuffer(html: string): Promise<Uint8Array> {
   await pdfRenderSemaphore.acquire();
@@ -79,6 +110,7 @@ export async function renderHtmlToPdfBuffer(html: string): Promise<Uint8Array> {
         waitUntil: "load",
         timeout: SETCONTENT_TIMEOUT_MS,
       });
+      await waitForTicketFonts(page);
       const buf = await page.pdf({
         format: "A4",
         printBackground: true,
