@@ -1,8 +1,9 @@
-/* Стиль как у упрощённого чекаута стенда (public/buy-tickets/slot.html → .dei-plain-checkout) */
+/* Стиль как у потока «Билеты на стенд»: тёмный градиент, контуры-капсулы, белый выбранный слот */
 
 .nom-page {
-  --nom-accent: rgb(255, 98, 130);
-  --nom-accent-hover: rgb(236, 78, 112);
+  --nom-accent: #f85d7f;
+  --nom-accent-hover: #e04d6f;
+  --nom-outline: rgba(255, 255, 255, 0.82);
   position: relative;
   box-sizing: border-box;
   width: 100%;
@@ -22,224 +23,241 @@
   position: fixed;
   inset: 0;
   z-index: 0;
-  background:
-    linear-gradient(rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0.38)),
-    url("/buy-tickets/bg.png") center / cover no-repeat;
   pointer-events: none;
+  background:
+    radial-gradient(ellipse 85% 55% at 85% 15%, rgba(168, 85, 247, 0.35), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 10% 90%, rgba(236, 72, 153, 0.22), transparent 50%),
+    radial-gradient(ellipse 50% 35% at 50% 40%, rgba(99, 102, 241, 0.15), transparent 60%),
+    linear-gradient(168deg, #0b1220 0%, #151032 42%, #1e1040 72%, #241848 100%);
 }
 
-.nom-plain-checkout {
+.nom-shell {
   position: relative;
   z-index: 2;
   box-sizing: border-box;
   width: 100%;
-  max-width: 560px;
+  max-width: 420px;
   margin: 0 auto;
   flex: 1 1 auto;
   min-height: 0;
-  padding: 16px clamp(14px, 4vw, 28px) calc(72px + env(safe-area-inset-bottom, 0px));
-  overflow-x: hidden;
+  padding: 28px clamp(18px, 5vw, 24px) calc(88px + env(safe-area-inset-bottom, 0px));
 }
 
-.nom-plain-section {
-  margin-bottom: 32px;
-}
-
-.nom-plain-section:last-of-type {
+.nom-head {
   margin-bottom: 28px;
 }
 
-.nom-plain-heading {
-  font-family: var(--nom-font, Arial), Arial, sans-serif;
-  font-size: 30px;
-  font-weight: 500;
-  line-height: 1.55;
-  letter-spacing: normal;
-  margin: 0 0 20px;
-  color: #ffffff;
+.nom-head__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  color: #fff;
 }
 
-@media screen and (max-width: 1199px) {
-  .nom-plain-heading {
-    font-size: 26px;
-  }
+.nom-block-label {
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.88);
 }
 
-@media screen and (max-width: 479px) {
-  .nom-plain-heading {
-    font-size: 22px;
-    line-height: 1.35;
-  }
+.nom-block {
+  margin-bottom: 32px;
 }
 
-.nom-plain-times {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 12px;
+.nom-block:last-child {
+  margin-bottom: 0;
 }
 
-.nom-plain-time {
+/* Дата: горизонтальный ряд «чипов» */
+.nom-date-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.nom-chip {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  min-height: 56px;
-  padding: 10px 8px;
-  border: 1px solid #ff6282;
-  background-color: rgb(255, 98, 130);
-  color: #ffffff;
-  border-radius: 12px;
-  font-family: var(--nom-font, Arial), Arial, sans-serif;
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 1.35;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--nom-outline);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 400;
 }
 
-@media screen and (max-width: 479px) {
-  .nom-plain-time {
-    font-size: 15px;
-    min-height: 48px;
-    border-radius: 10px;
+.nom-chip--selected {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.95);
+}
+
+.nom-session-time {
+  margin: 12px 0 0;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+/* Время: сетка, выбранный слот — белая «таблетка» с тёмным текстом */
+.nom-time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.nom-time-grid--single {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 380px) {
+  .nom-time-grid:not(.nom-time-grid--single) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-.nom-plain-meta {
-  font-family: var(--nom-font, Arial), Arial, sans-serif;
-  font-size: 16px;
-  font-weight: 200;
-  line-height: 1.55;
-  color: rgba(255, 255, 255, 0.92);
-  margin: 0 0 8px;
+.nom-time-slot {
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--nom-outline);
+  background: transparent;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 400;
+  text-align: center;
+  cursor: default;
 }
 
-.nom-plain-ticket-row {
+.nom-time-slot--selected {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #0f172a;
+  font-weight: 500;
+}
+
+/* Строка билета (как на референсе): жирный заголовок + тонкий подзаголовок */
+.nom-ticket-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 28px;
 }
 
-.nom-plain-ticket-row:last-child {
-  margin-bottom: 0;
-}
-
-.nom-plain-ticket-text {
-  flex: 1 1 auto;
+.nom-ticket-text {
+  flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding-right: 4px;
 }
 
-.nom-plain-ticket-title {
-  font-family: var(--nom-font, Arial), Arial, sans-serif;
-  font-size: 24px;
-  font-weight: 500;
-  line-height: 1.55;
-  color: #ffffff;
+.nom-ticket-line {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #fff;
 }
 
-@media screen and (max-width: 1199px) {
-  .nom-plain-ticket-title {
-    font-size: 18px;
-  }
-}
-
-.nom-plain-ticket-hint {
-  font-family: var(--nom-font, Arial), Arial, sans-serif;
-  font-size: 16px;
-  font-weight: 200;
-  line-height: 1.55;
-  color: rgba(255, 255, 255, 0.95);
-}
-
-@media screen and (max-width: 479px) {
-  .nom-plain-ticket-hint {
-    font-size: 12px;
-    line-height: 1.45;
-  }
-}
-
-.nom-plain-stepper {
+/* Счётчик: − и + без кругов, число в тонком круге */
+.nom-qty {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
   flex-shrink: 0;
 }
 
-.nom-plain-step {
+.nom-qty-btn {
   box-sizing: border-box;
-  min-width: 28px;
-  min-height: 44px;
-  padding: 0 2px;
+  padding: 0;
   border: none;
-  border-radius: 0;
   background: transparent;
-  color: rgba(255, 255, 255, 0.92);
-  font-family: var(--nom-font, Arial), Arial, sans-serif;
-  font-size: 28px;
+  color: rgba(255, 255, 255, 0.95);
+  font-family: inherit;
+  font-size: 26px;
   font-weight: 200;
   line-height: 1;
   cursor: pointer;
+  min-width: 28px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   -webkit-tap-highlight-color: transparent;
   transition: color 0.15s ease, transform 0.1s ease;
 }
 
-.nom-plain-step:hover:not(:disabled) {
-  color: #ff6282;
+.nom-qty-btn:hover:not(:disabled) {
+  color: var(--nom-accent);
 }
 
-.nom-plain-step:active:not(:disabled) {
+.nom-qty-btn:active:not(:disabled) {
   transform: scale(0.92);
 }
 
-.nom-plain-step:disabled {
-  opacity: 0.45;
+.nom-qty-btn:disabled {
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
-.nom-plain-stepper-val {
+.nom-qty-ring {
   box-sizing: border-box;
-  flex-shrink: 0;
-  min-width: 1.25em;
-  padding: 0 4px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 8px;
+  border-radius: 50%;
+  border: 1px solid var(--nom-outline);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: none;
-  background: transparent;
-  font-family: var(--nom-font, Arial), Arial, sans-serif;
-  font-size: 18px;
-  font-weight: 200;
-  line-height: 1;
+  font-size: 16px;
+  font-weight: 300;
   font-variant-numeric: tabular-nums;
-  color: #ffffff;
+  color: #fff;
 }
 
-@media screen and (max-width: 479px) {
-  .nom-plain-stepper-val {
-    font-size: 16px;
+@media (max-width: 379px) {
+  .nom-qty {
+    gap: 10px;
   }
 
-  .nom-plain-step {
-    font-size: 24px;
+  .nom-qty-btn {
+    font-size: 22px;
   }
 
-  .nom-plain-stepper {
-    gap: 14px;
+  .nom-qty-ring {
+    min-width: 36px;
+    height: 36px;
+    font-size: 15px;
   }
 }
 
-.nom-plain-form-slot {
-  margin-top: 18px;
+.nom-summary {
+  margin: 22px 0 20px;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.9);
+  text-align: center;
+}
+
+.nom-summary strong {
+  font-weight: 600;
+  color: #fff;
+}
+
+.nom-form-block {
+  margin-top: 28px;
 }
 
 .nom-plain-input-group {
-  margin-bottom: 25px;
+  margin-bottom: 18px;
 }
 
 .nom-plain-input-group:last-of-type {
@@ -249,64 +267,48 @@
 .nom-input {
   box-sizing: border-box;
   width: 100%;
-  height: 48px;
-  padding-left: 32px;
-  padding-right: 32px;
+  height: 50px;
+  padding-left: 22px;
+  padding-right: 22px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  background-color: transparent;
+  border: 1px solid var(--nom-outline);
+  background: rgba(0, 0, 0, 0.18);
   color: rgba(255, 255, 255, 0.98);
   font-family: var(--nom-font, Arial), Arial, sans-serif;
-  font-size: 16px;
-  font-weight: 200;
+  font-size: 15px;
+  font-weight: 300;
   letter-spacing: 0.02em;
   line-height: 1.4;
 }
 
 .nom-input::placeholder {
-  color: rgba(255, 255, 255, 0.55);
-  font-weight: 200;
-  letter-spacing: 0.06em;
-}
-
-.nom-plain-total {
-  margin-top: 8px;
-  margin-bottom: 20px;
-  font-family: var(--nom-font, Arial), Arial, sans-serif;
-  font-size: 16px;
-  font-weight: 200;
-  line-height: 1.45;
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.nom-plain-total strong {
-  font-weight: 600;
-  color: #ffffff;
+  color: rgba(255, 255, 255, 0.48);
+  font-weight: 300;
 }
 
 .nom-plain-msg {
   font-size: 14px;
   line-height: 1.45;
-  color: #f95d51;
-  margin: 0 0 12px;
+  color: #ff8a80;
+  margin: 0 0 14px;
 }
 
 .nom-plain-msg--muted {
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(255, 255, 255, 0.65);
 }
 
 .nom-submit {
   width: 100%;
   box-sizing: border-box;
-  min-height: 52px;
-  padding: 14px 20px;
+  min-height: 54px;
+  padding: 16px 22px;
+  margin-top: 8px;
   border-radius: 999px;
   border: none;
-  font-family: var(--nom-font, Arial), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    sans-serif;
-  font-size: 16px;
+  font-family: var(--nom-font, Arial), system-ui, sans-serif;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   background: var(--nom-accent);
   color: #fff;
@@ -324,6 +326,6 @@
 }
 
 .nom-submit:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: wait;
 }

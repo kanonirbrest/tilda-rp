@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
 import { formatMinorUnits } from "@/lib/money";
 import { DEFAULT_TICKET_LEGAL_BLOCK } from "@/lib/ticket-legal-default";
+import { parseNightOfMuseumsTimeRangeFromTitle } from "@/lib/night-of-museums-session";
 import { NIGHT_OF_MUSEUMS_SLOT_KIND } from "@/lib/slot-kind";
 
 export type TicketPdfInput = {
@@ -187,13 +188,6 @@ function formatEventDateOnlyRuUpper(d: Date): string {
       .trim()
       .toUpperCase(),
   );
-}
-
-/** Диапазон времени из заголовка слота: «Night of Museums 21:00-00:00» → «21:00-00:00». */
-function parseNightOfMuseumsTimeRangeFromTitle(title: string): string | null {
-  const m = /^Night\s+of\s+Museums\s+(.+)$/i.exec(title.trim());
-  const rest = m?.[1]?.trim();
-  return rest || null;
 }
 
 function formatPriceTicket(isoMinor: number, currency: string): string {

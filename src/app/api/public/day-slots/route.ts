@@ -3,7 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
 import { getExhibitionTimezone, timeKeyInTz, wallDayUtcRange } from "@/lib/exhibition-time";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
-import { normalizeSlotKind } from "@/lib/slot-kind";
+import {
+  formatNightSessionRangeForUi,
+  parseNightOfMuseumsTimeRangeFromTitle,
+} from "@/lib/night-of-museums-session";
+import { NIGHT_OF_MUSEUMS_SLOT_KIND, normalizeSlotKind } from "@/lib/slot-kind";
 import { slotOrderLineStatsMap } from "@/lib/slot-order-line-stats";
 
 export async function OPTIONS(req: Request) {
@@ -41,12 +45,14 @@ export async function GET(req: Request) {
       startsAt: { gte: range.start, lte: range.end },
     },
     orderBy: { startsAt: "asc" },
-    select: { id: true, capacity: true, startsAt: true },
+    select: { id: true, capacity: true, startsAt: true, title: true },
   });
 
   const stats = await slotOrderLineStatsMap(slots.map((s) => s.id));
   const seen = new Set<string>();
   const times: string[] = [];
+  /** Для NIGHT_OF_MUSEUMS: HH:MM начала → подпись диапазона из title слота («21:00 - 00:00»). */
+  const sessionLabels: Record<string, string> = {};
 
   for (const s of slots) {
     const st = stats.get(s.id)!;
@@ -58,7 +64,23 @@ export async function GET(req: Request) {
     if (seen.has(tk)) continue;
     seen.add(tk);
     times.push(tk);
+
+    if (slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND) {
+      const parsed = parseNightOfMuseumsTimeRangeFromTitle(s.title);
+      if (parsed) sessionLabels[tk] = formatNightSessionRangeForUi(parsed);
+    }
   }
 
-  return jsonPublicReadResponse(req, { timezone: tz, date, kind: slotKind, times }, 200);
+  const payload: {
+    timezone: string;
+    date: string;
+    kind: string;
+    times: string[];
+    sessionLabels?: Record<string, string>;
+  } = { timezone: tz, date, kind: slotKind, times };
+  if (slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND && Object.keys(sessionLabels).length > 0) {
+    payload.sessionLabels = sessionLabels;
+  }
+
+  return jsonPublicReadResponse(req, payload, 200);
 }
