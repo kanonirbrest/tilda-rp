@@ -1,8 +1,11 @@
 /* Как buy-tickets plain-checkout: public/buy-tickets/slot.html → .dei-plain-checkout, .dei-plain-heading, .t-input */
 
+/* Тот же Cy Grotesk Grand, что для PDF (`assets/fonts/…ttf`): сначала TTF, запас — woff2. */
 @font-face {
   font-family: "Cy Grotesk Grand";
-  src: url("/fonts/cy-grotesk-grand-2.woff2") format("woff2");
+  src:
+    url("/fonts/cy-grotesk-grand-2.ttf") format("truetype"),
+    url("/fonts/cy-grotesk-grand-2.woff2") format("woff2");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
