@@ -128,24 +128,38 @@ function resolveRuleLineStarSvgDataUrl(side: "left" | "right"): string | null {
   return fileToDataUrl(p);
 }
 
+/** Корректный `format()` для `@font-face` (woff2 и ttf объявляются по-разному). */
+function fontFaceFormatHint(absPath: string): string {
+  const ext = absPath.split(".").pop()?.toLowerCase();
+  if (ext === "woff2") return `format("woff2")`;
+  if (ext === "woff") return `format("woff")`;
+  if (ext === "ttf") return `format("truetype")`;
+  if (ext === "otf") return `format("opentype")`;
+  return `format("woff2")`;
+}
+
 /**
  * Локальный Cy Grotesk Grand для PDF (data URL в `@font-face`, без сети).
- * Переопределение: `TICKET_PDF_CY_GROTESK_WOFF2` — абсолютный путь к `.woff2`.
- * По умолчанию: `assets/fonts/cy-grotesk-grand-2.woff2`.
+ * Переопределение: `TICKET_PDF_CY_GROTESK_WOFF2` — абсолютный путь к файлу шрифта (`.woff2`, `.ttf`, …).
+ * По умолчанию: сначала `assets/fonts/cy-grotesk-grand-2.ttf`, иначе `…woff2` (TTF — эталон от дизайна).
  */
 function resolveCyGroteskGrandWoff2Path(): string | null {
   const env = process.env.TICKET_PDF_CY_GROTESK_WOFF2?.trim();
   if (env && existsSync(env)) return env;
-  return resolveFirstExisting(["assets", "fonts", "cy-grotesk-grand-2.woff2"]);
+  return (
+    resolveFirstExisting(["assets", "fonts", "cy-grotesk-grand-2.ttf"]) ??
+    resolveFirstExisting(["assets", "fonts", "cy-grotesk-grand-2.woff2"])
+  );
 }
 
 function cyGroteskGrandFontFaceCss(): string {
   const p = resolveCyGroteskGrandWoff2Path();
   if (!p) return "";
   const src = fileToDataUrl(p);
+  const fmt = fontFaceFormatHint(p);
   return `@font-face {
   font-family: "Cy Grotesk Grand";
-  src: url(${src}) format("woff2");
+  src: url(${src}) ${fmt};
   font-weight: 100 900;
   font-style: normal;
   font-display: block;
@@ -304,8 +318,8 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
   const cyGroteskFace = cyGroteskGrandFontFaceCss();
   if (!cyGroteskFace) {
     console.warn(
-      "[ticket-pdf] Cy Grotesk Grand не встроен в HTML: нет файла assets/fonts/cy-grotesk-grand-2.woff2 " +
-        "(или задайте TICKET_PDF_CY_GROTESK_WOFF2 на абсолютный путь). В PDF будет system-ui/sans-serif.",
+      "[ticket-pdf] Cy Grotesk Grand не встроен в HTML: нет assets/fonts/cy-grotesk-grand-2.ttf или .woff2 " +
+        "(или задайте TICKET_PDF_CY_GROTESK_WOFF2 на абсолютный путь к шрифту). В PDF будет system-ui/sans-serif.",
     );
   }
 
