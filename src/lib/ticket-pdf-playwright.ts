@@ -72,30 +72,37 @@ const SETCONTENT_TIMEOUT_MS = Number(process.env.TICKET_PDF_SETCONTENT_TIMEOUT_M
  * Достаточно для variable Cy Grotesk Grand (woff2 в data URL в `@font-face`).
  */
 async function waitForTicketFonts(page: Page): Promise<void> {
-  await page.evaluate(async () => {
+  const fontOk = await page.evaluate(async () => {
     await document.fonts.ready;
+    const fam = '"Cy Grotesk Grand"';
+    const sizes = ["12px", "13px", "14.5px", "17px", "24px", "26px", "32px"];
+    const weights = [200, 300, 400, 500, 600, 700];
+    const specs: string[] = [];
+    for (const w of weights) {
+      for (const s of sizes) {
+        specs.push(`${w} ${s}`);
+      }
+    }
     try {
-      const fam = '"Cy Grotesk Grand"';
-      const specs = [
-        "500 12px",
-        "500 13px",
-        "500 14.5px",
-        "500 17px",
-        "600 24px",
-        "600 26px",
-        "600 32px",
-        "700 22px",
-      ];
       await Promise.all(specs.map((d) => document.fonts.load(`${d} ${fam}`)));
     } catch {
-      /* нет @font-face / семейства — билет всё равно соберём fallback-шрифтом */
+      /* нет @font-face */
     }
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => resolve());
       });
     });
+    return (
+      document.fonts.check(`600 26px ${fam}`) &&
+      document.fonts.check(`500 13px ${fam}`)
+    );
   });
+  if (!fontOk) {
+    console.warn(
+      "[ticket-pdf] Cy Grotesk Grand не проходит fonts.check после load — PDF может отрисоваться системным шрифтом. Проверьте наличие woff2 и лог «не встроен» при сборке HTML.",
+    );
+  }
 }
 
 /** HTML-документ → PDF A4 (печать как в браузере: потоковая вёрстка без координат). */
@@ -105,12 +112,15 @@ export async function renderHtmlToPdfBuffer(html: string): Promise<Uint8Array> {
     const browser = await getBrowser();
     const page = await browser.newPage();
     try {
+      /* Сначала screen: часть движков лучше декодирует @font-face; перед печатью переключим print. */
+      await page.emulateMedia({ media: "screen" });
       // Билет — только inline/data URL, без сети; `networkidle` на проде может не наступить или висеть до таймаута.
       await page.setContent(html, {
         waitUntil: "load",
         timeout: SETCONTENT_TIMEOUT_MS,
       });
       await waitForTicketFonts(page);
+      await page.emulateMedia({ media: "print" });
       const buf = await page.pdf({
         format: "A4",
         printBackground: true,

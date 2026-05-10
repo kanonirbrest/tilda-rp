@@ -27,11 +27,14 @@ const VENUE_LINE =
 /** Ссылка на блок «Адрес» на сайте DEI — кликабельно в PDF. */
 const VENUE_ADDRESS_URL = "https://dei.by/contacts#address";
 
-/** Корни для поиска `assets/` — и от cwd (скрипты, Next из каталога приложения), и от расположения этого файла (иначе PDF из монорепы/другого cwd не находит svg). */
+/** Корни для поиска `assets/` — cwd, каталог рядом с бандлом, монорепа `…/dei-tickets`, опционально `TICKET_ASSETS_ROOT`. */
 function assetSearchRoots(): string[] {
   const cwd = process.cwd();
   const fromThisFile = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-  return [...new Set([cwd, fromThisFile, join(cwd, "dei-tickets")])];
+  const envRoot = process.env.TICKET_ASSETS_ROOT?.trim();
+  const roots = [cwd, fromThisFile, join(cwd, "dei-tickets")];
+  if (envRoot && existsSync(envRoot)) roots.unshift(envRoot);
+  return [...new Set(roots)];
 }
 
 function resolveFirstExisting(rel: string[]): string | null {
@@ -639,9 +642,30 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       height: 30px;
       object-fit: contain;
     }
+    /* Принудительный прогрев variable woff2 под кириллицу/цифры до вёрстки (Chromium PDF). */
+    .pdf-font-primer {
+      position: absolute;
+      left: -10000px;
+      top: 0;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      white-space: nowrap;
+      font-family: "Cy Grotesk Grand", system-ui, sans-serif;
+      pointer-events: none;
+      visibility: hidden;
+    }
+    .pdf-font-primer .w500 { font-weight: 500; }
+    .pdf-font-primer .w600 { font-weight: 600; }
+    .pdf-font-primer .w700 { font-weight: 700; }
   </style>
 </head>
 <body class="ticket-page ${bodyPageClass}">
+  <div class="pdf-font-primer" aria-hidden="true">
+    <span class="w500">АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя</span>
+    <span class="w600">ВашБилет0123456789BYN</span>
+    <span class="w700">DEI</span>
+  </div>
   <div class="${sheetClass}" style="${bgStyle}">
     <div class="hero">
       <div class="hero-main">
