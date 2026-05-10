@@ -275,8 +275,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
 
   const bgStyle = hasBg ? `background-image: url(${bg.dataUrl})` : "";
   const sheetClass = ["sheet", hasBg ? "sheet--mesh" : ""].filter(Boolean).join(" ");
-  const compactSheetClass =
-    opts.slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND ? "" : " ticket-sheet--compact";
+  const compactSheetClass = " ticket-sheet--compact";
   const bodyPageClass = hasBg ? "ticket-page--mesh" : "ticket-page--solid";
 
   const logoUrl = resolveRazmanLogoDataUrl();
@@ -675,47 +674,52 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     .pdf-font-primer .w600 { font-weight: 600; }
     .pdf-font-primer .w700 { font-weight: 700; }
 
-    /* Обычные сеансы (не Ночь музеев): меньше вертикали, чтобы билет умещался на одной A4 */
+    /* Компактные поля: все билеты на одной A4 (в т.ч. Ночь музеев — две строки «Дата и время») */
     .sheet.ticket-sheet--compact {
-      padding: 26px 40px 26px;
+      padding: 24px 36px 22px;
     }
     .sheet.ticket-sheet--compact .hero {
-      gap: 3mm;
+      gap: 2.5mm;
     }
     .sheet.ticket-sheet--compact .eyebrow-strong {
-      margin-bottom: 1.5mm;
+      margin-bottom: 1.25mm;
     }
     .sheet.ticket-sheet--compact .eyebrow-soft {
-      margin-bottom: 22px;
+      margin-bottom: 18px;
     }
     .sheet.ticket-sheet--compact .brand-mark {
-      margin-bottom: 1mm;
+      margin-bottom: 0.75mm;
     }
     .sheet.ticket-sheet--compact .rule {
-      margin: 3mm 0;
+      margin: 2.5mm 0;
     }
     .sheet.ticket-sheet--compact .blocks + .rule.star-right,
     .sheet.ticket-sheet--compact .blocks + .rule.rule--svg-end {
-      margin-top: 26px;
+      margin-top: 22px;
     }
     .sheet.ticket-sheet--compact .blocks {
-      gap: 3.5mm;
+      gap: calc(3mm + 15px);
+      padding-top: 15px;
     }
     .sheet.ticket-sheet--compact .field-block {
-      gap: 2mm;
+      gap: 1.75mm;
+    }
+    .sheet.ticket-sheet--compact .value-when-stacked {
+      gap: 1.25mm;
     }
     .sheet.ticket-sheet--compact .venue-wrap {
-      margin: 18px 0;
-      gap: 4mm;
+      margin: 14px 0;
+      gap: 3.5mm;
     }
     .sheet.ticket-sheet--compact .fine-print {
-      padding-top: 2mm;
+      padding-top: calc(5mm + 15px);
+      padding-bottom: 1mm;
     }
     .sheet.ticket-sheet--compact .fine-print .legal-line {
-      margin-bottom: 1.5mm;
+      margin-bottom: 1.25mm;
     }
     .sheet.ticket-sheet--compact .razman-footer {
-      margin-top: calc(34px * 1.15);
+      margin-top: calc(44px * 1.18 + 15px);
     }
   </style>
 </head>
