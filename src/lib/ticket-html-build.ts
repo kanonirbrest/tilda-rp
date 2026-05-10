@@ -275,6 +275,8 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
 
   const bgStyle = hasBg ? `background-image: url(${bg.dataUrl})` : "";
   const sheetClass = ["sheet", hasBg ? "sheet--mesh" : ""].filter(Boolean).join(" ");
+  const compactSheetClass =
+    opts.slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND ? "" : " ticket-sheet--compact";
   const bodyPageClass = hasBg ? "ticket-page--mesh" : "ticket-page--solid";
 
   const logoUrl = resolveRazmanLogoDataUrl();
@@ -672,6 +674,49 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     .pdf-font-primer .w500 { font-weight: 500; }
     .pdf-font-primer .w600 { font-weight: 600; }
     .pdf-font-primer .w700 { font-weight: 700; }
+
+    /* Обычные сеансы (не Ночь музеев): меньше вертикали, чтобы билет умещался на одной A4 */
+    .sheet.ticket-sheet--compact {
+      padding: 26px 40px 26px;
+    }
+    .sheet.ticket-sheet--compact .hero {
+      gap: 3mm;
+    }
+    .sheet.ticket-sheet--compact .eyebrow-strong {
+      margin-bottom: 1.5mm;
+    }
+    .sheet.ticket-sheet--compact .eyebrow-soft {
+      margin-bottom: 22px;
+    }
+    .sheet.ticket-sheet--compact .brand-mark {
+      margin-bottom: 1mm;
+    }
+    .sheet.ticket-sheet--compact .rule {
+      margin: 3mm 0;
+    }
+    .sheet.ticket-sheet--compact .blocks + .rule.star-right,
+    .sheet.ticket-sheet--compact .blocks + .rule.rule--svg-end {
+      margin-top: 26px;
+    }
+    .sheet.ticket-sheet--compact .blocks {
+      gap: 3.5mm;
+    }
+    .sheet.ticket-sheet--compact .field-block {
+      gap: 2mm;
+    }
+    .sheet.ticket-sheet--compact .venue-wrap {
+      margin: 18px 0;
+      gap: 4mm;
+    }
+    .sheet.ticket-sheet--compact .fine-print {
+      padding-top: 2mm;
+    }
+    .sheet.ticket-sheet--compact .fine-print .legal-line {
+      margin-bottom: 1.5mm;
+    }
+    .sheet.ticket-sheet--compact .razman-footer {
+      margin-top: calc(34px * 1.15);
+    }
   </style>
 </head>
 <body class="ticket-page ${bodyPageClass}">
@@ -680,7 +725,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     <span class="w600">ВашБилет0123456789BYN</span>
     <span class="w700">DEI</span>
   </div>
-  <div class="${sheetClass}" style="${bgStyle}">
+  <div class="${sheetClass}${compactSheetClass}" style="${bgStyle}">
     <div class="hero">
       <div class="hero-main">
         <div class="eyebrow-strong">Ваш билет</div>
