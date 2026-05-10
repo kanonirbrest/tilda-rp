@@ -78,6 +78,8 @@ export default function NightOfMuseumsPage() {
   const [quoteTotalLabel, setQuoteTotalLabel] = useState("—");
   const [quoteTotalCents, setQuoteTotalCents] = useState<number | null>(null);
   const [quoteCurrency, setQuoteCurrency] = useState("BYN");
+  /** Идёт запрос котировки — не обнуляем сумму: иначе форма и блок итога исчезают и прыгают. */
+  const [quotePending, setQuotePending] = useState(false);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -131,8 +133,7 @@ export default function NightOfMuseumsPage() {
   useEffect(() => {
     let cancelled = false;
     if (!date || !time) return;
-    setQuoteTotalLabel("...");
-    setQuoteTotalCents(null);
+    setQuotePending(true);
     const url =
       `/api/public/order-quote?kind=${encodeURIComponent(NIGHT_OF_MUSEUMS_SLOT_KIND)}` +
       `&date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&adult=${qty}&child=0&concession=0`;
@@ -140,6 +141,7 @@ export default function NightOfMuseumsPage() {
       .then(async (r) => ({ ok: r.ok, body: (await r.json()) as QuoteResponse }))
       .then(({ ok, body }) => {
         if (cancelled) return;
+        setQuotePending(false);
         if (
           !ok ||
           typeof body.formattedTotal !== "string" ||
@@ -155,6 +157,7 @@ export default function NightOfMuseumsPage() {
       })
       .catch(() => {
         if (!cancelled) {
+          setQuotePending(false);
           setQuoteTotalLabel("Не удалось посчитать сумму");
           setQuoteTotalCents(null);
         }
@@ -165,17 +168,19 @@ export default function NightOfMuseumsPage() {
   }, [date, time, qty]);
 
   const unitPriceLabel = useMemo(() => {
+    if (quotePending) return "…";
     if (quoteTotalCents == null || qty < 1) return "—";
     const unit = Math.round(quoteTotalCents / qty);
     return formatMoneyCents(unit, quoteCurrency);
-  }, [quoteTotalCents, qty, quoteCurrency]);
+  }, [quotePending, quoteTotalCents, qty, quoteCurrency]);
 
   const summaryLine = useMemo(() => {
-    if (quoteTotalCents == null || quoteTotalLabel === "..." || quoteTotalLabel.startsWith("Не удалось")) {
-      return null;
+    if (quoteTotalLabel.startsWith("Не удалось")) return null;
+    if (quotePending || quoteTotalCents == null) {
+      return `${qty} ${ticketsWord(qty)} на сумму …`;
     }
     return `${qty} ${ticketsWord(qty)} на сумму ${quoteTotalLabel}`;
-  }, [qty, quoteTotalCents, quoteTotalLabel]);
+  }, [qty, quotePending, quoteTotalCents, quoteTotalLabel]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -275,10 +280,10 @@ export default function NightOfMuseumsPage() {
               </section>
 
               {summaryLine ? (
-                <p className="nom-summary">
+                <p className="nom-summary" aria-busy={quotePending}>
                   <strong>{summaryLine}</strong>
                 </p>
-              ) : quoteTotalLabel !== "—" && quoteTotalLabel !== "..." ? (
+              ) : quoteTotalLabel !== "—" ? (
                 <p className="nom-summary nom-plain-msg--muted">{quoteTotalLabel}</p>
               ) : null}
 
