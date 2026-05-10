@@ -27,7 +27,23 @@ function resolveResendApiUrl(): string {
   return raw.replace(/\/+$/, "");
 }
 
-function buildTicketEmailText(opts: TicketEmailInput): { subject: string; text: string } {
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Постоянные ссылки в теле письма (как в текстовой версии). */
+const LINK_MAP_DEI = "https://yandex.ru/maps/-/CPbP4Qi2";
+const LINK_MAP_PARKING =
+  "https://yandex.ru/maps?whatshere%5Bzoom%5D=19&whatshere%5Bpoint%5D=27.567001,53.914411&si=ba5qnxud4b19pa7k85ky7a09a4";
+const LINK_DEI_WAYS = "https://dei.by/contacts#ways";
+const LINK_TELEGRAM_CLUB = "https://t.me/RazmanProductionBot?start=qr";
+const LINK_INSTAGRAM = "https://www.instagram.com/deii.rp";
+
+function buildTicketEmail(opts: TicketEmailInput): { subject: string; text: string; html: string } {
   const multiple = opts.pdfAttachments.length > 1;
   const urls = opts.downloadUrls.filter(Boolean);
   const linksBlock =
@@ -53,12 +69,12 @@ ${attachmentLine}
 
 Готовы к встрече?
 
-• Наш адрес: DEI - Дом Экспериментального искусства (https://yandex.ru/maps/-/CPbP4Qi2) — Минск, Машерова 15/1 (вход со двора).
-Возле пространства работает платная парковка (https://yandex.ru/maps?whatshere%5Bzoom%5D=19&whatshere%5Bpoint%5D=27.567001,53.914411&si=ba5qnxud4b19pa7k85ky7a09a4) — 3 р/час (заезд под шлагбаум возле бара Louis Prima)
+• Наш адрес: DEI - Дом Экспериментального искусства (${LINK_MAP_DEI}) — Минск, Машерова 15/1 (вход со двора).
+Возле пространства работает платная парковка (${LINK_MAP_PARKING}) — 3 р/час (заезд под шлагбаум возле бара Louis Prima)
 
-Узнайте, как до нас добраться (https://dei.by/contacts#ways) — мы выбрали удобные маршруты для вас.
+Узнайте, как до нас добраться (${LINK_DEI_WAYS}) — мы выбрали удобные маршруты для вас.
 
-• Присоединяйтесь к Клубу друзей Razman Production в Telegram (https://t.me/RazmanProductionBot?start=qr): здесь эксклюзивная информация о текущих проектах, анонсы событий, спецпредложения и сюрпризы для друзей!
+• Присоединяйтесь к Клубу друзей Razman Production в Telegram (${LINK_TELEGRAM_CLUB}): здесь эксклюзивная информация о текущих проектах, анонсы событий, спецпредложения и сюрпризы для друзей!
 
 Ждем вас на «Небо.Река» — пусть это путешествие станет незабываемым!
 
@@ -67,19 +83,55 @@ ${attachmentLine}
 Команда Razman Production и служба заботы о клиентах
 
 Колл центр +375 (44) 738-33-33 | info@dei.by
-Instagram: @deii.rp (https://www.instagram.com/deii.rp)
+Instagram: @deii.rp (${LINK_INSTAGRAM})
 `;
+
+  const downloadLinksHtml =
+    urls.length === 0 ?
+      ""
+    : urls.length === 1 ?
+      `<p><a href="${escapeHtml(urls[0]!)}">Скачать билет (PDF)</a></p>`
+    : `<p>Скачать билеты:</p><ul>${urls
+        .map(
+          (u, i) =>
+            `<li><a href="${escapeHtml(u)}">Билет ${i + 1} (PDF)</a></li>`,
+        )
+        .join("")}</ul>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#222;">
+<p>Добрый день, на связи Razman Production!</p>
+<p>Благодарим, что выбрали иммерсивную медиа-выставку «Небо.Река – Планета после шума»! Вы вот-вот погрузитесь в масштабный мир, где природа вдохновляет, технологии удивляют, живая музыка трогает!</p>
+<p><strong>${escapeHtml(ticketLead)}</strong></p>
+${downloadLinksHtml}
+<p>${escapeHtml(attachmentLine)}</p>
+<p>Готовы к встрече?</p>
+<p>• Наш адрес: <a href="${LINK_MAP_DEI}">DEI — Дом Экспериментального искусства</a> — Минск, Машерова 15/1 (вход со двора).<br />
+Возле пространства работает <a href="${LINK_MAP_PARKING}">платная парковка</a> — 3 р/час (заезд под шлагбаум возле бара Louis Prima)</p>
+<p><a href="${LINK_DEI_WAYS}">Узнайте, как до нас добраться</a> — мы выбрали удобные маршруты для вас.</p>
+<p>• Присоединяйтесь к <a href="${LINK_TELEGRAM_CLUB}">Клубу друзей Razman Production в Telegram</a>: здесь эксклюзивная информация о текущих проектах, анонсы событий, спецпредложения и сюрпризы для друзей!</p>
+<p>Ждем вас на «Небо.Река» — пусть это путешествие станет незабываемым!</p>
+<hr style="border:none;border-top:1px solid #ddd;margin:20px 0;" />
+<p>С теплом,<br />
+Команда Razman Production и служба заботы о клиентах</p>
+<p>Колл-центр <a href="tel:+375447383333">+375 (44) 738-33-33</a> | <a href="mailto:info@dei.by">info@dei.by</a><br />
+Instagram: <a href="${LINK_INSTAGRAM}">@deii.rp</a></p>
+</body>
+</html>`;
 
   return {
     subject: multiple ? "Ваши билеты — «Небо.Река»" : "Ваш билет — «Небо.Река»",
     text,
+    html,
   };
 }
 
 async function sendViaResendApi(
   opts: TicketEmailInput & { apiKey: string; from: string },
 ): Promise<void> {
-  const { subject, text } = buildTicketEmailText(opts);
+  const { subject, text, html } = buildTicketEmail(opts);
   const apiUrl = resolveResendApiUrl();
   const attachmentBytes = opts.pdfAttachments.reduce((n, a) => n + a.content.length, 0);
   console.info("[mail][resend] отправка", {
@@ -102,6 +154,7 @@ async function sendViaResendApi(
       to: [opts.to],
       subject,
       text,
+      html,
       attachments: opts.pdfAttachments.map((a) => ({
         filename: a.filename,
         content: a.content.toString("base64"),
@@ -222,12 +275,13 @@ export async function sendTicketEmail(opts: TicketEmailInput): Promise<void> {
   } as SMTPTransport.Options);
 
   try {
-    const { subject, text } = buildTicketEmailText(opts);
+    const { subject, text, html } = buildTicketEmail(opts);
     const info = await transporter.sendMail({
       from,
       to: opts.to,
       subject,
       text,
+      html,
       attachments: opts.pdfAttachments.map((a) => ({
         filename: a.filename,
         content: a.content,
