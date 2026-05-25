@@ -5,11 +5,26 @@ export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
 }
 
-function csvEscape(value: string | number | null | undefined): string {
+/** Разделитель для Excel в ru/by локали; строка sep= в начале файла подсказывает Excel. */
+const CSV_SEP = ";";
+
+function sanitizeCsvText(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
-  const s = String(value);
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return String(value).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+}
+
+function csvEscape(value: string | number | null | undefined): string {
+  const s = sanitizeCsvText(value);
+  const needsQuotes =
+    /[";\n\r]/.test(s) ||
+    /^[=+\-@\t]/.test(s) ||
+    /^\d+$/.test(s) && s.length > 10;
+  if (needsQuotes) return `"${s.replace(/"/g, '""')}"`;
   return s;
+}
+
+function csvLine(cells: string[]): string {
+  return cells.join(CSV_SEP);
 }
 
 function iso(d: Date | null): string {
@@ -38,7 +53,7 @@ export async function GET(req: Request) {
   });
 
   const header = [
-    "id",
+    "customer_id",
     "name",
     "email",
     "phone",
@@ -139,7 +154,8 @@ export async function GET(req: Request) {
 
   const body =
     "\uFEFF" +
-    rows.map((line) => line.join(",")).join("\r\n") +
+    `sep=${CSV_SEP}\r\n` +
+    rows.map((line) => csvLine(line)).join("\r\n") +
     "\r\n";
 
   const day = new Date().toISOString().slice(0, 10);
