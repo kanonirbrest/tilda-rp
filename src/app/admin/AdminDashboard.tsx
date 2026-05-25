@@ -87,7 +87,64 @@ type OrdersResponse = {
   orders: OrderRow[];
 };
 
-type TabId = "orders" | "schedule" | "promos";
+type TabId = "orders" | "schedule" | "stats" | "promos";
+
+type CheckInStatsStatus = "all" | "checked_in" | "not_checked_in";
+
+type CheckInStatsBySlot = {
+  slotId: string;
+  title: string;
+  timeKey: string;
+  ticketsTotal: number;
+  ticketsCheckedIn: number;
+  ticketsNotCheckedIn: number;
+  peopleTotal: number;
+  peopleCheckedIn: number;
+  peopleNotCheckedIn: number;
+};
+
+type CheckInStatsResponse = {
+  timezone: string;
+  date: string;
+  slotId: string | null;
+  status: CheckInStatsStatus;
+  ticketsTotal: number;
+  ticketsCheckedIn: number;
+  ticketsNotCheckedIn: number;
+  peopleTotal: number;
+  peopleCheckedIn: number;
+  peopleNotCheckedIn: number;
+  countTickets: number;
+  countPeople: number;
+  bySlot: CheckInStatsBySlot[];
+};
+
+type TierSoldCounts = {
+  adult: number;
+  child: number;
+  concession: number;
+  unknown: number;
+  total: number;
+};
+
+type SalesStatsBySlot = {
+  slotId: string;
+  title: string;
+  timeKey: string;
+  adult: number;
+  child: number;
+  concession: number;
+  unknown: number;
+  total: number;
+};
+
+type SalesStatsResponse = {
+  timezone: string;
+  date: string;
+  slotId: string | null;
+  sold: TierSoldCounts;
+  bySlot: SalesStatsBySlot[];
+};
 const SLOT_KIND_CHOICES = [NEBO_REKA_SLOT_KIND, NIGHT_OF_MUSEUMS_SLOT_KIND] as const;
 
 type ScheduleKindFilter = "all" | (typeof SLOT_KIND_CHOICES)[number];
@@ -703,6 +760,11 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(todayDateKey);
   const [scheduleKindFilter, setScheduleKindFilter] = useState<ScheduleKindFilter>("all");
+  const [statsVisitFilter, setStatsVisitFilter] = useState<CheckInStatsStatus>("all");
+  const [statsSlotId, setStatsSlotId] = useState("");
+  const [checkInStats, setCheckInStats] = useState<CheckInStatsResponse | null>(null);
+  const [salesStats, setSalesStats] = useState<SalesStatsResponse | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -787,10 +849,45 @@ export default function AdminDashboard() {
     void loadOrders();
   }, [authChecked, authed, loadOrders]);
 
+  const loadDayStats = useCallback(async () => {
+    if (!selectedDate) return;
+    setErrMsg("");
+    setStatsLoading(true);
+    try {
+      const baseQ = new URLSearchParams({ date: selectedDate });
+      if (statsSlotId) baseQ.set("slotId", statsSlotId);
+      const checkInQ = new URLSearchParams(baseQ);
+      checkInQ.set("status", statsVisitFilter);
+      const [checkIn, sales] = await Promise.all([
+        apiFetch<CheckInStatsResponse>(`/api/admin/stats/check-in?${checkInQ}`),
+        apiFetch<SalesStatsResponse>(`/api/admin/stats/sales?${baseQ}`),
+      ]);
+      setCheckInStats(checkIn);
+      setSalesStats(sales);
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
+      setCheckInStats(null);
+      setSalesStats(null);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [selectedDate, statsSlotId, statsVisitFilter]);
+
   useEffect(() => {
-    if (!authed || tab !== "schedule") return;
+    if (!authed || (tab !== "schedule" && tab !== "stats")) return;
     void loadSlots();
   }, [authed, tab, loadSlots]);
+
+  useEffect(() => {
+    if (!authed || tab !== "stats") return;
+    void loadDayStats();
+  }, [authed, tab, loadDayStats]);
+
+  useEffect(() => {
+    if (!authed || tab !== "stats") return;
+    const id = window.setInterval(() => void loadDayStats(), 20_000);
+    return () => window.clearInterval(id);
+  }, [authed, tab, loadDayStats]);
 
   useEffect(() => {
     if (!authed || tab !== "promos") return;
@@ -1264,6 +1361,24 @@ export default function AdminDashboard() {
     return slotsForSelectedDate.filter((s) => s.kind === scheduleKindFilter);
   }, [slotsForSelectedDate, scheduleKindFilter]);
 
+  useEffect(() => {
+    if (!statsSlotId || !slotsData) return;
+    const ok = slotsForSelectedDate.some((s) => s.id === statsSlotId);
+    if (!ok) setStatsSlotId("");
+  }, [selectedDate, slotsData, slotsForSelectedDate, statsSlotId]);
+
+  function statsCountForSlotRow(row: CheckInStatsBySlot): number {
+    if (statsVisitFilter === "checked_in") return row.peopleCheckedIn;
+    if (statsVisitFilter === "not_checked_in") return row.peopleNotCheckedIn;
+    return row.peopleTotal;
+  }
+
+  function statsKpiLabel(): string {
+    if (statsVisitFilter === "checked_in") return "Человек прошло (отмечено на входе)";
+    if (statsVisitFilter === "not_checked_in") return "Человек ещё не прошло";
+    return "Человек по оплаченным билетам (всего)";
+  }
+
   const dateOptions = useMemo(() => {
     if (!slotsData) return [];
     const keys = new Set(slotsData.slots.map((s) => s.dateKey));
@@ -1394,6 +1509,16 @@ export default function AdminDashboard() {
           onClick={() => setTab("schedule")}
         >
           Сеансы
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "stats"}
+          onClick={() => setTab("stats")}
+        >
+          {checkInStats && salesStats && tab === "stats" ?
+            `Статистика · прод. ${salesStats.sold.total} · прошло ${checkInStats.peopleCheckedIn}/${checkInStats.peopleTotal}`
+          : "Статистика"}
         </button>
         <button
           type="button"
@@ -1692,6 +1817,256 @@ export default function AdminDashboard() {
                 </div>
               )}
             </>
+          )}
+        </section>
+      ) : null}
+
+      {tab === "stats" ? (
+        <section className="admin-panel admin-panel--tight" id="tab-stats" aria-label="Статистика за день">
+          <div className="admin-panel-head admin-panel-head--stack admin-panel-head--tight">
+            <div className="admin-toolbar-row">
+              <button
+                type="button"
+                className={`btn btn-secondary ${statsLoading ? "is-loading" : ""}`}
+                onClick={() => void loadDayStats()}
+                disabled={statsLoading}
+              >
+                Обновить
+              </button>
+              {checkInStats && salesStats ? (
+                <span className="admin-hint">
+                  Обновление каждые 20 с · {checkInStats.timezone} · PAID, без возвратов
+                </span>
+              ) : (
+                <span className="admin-hint">Загрузка…</span>
+              )}
+            </div>
+            <p className="admin-hint admin-hint--inline">
+              Продажи по типам билета и проход на входе за выбранный день. Данные обновляются автоматически.
+            </p>
+            <div className="admin-field admin-field--dateblock">
+              <label htmlFor="stats-date">Дата сеансов</label>
+              <div className="admin-date-row">
+                <input
+                  id="stats-date"
+                  className="admin-date-input"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-compact"
+                  onClick={() => setSelectedDate(todayDateKey())}
+                >
+                  Сегодня
+                </button>
+              </div>
+              {dateOptions.length > 0 ? (
+                <div className="admin-date-chips" role="group" aria-label="Даты с сеансами">
+                  {dateOptions.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      className={`admin-chip ${d === selectedDate ? "admin-chip--on" : ""}`}
+                      onClick={() => setSelectedDate(d)}
+                    >
+                      {formatDateKeyShort(d)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="admin-order-filters">
+              <label>
+                Сеанс
+                <select
+                  value={statsSlotId}
+                  onChange={(e) => setStatsSlotId(e.target.value)}
+                  aria-label="Фильтр по сеансу"
+                  disabled={!slotsData}
+                >
+                  <option value="">Все сеансы за день</option>
+                  {slotsForSelectedDate.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.timeKey} — {truncateText(s.title, 36)} ({slotSalesChannelLabel(s.kind)})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Проход на входе
+                <select
+                  value={statsVisitFilter}
+                  onChange={(e) => setStatsVisitFilter(e.target.value as CheckInStatsStatus)}
+                  aria-label="Фильтр по проходу"
+                >
+                  <option value="all">Все (сводка)</option>
+                  <option value="checked_in">Прошёл</option>
+                  <option value="not_checked_in">Не прошёл</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          {!checkInStats || !salesStats ? (
+            <div className="admin-empty admin-empty--compact">{statsLoading ? "Загрузка…" : "Нет данных"}</div>
+          ) : (
+            <div className="admin-stats-panel">
+              <section className="admin-stats-section" aria-label="Продажи за день">
+                <h3 className="admin-stats-section__title">Продано за день</h3>
+                <p className="admin-stats-section__hint">
+                  Оплаченные билеты без возврата · по типу (взрослый / детский / льготный)
+                </p>
+                <div className="admin-stats-kpi">
+                  <div className="admin-stats-kpi__card admin-stats-kpi__card--primary">
+                    <div className="admin-stats-kpi__value">{salesStats.sold.adult}</div>
+                    <div className="admin-stats-kpi__label">Взрослый</div>
+                  </div>
+                  <div className="admin-stats-kpi__card">
+                    <div className="admin-stats-kpi__value">{salesStats.sold.child}</div>
+                    <div className="admin-stats-kpi__label">Детский</div>
+                  </div>
+                  <div className="admin-stats-kpi__card">
+                    <div className="admin-stats-kpi__value">{salesStats.sold.concession}</div>
+                    <div className="admin-stats-kpi__label">Льготный</div>
+                  </div>
+                  <div className="admin-stats-kpi__card">
+                    <div className="admin-stats-kpi__value">{salesStats.sold.total}</div>
+                    <div className="admin-stats-kpi__label">Всего билетов</div>
+                    {salesStats.sold.unknown > 0 ? (
+                      <div className="admin-stats-kpi__sub mono">без типа: {salesStats.sold.unknown}</div>
+                    ) : null}
+                  </div>
+                </div>
+                {!statsSlotId && salesStats.bySlot.length > 0 ? (
+                  <div className="admin-stats-by-slot">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Время</th>
+                          <th>Сеанс</th>
+                          <th className="num">Взр.</th>
+                          <th className="num">Дет.</th>
+                          <th className="num">Льг.</th>
+                          <th className="num">Всего</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salesStats.bySlot.map((row) => (
+                          <tr
+                            key={row.slotId}
+                            role="button"
+                            tabIndex={0}
+                            title="Нажмите, чтобы отфильтровать по сеансу"
+                            style={{ cursor: "pointer" }}
+                            onClick={() => setStatsSlotId(row.slotId)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setStatsSlotId(row.slotId);
+                              }
+                            }}
+                          >
+                            <td className="mono">{row.timeKey}</td>
+                            <td className="admin-stats-row-title">{truncateText(row.title, 48)}</td>
+                            <td className="num">{row.adult}</td>
+                            <td className="num">{row.child}</td>
+                            <td className="num">{row.concession}</td>
+                            <td className="num">{row.total}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="admin-stats-section" aria-label="Проход на входе">
+                <h3 className="admin-stats-section__title">Проход на входе</h3>
+                <p className="admin-stats-section__hint">Люди по полю «входов» на билете (admissionCount)</p>
+              {statsVisitFilter === "all" ? (
+                <div className="admin-stats-kpi">
+                  <div className="admin-stats-kpi__card admin-stats-kpi__card--primary">
+                    <div className="admin-stats-kpi__value">{checkInStats.peopleCheckedIn}</div>
+                    <div className="admin-stats-kpi__label">Прошло (чел.)</div>
+                    <div className="admin-stats-kpi__sub mono">
+                      билетов {checkInStats.ticketsCheckedIn} / {checkInStats.ticketsTotal}
+                    </div>
+                  </div>
+                  <div className="admin-stats-kpi__card">
+                    <div className="admin-stats-kpi__value">{checkInStats.peopleNotCheckedIn}</div>
+                    <div className="admin-stats-kpi__label">Не прошло (чел.)</div>
+                    <div className="admin-stats-kpi__sub mono">
+                      билетов {checkInStats.ticketsNotCheckedIn}
+                    </div>
+                  </div>
+                  <div className="admin-stats-kpi__card">
+                    <div className="admin-stats-kpi__value">{checkInStats.peopleTotal}</div>
+                    <div className="admin-stats-kpi__label">Всего по билетам (чел.)</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="admin-stats-kpi">
+                  <div className="admin-stats-kpi__card admin-stats-kpi__card--primary">
+                    <div className="admin-stats-kpi__value">{checkInStats.countPeople}</div>
+                    <div className="admin-stats-kpi__label">{statsKpiLabel()}</div>
+                    <div className="admin-stats-kpi__sub mono">
+                      билетов {checkInStats.countTickets}
+                      {statsSlotId ? "" : ` · из ${checkInStats.peopleTotal} чел. за день`}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!statsSlotId && checkInStats.bySlot.length > 0 ? (
+                <div className="admin-stats-by-slot">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Время</th>
+                        <th>Сеанс</th>
+                        <th className="num">
+                          {statsVisitFilter === "checked_in" ?
+                            "Прошло"
+                          : statsVisitFilter === "not_checked_in" ?
+                            "Не прошло"
+                          : "Всего"}
+                          , чел.
+                        </th>
+                        <th className="num">Прошло</th>
+                        <th className="num">Не прошло</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {checkInStats.bySlot.map((row) => (
+                        <tr
+                          key={row.slotId}
+                          role="button"
+                          tabIndex={0}
+                          title="Нажмите, чтобы отфильтровать по сеансу"
+                          style={{ cursor: "pointer" }}
+                          onClick={() => setStatsSlotId(row.slotId)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setStatsSlotId(row.slotId);
+                            }
+                          }}
+                        >
+                          <td className="mono">{row.timeKey}</td>
+                          <td className="admin-stats-row-title">{truncateText(row.title, 48)}</td>
+                          <td className="num">{statsCountForSlotRow(row)}</td>
+                          <td className="num">{row.peopleCheckedIn}</td>
+                          <td className="num">{row.peopleNotCheckedIn}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+              </section>
+            </div>
           )}
         </section>
       ) : null}

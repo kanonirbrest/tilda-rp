@@ -212,11 +212,11 @@ function formatPriceTicket(isoMinor: number, currency: string): string {
   return s.replace(/\.00(?=\s)/, "");
 }
 
-/** Пиксели стороны PNG QR; на странице он ~30 mm — 256 достаточно для сканирования и меньше весит в PDF. Env: `TICKET_PDF_QR_PX`. */
+/** Пиксели стороны PNG QR; на странице он ~37.5 mm — 320 px для сканирования и скринов. Env: `TICKET_PDF_QR_PX`. */
 function qrRasterWidthPx(): number {
   const raw = process.env.TICKET_PDF_QR_PX?.trim();
-  const n = raw ? Number.parseInt(raw, 10) : 256;
-  if (!Number.isFinite(n) || n < 180) return 180;
+  const n = raw ? Number.parseInt(raw, 10) : 320;
+  if (!Number.isFinite(n) || n < 225) return 225;
   if (n > 512) return 512;
   return Math.round(n);
 }
@@ -449,16 +449,16 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     }
     .hero-qr {
       flex: 0 0 auto;
-      width: 34mm;
+      width: 42.5mm;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 1mm;
     }
     .hero-qr img {
-      width: 30mm;
-      height: 30mm;
-      padding: 2mm;
+      width: 37.5mm;
+      height: 37.5mm;
+      padding: 2.5mm;
       background: #fff;
       border-radius: 4mm;
       object-fit: contain;

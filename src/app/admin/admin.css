@@ -993,6 +993,114 @@
   min-height: 2.35rem;
 }
 
+/* Check-in stats */
+.admin-root .admin-stats-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.admin-root .admin-stats-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-root .admin-stats-section__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--admin-text);
+}
+
+.admin-root .admin-stats-section__hint {
+  margin: -0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--admin-muted);
+}
+
+.admin-root .admin-stats-kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.admin-root .admin-stats-kpi__card {
+  padding: 1rem 1.1rem;
+  border-radius: var(--admin-radius);
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface2);
+}
+
+.admin-root .admin-stats-kpi__card--primary {
+  border-color: rgba(196, 163, 90, 0.45);
+  background: var(--admin-accent-dim);
+}
+
+.admin-root .admin-stats-kpi__value {
+  font-size: 2.25rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--admin-text);
+}
+
+.admin-root .admin-stats-kpi__label {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--admin-muted);
+}
+
+.admin-root .admin-stats-kpi__sub {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--admin-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-root .admin-stats-by-slot {
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  overflow: hidden;
+}
+
+.admin-root .admin-stats-by-slot table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.admin-root .admin-stats-by-slot th,
+.admin-root .admin-stats-by-slot td {
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.admin-root .admin-stats-by-slot th {
+  font-weight: 600;
+  color: var(--admin-muted);
+  background: var(--admin-surface);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-root .admin-stats-by-slot tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-root .admin-stats-by-slot td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, monospace;
+}
+
+.admin-root .admin-stats-by-slot .admin-stats-row-title {
+  font-weight: 500;
+}
+
 .admin-root .admin-date-chips {
   display: flex;
   flex-wrap: wrap;
