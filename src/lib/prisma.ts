@@ -1,4 +1,7 @@
 import { PrismaClient } from "@prisma/client";
+import { applyDevelopmentProductionDatabaseUrl } from "@/lib/resolve-database-url";
+
+applyDevelopmentProductionDatabaseUrl();
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 

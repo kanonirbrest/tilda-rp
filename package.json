@@ -14,6 +14,7 @@
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
     "slots:generate": "tsx scripts/generate-slots.ts",
+    "buy-tickets-summer:build": "python3 scripts/build-buy-tickets-summer.py",
     "playwright:install": "playwright install chromium",
     "postinstall": "prisma generate"
   },

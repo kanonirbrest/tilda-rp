@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
 import { prisma } from "@/lib/prisma";
@@ -53,7 +54,8 @@ export async function GET(req: Request) {
     return jsonPublicReadResponse(req, { error: "TIME_REQUIRED", hint: "Укажите time (например 14:00)" }, 400);
   }
 
-  const resolved = await resolveCheckoutSlot({ slotId: null, date, time, slotKind });
+  try {
+    const resolved = await resolveCheckoutSlot({ slotId: null, date, time, slotKind });
   if (!resolved.ok) {
     const code = resolved.code;
     const status =
@@ -134,15 +136,18 @@ export async function GET(req: Request) {
     }
   }
 
-  return jsonPublicReadResponse(
-    req,
-    {
-      totalCents,
-      currency,
-      kind: slotKind,
-      formattedTotal,
-      promo,
-    },
-    200,
-  );
+    return jsonPublicReadResponse(
+      req,
+      {
+        totalCents,
+        currency,
+        kind: slotKind,
+        formattedTotal,
+        promo,
+      },
+      200,
+    );
+  } catch (err) {
+    return jsonPublicApiError(req, err);
+  }
 }

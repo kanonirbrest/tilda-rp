@@ -1130,6 +1130,11 @@
   background: var(--admin-surface);
 }
 
+.admin-root .admin-chip--more {
+  border-style: dashed;
+  font-weight: 600;
+}
+
 .admin-root .admin-chip--on {
   color: var(--admin-bg);
   background: var(--admin-accent);

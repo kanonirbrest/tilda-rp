@@ -17,6 +17,12 @@ export default function Home() {
           Купить билет
         </Link>
         <Link
+          href="/summer-v2"
+          className="rounded-xl border border-emerald-700/40 bg-white px-6 py-3 text-sm font-medium text-emerald-900 hover:bg-emerald-50"
+        >
+          Лето (v2)
+        </Link>
+        <Link
           href="/nightofmuseums"
           className="rounded-xl border border-emerald-700/40 bg-emerald-50 px-6 py-3 text-sm font-medium text-emerald-900 hover:bg-emerald-100"
         >

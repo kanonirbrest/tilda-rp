@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
 import { getExhibitionTimezone, timeKeyInTz, wallDayUtcRange } from "@/lib/exhibition-time";
+import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
 import {
   formatNightSessionRangeForUi,
@@ -19,8 +20,6 @@ export async function OPTIONS(req: Request) {
  * активный слот с оставшимися местами (или без лимита мест).
  */
 export async function GET(req: Request) {
-  await expireStalePendingOrders();
-
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date")?.trim() ?? "";
   const slotKind = normalizeSlotKind(searchParams.get("kind"));
@@ -32,13 +31,15 @@ export async function GET(req: Request) {
     );
   }
 
-  const tz = getExhibitionTimezone();
-  const range = wallDayUtcRange(date, tz);
-  if (!range) {
-    return jsonPublicReadResponse(req, { error: "DATE_INVALID", hint: "Некорректная дата" }, 400);
-  }
+  try {
+    await expireStalePendingOrders();
+    const tz = getExhibitionTimezone();
+    const range = wallDayUtcRange(date, tz);
+    if (!range) {
+      return jsonPublicReadResponse(req, { error: "DATE_INVALID", hint: "Некорректная дата" }, 400);
+    }
 
-  const slots = await prisma.slot.findMany({
+    const slots = await prisma.slot.findMany({
     where: {
       active: true,
       kind: slotKind,
@@ -82,5 +83,8 @@ export async function GET(req: Request) {
     payload.sessionLabels = sessionLabels;
   }
 
-  return jsonPublicReadResponse(req, payload, 200);
+    return jsonPublicReadResponse(req, payload, 200);
+  } catch (err) {
+    return jsonPublicApiError(req, err);
+  }
 }

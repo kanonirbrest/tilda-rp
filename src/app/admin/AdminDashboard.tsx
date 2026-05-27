@@ -146,6 +146,7 @@ type SalesStatsResponse = {
   bySlot: SalesStatsBySlot[];
 };
 const SLOT_KIND_CHOICES = [NEBO_REKA_SLOT_KIND, NIGHT_OF_MUSEUMS_SLOT_KIND] as const;
+const DATE_CHIPS_VISIBLE_LIMIT = 15;
 
 type ScheduleKindFilter = "all" | (typeof SLOT_KIND_CHOICES)[number];
 
@@ -205,6 +206,69 @@ function formatDateKeyShort(dateKey: string): string {
   const d = Number(m[3]);
   const dt = new Date(Date.UTC(y, mo - 1, d));
   return dt.toLocaleDateString("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+function visibleDateChipOptions(
+  allDates: string[],
+  selectedDate: string,
+  showAll: boolean,
+): string[] {
+  if (showAll || allDates.length <= DATE_CHIPS_VISIBLE_LIMIT) {
+    return allDates;
+  }
+  const tail = allDates.slice(-DATE_CHIPS_VISIBLE_LIMIT);
+  if (allDates.includes(selectedDate) && !tail.includes(selectedDate)) {
+    return [...new Set([...tail, selectedDate])].sort();
+  }
+  return tail;
+}
+
+function AdminDateChips({
+  dates,
+  selectedDate,
+  onSelectDate,
+}: {
+  dates: string[];
+  selectedDate: string;
+  onSelectDate: (dateKey: string) => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    setShowAll(false);
+  }, [dates]);
+
+  const visible = useMemo(
+    () => visibleDateChipOptions(dates, selectedDate, showAll),
+    [dates, selectedDate, showAll],
+  );
+
+  const canExpand = dates.length > DATE_CHIPS_VISIBLE_LIMIT;
+
+  return (
+    <div className="admin-date-chips" role="group" aria-label="Даты с сеансами">
+      {visible.map((d) => (
+        <button
+          key={d}
+          type="button"
+          className={`admin-chip ${d === selectedDate ? "admin-chip--on" : ""}`}
+          onClick={() => onSelectDate(d)}
+        >
+          {formatDateKeyShort(d)}
+        </button>
+      ))}
+      {canExpand ? (
+        <button
+          type="button"
+          className="admin-chip admin-chip--more"
+          aria-expanded={showAll}
+          onClick={() => setShowAll((v) => !v)}
+        >
+          {showAll ? "Свернуть" : `Показать все (${dates.length})`}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function todayDateKey(): string {
@@ -1230,6 +1294,11 @@ export default function AdminDashboard() {
       setErrMsg("Укажите название сеанса.");
       return;
     }
+    const bulkDate = String(fd.get("bulkDate") ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(bulkDate)) {
+      setErrMsg("Укажите дату в формате ГГГГ-ММ-ДД.");
+      return;
+    }
     if (
       !Number.isFinite(firstHour) ||
       !Number.isFinite(lastHour) ||
@@ -1245,7 +1314,7 @@ export default function AdminDashboard() {
 
     const body: Record<string, unknown> = {
       kind,
-      date: selectedDate,
+      date: bulkDate,
       firstHour,
       lastHour,
       title,
@@ -1267,8 +1336,9 @@ export default function AdminDashboard() {
         { method: "POST", body: JSON.stringify(body) },
       );
       setInfoMsg(
-        `Создано сеансов: ${res.created}. Пропущено (уже были на это время): ${res.skipped}. Часовой пояс: ${slotsData.timezone}.`,
+        `Создано сеансов: ${res.created}. Пропущено (уже были на это время): ${res.skipped}. Дата: ${bulkDate}. Часовой пояс: ${slotsData.timezone}.`,
       );
+      setSelectedDate(bulkDate);
       setModal({ type: "none" });
       form.reset();
       await loadSlots();
@@ -1722,18 +1792,11 @@ export default function AdminDashboard() {
                 </button>
               </div>
               {dateOptions.length > 0 ? (
-                <div className="admin-date-chips" role="group" aria-label="Даты с сеансами">
-                  {dateOptions.map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      className={`admin-chip ${d === selectedDate ? "admin-chip--on" : ""}`}
-                      onClick={() => setSelectedDate(d)}
-                    >
-                      {formatDateKeyShort(d)}
-                    </button>
-                  ))}
-                </div>
+                <AdminDateChips
+                  dates={dateOptions}
+                  selectedDate={selectedDate}
+                  onSelectDate={setSelectedDate}
+                />
               ) : (
                 <p className="admin-hint admin-hint--tight">Загрузите список — появятся быстрые переходы по датам.</p>
               )}
@@ -1863,18 +1926,11 @@ export default function AdminDashboard() {
                 </button>
               </div>
               {dateOptions.length > 0 ? (
-                <div className="admin-date-chips" role="group" aria-label="Даты с сеансами">
-                  {dateOptions.map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      className={`admin-chip ${d === selectedDate ? "admin-chip--on" : ""}`}
-                      onClick={() => setSelectedDate(d)}
-                    >
-                      {formatDateKeyShort(d)}
-                    </button>
-                  ))}
-                </div>
+                <AdminDateChips
+                  dates={dateOptions}
+                  selectedDate={selectedDate}
+                  onSelectDate={setSelectedDate}
+                />
               ) : null}
             </div>
             <div className="admin-order-filters">
@@ -2653,10 +2709,21 @@ export default function AdminDashboard() {
         <AdminModalFrame title="Группа сеансов на день" onClose={() => setModal({ type: "none" })}>
           <form key={`bulk-${selectedDate}`} onSubmit={(e) => void onBulkDay(e)} className="admin-modal-form">
             <p className="admin-hint admin-hint--tight">
-              Дата: <span className="mono">{selectedDate}</span> ({slotsData.timezone}). Один слот на каждый час от
-              «с» до «по» включительно. Цены — в BYN.
+              Один слот на каждый час от «с» до «по» включительно. Часовой пояс:{" "}
+              <span className="mono">{slotsData.timezone}</span>. Цены — в BYN.
             </p>
             <div className="admin-row admin-row--modal">
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="bulk-date">Дата</label>
+                <input
+                  id="bulk-date"
+                  name="bulkDate"
+                  type="date"
+                  className="admin-date-input"
+                  defaultValue={selectedDate}
+                  required
+                />
+              </div>
               <div className="admin-field admin-field-narrow">
                 <label htmlFor="bulk-first-hour">С часа</label>
                 <input
