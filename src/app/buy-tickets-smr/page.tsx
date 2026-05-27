@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { PolicyConsentField } from "@/components/policy-consent-field";
 import { readResponseJson } from "@/lib/read-response-json";
 import { DEI_POLICY_CONSENT_ERROR } from "@/lib/policy-consent";
+import { normalizePromoCode } from "@/lib/promo-code";
 import { NEBO_REKA_SLOT_KIND } from "@/lib/slot-kind";
 
 type CalendarResponse = {
@@ -155,7 +156,10 @@ export default function BuyTicketsSmrPage() {
   const [unitConcession, setUnitConcession] = useState("—");
 
   const [promoInput, setPromoInput] = useState("");
-  const [promoApplied, setPromoApplied] = useState("");
+  /** Код, переданный в order-quote после «Применить». */
+  const [promoForQuote, setPromoForQuote] = useState("");
+  /** Промокод, подтверждённый ответом quote (applied === true). */
+  const [promoConfirmed, setPromoConfirmed] = useState("");
   const [promoHint, setPromoHint] = useState("");
 
   const [name, setName] = useState("");
@@ -245,7 +249,7 @@ export default function BuyTicketsSmrPage() {
       `/api/public/order-quote?kind=${encodeURIComponent(NEBO_REKA_SLOT_KIND)}` +
       `&date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}`;
 
-    const promoQ = promoApplied.trim();
+    const promoQ = promoForQuote.trim();
     const promoSuffix = promoQ ? `&promoCode=${encodeURIComponent(promoQ)}` : "";
 
     const fetchQuote = async (a: number, c: number, co: number) => {
@@ -285,10 +289,15 @@ export default function BuyTicketsSmrPage() {
         setQuoteTotalLabel(qt.body.formattedTotal);
         setQuoteTotalCents(qt.body.totalCents);
         setQuoteCurrency(qt.body.currency || "BYN");
-        if (qt.body.promo?.applied === false && promoApplied) {
+        if (qt.body.promo?.applied === false && promoQ) {
           setPromoHint(qt.body.promo.hint || "Промокод не применён");
-        } else if (qt.body.promo?.applied) {
+          setPromoForQuote("");
+          setPromoConfirmed("");
+        } else if (qt.body.promo?.applied === true) {
           setPromoHint("");
+          setPromoConfirmed(promoQ);
+        } else if (!promoQ) {
+          setPromoConfirmed("");
         }
       })
       .catch(() => {
@@ -302,7 +311,7 @@ export default function BuyTicketsSmrPage() {
     return () => {
       cancelled = true;
     };
-  }, [date, time, adult, child, concession, promoApplied]);
+  }, [date, time, adult, child, concession, promoForQuote]);
 
   const summaryLine = useMemo(() => {
     if (ticketCount < 1) return null;
@@ -320,8 +329,27 @@ export default function BuyTicketsSmrPage() {
   }
 
   function applyPromo() {
-    setPromoApplied(promoInput.trim());
+    const code = promoInput.trim();
+    if (!code) {
+      setPromoForQuote("");
+      setPromoConfirmed("");
+      setPromoHint("");
+      return;
+    }
+    setPromoForQuote(code);
+    setPromoConfirmed("");
     setPromoHint("");
+  }
+
+  function onPromoInputChange(value: string) {
+    setPromoInput(value);
+    const forQuote = promoForQuote.trim();
+    if (!forQuote) return;
+    if (normalizePromoCode(value) !== normalizePromoCode(forQuote)) {
+      setPromoForQuote("");
+      setPromoConfirmed("");
+      setPromoHint("");
+    }
   }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -354,7 +382,7 @@ export default function BuyTicketsSmrPage() {
           name: name.trim(),
           email: email.trim(),
           phone: phone.trim(),
-          ...(promoApplied ? { promoCode: promoApplied } : {}),
+          ...(promoConfirmed ? { promoCode: promoConfirmed } : {}),
         }),
       });
       const body = await readResponseJson<{
@@ -565,7 +593,7 @@ export default function BuyTicketsSmrPage() {
                     maxLength={64}
                     autoComplete="off"
                     value={promoInput}
-                    onChange={(e) => setPromoInput(e.target.value)}
+                    onChange={(e) => onPromoInputChange(e.target.value)}
                     disabled={busy}
                   />
                   <button

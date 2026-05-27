@@ -1,8 +1,24 @@
 import { DateTime } from "luxon";
 
-/** Часовой пояс выставления/сеансов (Тильда + БД). */
+/** Единственный рабочий пояс витрины и билетов (Минск). */
+export const EXHIBITION_TIMEZONE_DEFAULT = "Europe/Minsk";
+
+/** Часовой пояс выставления/сеансов (Тильда + БД + PDF). По умолчанию — Минск. */
 export function getExhibitionTimezone(): string {
-  return process.env.EXHIBITION_TIMEZONE?.trim() || "Europe/Minsk";
+  const raw = process.env.EXHIBITION_TIMEZONE?.trim();
+  return raw || EXHIBITION_TIMEZONE_DEFAULT;
+}
+
+/** `datetime-local` (YYYY-MM-DDTHH:mm) → UTC-инстант по стенным часам выставки. */
+export function wallDatetimeLocalInputToUtc(
+  dateTimeLocal: string,
+  timeZone: string = getExhibitionTimezone(),
+): Date | null {
+  const m = dateTimeLocal.trim().match(/^(\d{4}-\d{2}-\d{2})T(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const time = normalizeTimeInput(`${m[2]}:${m[3]}`);
+  if (!time) return null;
+  return wallDateAndTimeToUtc(m[1]!, time, timeZone);
 }
 
 /**
@@ -48,6 +64,19 @@ export function wallDayUtcRange(dateYmd: string, timeZone: string): { start: Dat
 
 export function dateKeyInTz(iso: Date, tz: string): string {
   return iso.toLocaleDateString("en-CA", { timeZone: tz });
+}
+
+/** Дата события для билета/PDF (длинный месяц, верхний регистр снаружи). */
+export function formatWallDateLongRu(d: Date, tz: string): string {
+  return d
+    .toLocaleDateString("ru-RU", {
+      timeZone: tz,
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    })
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** "HH:MM" 24h */

@@ -305,6 +305,21 @@
   padding-left: 8px !important;
   flex: 1 1 auto !important;
   min-width: 0 !important;
+  color: rgba(255, 255, 255, 0.98) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.98) !important;
+}
+
+#sv2-checkout-form .t-input-phonemask__wrap .t-input.t-input-phonemask::placeholder {
+  color: rgba(255, 255, 255, 0.55) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.55) !important;
+  opacity: 1 !important;
+}
+
+#sv2-checkout-form .t-input-phonemask__wrap .t-input.t-input-phonemask:-webkit-autofill,
+#sv2-checkout-form .t-input-phonemask__wrap .t-input.t-input-phonemask:-webkit-autofill:hover,
+#sv2-checkout-form .t-input-phonemask__wrap .t-input.t-input-phonemask:-webkit-autofill:focus {
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.98) !important;
+  caret-color: rgba(255, 255, 255, 0.98) !important;
 }
 
 #sv2-checkout-form button.t-submit.nom-submit,

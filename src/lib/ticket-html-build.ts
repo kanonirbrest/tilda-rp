@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
 import { formatMinorUnits } from "@/lib/money";
 import { DEFAULT_TICKET_LEGAL_BLOCK } from "@/lib/ticket-legal-default";
+import { getExhibitionTimezone, formatWallDateLongRu, timeKeyInTz } from "@/lib/exhibition-time";
 import { parseNightOfMuseumsTimeRangeFromTitle } from "@/lib/night-of-museums-session";
 import { NIGHT_OF_MUSEUMS_SLOT_KIND } from "@/lib/slot-kind";
 
@@ -182,29 +183,13 @@ function legalToHtml(raw: string): string {
     .join("");
 }
 
-function formatWhenRuUpper(iso: Date): string {
-  return sanitizeForPdfText(
-    iso
-      .toLocaleString("ru-RU", { dateStyle: "long", timeStyle: "short" })
-      .replace(/\s+/g, " ")
-      .trim()
-      .toUpperCase(),
-  );
+/** Дата события одной строкой (как на билете Ночи музеев). */
+function formatEventDateOnlyRuUpper(d: Date, tz: string): string {
+  return sanitizeForPdfText(formatWallDateLongRu(d, tz).toUpperCase());
 }
 
-/** Дата события одной строкой (как на билете Ночи музеев). */
-function formatEventDateOnlyRuUpper(d: Date): string {
-  return sanitizeForPdfText(
-    d
-      .toLocaleDateString("ru-RU", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })
-      .replace(/\s+/g, " ")
-      .trim()
-      .toUpperCase(),
-  );
+function formatEventWallTime(d: Date, tz: string): string {
+  return sanitizeForPdfText(timeKeyInTz(d, tz));
 }
 
 function formatPriceTicket(isoMinor: number, currency: string): string {
@@ -233,18 +218,20 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
   const bg = resolveTicketBackground();
   const hasBg = Boolean(bg.dataUrl);
 
-  const whenStr = formatWhenRuUpper(opts.startsAt);
+  const tz = getExhibitionTimezone();
   const nightTimeRange =
     opts.slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND ?
       parseNightOfMuseumsTimeRangeFromTitle(opts.title)
     : null;
-  const whenValueHtml =
+  const whenDateLine = formatEventDateOnlyRuUpper(opts.startsAt, tz);
+  const whenTimeLine =
     opts.slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND && nightTimeRange ?
-      `<div class="field-value value-wide value-when-stacked">
-          <span class="when-stacked-line when-stacked-line--date">${escapeHtml(formatEventDateOnlyRuUpper(opts.startsAt))}</span>
-          <span class="when-stacked-line when-stacked-line--time">${escapeHtml(sanitizeForPdfText(nightTimeRange))}</span>
-        </div>`
-    : `<div class="field-value value-wide">${escapeHtml(whenStr)}</div>`;
+      sanitizeForPdfText(nightTimeRange)
+    : formatEventWallTime(opts.startsAt, tz);
+  const whenValueHtml = `<div class="field-value value-wide value-when-stacked">
+          <span class="when-stacked-line when-stacked-line--date">${escapeHtml(whenDateLine)}</span>
+          <span class="when-stacked-line when-stacked-line--time">${escapeHtml(whenTimeLine)}</span>
+        </div>`;
   const priceStr = sanitizeForPdfText(formatPriceTicket(opts.amountCents, opts.currency));
   const legalHtml = legalToHtml(resolveLegalBlock());
 

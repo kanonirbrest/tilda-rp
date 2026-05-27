@@ -8,6 +8,11 @@ import {
   parseOptionalMajorUnitsToMinor,
 } from "@/lib/money";
 import { NEBO_REKA_SLOT_KIND, NIGHT_OF_MUSEUMS_SLOT_KIND } from "@/lib/slot-kind";
+import {
+  getExhibitionTimezone,
+  wallDateAndTimeToUtc,
+  wallDatetimeLocalInputToUtc,
+} from "@/lib/exhibition-time";
 import { formatDisplayDateTime } from "@/lib/format-display-datetime";
 import { tierTicketSingularRu } from "@/lib/slot-pricing";
 import type { TicketTier } from "@prisma/client";
@@ -1128,7 +1133,12 @@ export default function AdminDashboard() {
       parseMajorUnitsToMinor("30");
     const priceCents = pa;
     if (!startsLocal) return;
-    const startsAt = new Date(startsLocal).toISOString();
+    const startsUtc = wallDatetimeLocalInputToUtc(startsLocal, getExhibitionTimezone());
+    if (!startsUtc) {
+      setErrMsg("Некорректные дата и время сеанса.");
+      return;
+    }
+    const startsAt = startsUtc.toISOString();
     const body: Record<string, unknown> = {
       kind,
       title,
@@ -1186,7 +1196,13 @@ export default function AdminDashboard() {
       return;
     }
 
-    const startsAt = new Date(`${date}T${from}:00`).toISOString();
+    const tz = getExhibitionTimezone();
+    const startsUtc = wallDateAndTimeToUtc(date, from, tz);
+    if (!startsUtc) {
+      setErrMsg("Некорректные дата и время сеанса.");
+      return;
+    }
+    const startsAt = startsUtc.toISOString();
     const title = `Night of Museums ${from}-${to}`;
     const body: Record<string, unknown> = {
       kind: NIGHT_OF_MUSEUMS_SLOT_KIND,
@@ -1383,7 +1399,13 @@ export default function AdminDashboard() {
         priceConcessionCents,
       };
       if (datePart && timePart) {
-        patch.startsAt = new Date(`${datePart}T${timePart}:00`).toISOString();
+        const startsUtc = wallDateAndTimeToUtc(datePart, timePart, getExhibitionTimezone());
+        if (!startsUtc) {
+          setErrMsg("Некорректные дата и время сеанса.");
+          setLoading(false);
+          return;
+        }
+        patch.startsAt = startsUtc.toISOString();
       }
       patch.capacity = capRaw === "" ? null : Number.parseInt(capRaw, 10);
       await apiFetch(`/api/admin/slots/${encodeURIComponent(slotId)}`, {

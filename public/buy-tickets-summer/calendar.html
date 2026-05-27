@@ -2249,7 +2249,8 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
       email: emailTrim,
       phone: phoneTrim,
     };
-    if (promoTrim) orderPayload.promoCode = promoTrim;
+    var promoForOrder = (form.dataset.deiPromoForQuote || "").trim();
+    if (promoForOrder) orderPayload.promoCode = promoForOrder;
     fetch(API_BASE.replace(/\/$/, "") + "/api/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

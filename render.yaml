@@ -26,6 +26,8 @@ services:
         generateValue: true
       - key: DEV_SKIP_PAYMENT
         value: "false"
+      - key: EXHIBITION_TIMEZONE
+        value: "Europe/Minsk"
       # Необязательно: если задать — перекроет автоматический URL *.onrender.com в ссылках/QR.
       - key: APP_BASE_URL
         sync: false
