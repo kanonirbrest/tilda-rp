@@ -18,7 +18,7 @@ export type TicketPdfInput = {
   ticketTierLabel?: string;
   admissionCount?: number;
   ticketOrdinal?: { index: number; total: number };
-  /** Для `NIGHT_OF_MUSEUMS`: «Дата и время» — две строки (дата из слота, диапазон из названия `Night of Museums …`). */
+  /** Для `NIGHT_OF_MUSEUMS`: диапазон времени из названия слота (`Night of Museums …`). */
   slotKind?: string;
 };
 
@@ -224,14 +224,12 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       parseNightOfMuseumsTimeRangeFromTitle(opts.title)
     : null;
   const whenDateLine = formatEventDateOnlyRuUpper(opts.startsAt, tz);
-  const whenTimeLine =
+  const whenTimePart =
     opts.slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND && nightTimeRange ?
       sanitizeForPdfText(nightTimeRange)
     : formatEventWallTime(opts.startsAt, tz);
-  const whenValueHtml = `<div class="field-value value-wide value-when-stacked">
-          <span class="when-stacked-line when-stacked-line--date">${escapeHtml(whenDateLine)}</span>
-          <span class="when-stacked-line when-stacked-line--time">${escapeHtml(whenTimeLine)}</span>
-        </div>`;
+  const whenLine = sanitizeForPdfText(`${whenDateLine}, ${whenTimePart}`);
+  const whenValueHtml = `<div class="field-value value-wide">${escapeHtml(whenLine)}</div>`;
   const priceStr = sanitizeForPdfText(formatPriceTicket(opts.amountCents, opts.currency));
   const legalHtml = legalToHtml(resolveLegalBlock());
 
@@ -530,19 +528,6 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       line-height: 1.2;
       letter-spacing: 0.04em;
     }
-    .value-when-stacked {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 2mm;
-    }
-    .value-when-stacked .when-stacked-line--date {
-      text-transform: uppercase;
-    }
-    .value-when-stacked .when-stacked-line--time {
-      text-transform: none;
-      font-variant-numeric: tabular-nums;
-    }
     .venue-wrap {
       display: flex;
       flex-direction: row;
@@ -661,7 +646,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     .pdf-font-primer .w600 { font-weight: 600; }
     .pdf-font-primer .w700 { font-weight: 700; }
 
-    /* Компактные поля: все билеты на одной A4 (в т.ч. Ночь музеев — две строки «Дата и время») */
+    /* Компактные поля: все билеты на одной A4 */
     .sheet.ticket-sheet--compact {
       padding: 24px 36px 22px;
     }
@@ -690,9 +675,6 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     }
     .sheet.ticket-sheet--compact .field-block {
       gap: 1.75mm;
-    }
-    .sheet.ticket-sheet--compact .value-when-stacked {
-      gap: 1.25mm;
     }
     .sheet.ticket-sheet--compact .venue-wrap {
       margin: 14px 0;
