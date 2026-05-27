@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PolicyConsentField } from "@/components/policy-consent-field";
 import { readResponseJson } from "@/lib/read-response-json";
 import { DEI_POLICY_CONSENT_ERROR } from "@/lib/policy-consent";
@@ -169,6 +169,9 @@ export default function BuyTicketsSmrPage() {
   const [policyConsent, setPolicyConsent] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const timeSectionRef = useRef<HTMLElement | null>(null);
+  const scrollToTimeAfterDateRef = useRef(false);
+
   const monthGroups = useMemo(() => groupSummerDays(calendarDays), [calendarDays]);
   const ticketCount = adult + child + concession;
 
@@ -239,6 +242,17 @@ export default function BuyTicketsSmrPage() {
     if (!date) return;
     void loadTimesForDate(date);
   }, [date, loadTimesForDate]);
+
+  useEffect(() => {
+    if (!date || !scrollToTimeAfterDateRef.current || timesLoading) return;
+    scrollToTimeAfterDateRef.current = false;
+    const el = timeSectionRef.current;
+    if (!el) return;
+    const t = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [date, timesLoading]);
 
   useEffect(() => {
     let cancelled = false;
@@ -324,6 +338,7 @@ export default function BuyTicketsSmrPage() {
 
   function onSelectDate(dateKey: string, bookable: boolean) {
     if (!bookable) return;
+    scrollToTimeAfterDateRef.current = true;
     setDate(dateKey);
     setFormError("");
   }
@@ -458,7 +473,11 @@ export default function BuyTicketsSmrPage() {
             </section>
 
             {date ? (
-              <section className="nom-block" aria-labelledby="sv2-time-label">
+              <section
+                ref={timeSectionRef}
+                className="nom-block"
+                aria-labelledby="sv2-time-label"
+              >
                 <p id="sv2-time-label" className="nom-block-label">
                   Выберите время
                 </p>
