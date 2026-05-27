@@ -6,7 +6,7 @@ import { formatMinorUnits } from "@/lib/money";
 import { DEFAULT_TICKET_LEGAL_BLOCK } from "@/lib/ticket-legal-default";
 import { getExhibitionTimezone, formatWallDateLongRu, timeKeyInTz } from "@/lib/exhibition-time";
 import { parseNightOfMuseumsTimeRangeFromTitle } from "@/lib/night-of-museums-session";
-import { NIGHT_OF_MUSEUMS_SLOT_KIND } from "@/lib/slot-kind";
+import { NEBO_REKA_SLOT_KIND, NIGHT_OF_MUSEUMS_SLOT_KIND } from "@/lib/slot-kind";
 
 export type TicketPdfInput = {
   title: string;
@@ -18,7 +18,7 @@ export type TicketPdfInput = {
   ticketTierLabel?: string;
   admissionCount?: number;
   ticketOrdinal?: { index: number; total: number };
-  /** Для `NIGHT_OF_MUSEUMS`: диапазон времени из названия слота (`Night of Museums …`). */
+  /** `NEBO_REKA` (smr/Тильда): дата и время в одной строке; `NIGHT_OF_MUSEUMS` — две строки. */
   slotKind?: string;
 };
 
@@ -228,8 +228,16 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     opts.slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND && nightTimeRange ?
       sanitizeForPdfText(nightTimeRange)
     : formatEventWallTime(opts.startsAt, tz);
-  const whenLine = sanitizeForPdfText(`${whenDateLine}, ${whenTimePart}`);
-  const whenValueHtml = `<div class="field-value value-wide">${escapeHtml(whenLine)}</div>`;
+  const whenValueHtml =
+    opts.slotKind === NEBO_REKA_SLOT_KIND ?
+      (() => {
+        const whenLine = sanitizeForPdfText(`${whenDateLine}, ${whenTimePart}`);
+        return `<div class="field-value value-wide">${escapeHtml(whenLine)}</div>`;
+      })()
+    : `<div class="field-value value-wide value-when-stacked">
+          <span class="when-stacked-line when-stacked-line--date">${escapeHtml(whenDateLine)}</span>
+          <span class="when-stacked-line when-stacked-line--time">${escapeHtml(whenTimePart)}</span>
+        </div>`;
   const priceStr = sanitizeForPdfText(formatPriceTicket(opts.amountCents, opts.currency));
   const legalHtml = legalToHtml(resolveLegalBlock());
 
@@ -528,6 +536,19 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       line-height: 1.2;
       letter-spacing: 0.04em;
     }
+    .value-when-stacked {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2mm;
+    }
+    .value-when-stacked .when-stacked-line--date {
+      text-transform: uppercase;
+    }
+    .value-when-stacked .when-stacked-line--time {
+      text-transform: none;
+      font-variant-numeric: tabular-nums;
+    }
     .venue-wrap {
       display: flex;
       flex-direction: row;
@@ -675,6 +696,9 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     }
     .sheet.ticket-sheet--compact .field-block {
       gap: 1.75mm;
+    }
+    .sheet.ticket-sheet--compact .value-when-stacked {
+      gap: 1.25mm;
     }
     .sheet.ticket-sheet--compact .venue-wrap {
       margin: 14px 0;
