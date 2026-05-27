@@ -1,52 +1,9 @@
-import Link from "next/link";
+import { SiteGateForm } from "@/components/site-gate-form";
+import { hasSiteGateAccess } from "@/lib/auth-site-gate";
+import { HomeContent } from "./home-content";
 
-export default function Home() {
-  return (
-    <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col items-center justify-center gap-8 px-4 py-20 text-center sm:px-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-zinc-900">DEI Tickets</h1>
-        <p className="mt-2 max-w-md text-sm text-zinc-600">
-          Бэкенд оплаты и билетов: API для сайта, bePaid, админка сеансов, вход персонала и сканер QR.
-        </p>
-      </div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
-        <Link
-          href="/buy-tickets"
-          className="rounded-xl bg-emerald-800 px-6 py-3 text-sm font-medium text-white hover:bg-emerald-900"
-        >
-          Купить билет
-        </Link>
-        <Link
-          href="/buy-tickets-summer"
-          className="rounded-xl border border-emerald-700/40 bg-white px-6 py-3 text-sm font-medium text-emerald-900 hover:bg-emerald-50"
-        >
-          Купить билет - лето
-        </Link>
-        <Link
-          href="/buy-tickets-smr"
-          className="rounded-xl border border-emerald-700/40 bg-white px-6 py-3 text-sm font-medium text-emerald-900 hover:bg-emerald-50"
-        >
-          Купить билет лето v2
-        </Link>
-        <Link
-          href="/nightofmuseums"
-          className="rounded-xl border border-emerald-700/40 bg-emerald-50 px-6 py-3 text-sm font-medium text-emerald-900 hover:bg-emerald-100"
-        >
-          Ночь музеев
-        </Link>
-        <Link
-          href="/staff/login"
-          className="rounded-xl border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-800"
-        >
-          Персонал
-        </Link>
-        <Link
-          href="/admin"
-          className="rounded-xl border border-zinc-200 px-6 py-3 text-sm font-medium text-zinc-600"
-        >
-          Админка
-        </Link>
-      </div>
-    </div>
-  );
+export default async function Home() {
+  const allowed = await hasSiteGateAccess();
+  if (!allowed) return <SiteGateForm />;
+  return <HomeContent />;
 }
