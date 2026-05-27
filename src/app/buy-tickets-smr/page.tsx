@@ -1,7 +1,9 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { PolicyConsentField } from "@/components/policy-consent-field";
 import { readResponseJson } from "@/lib/read-response-json";
+import { DEI_POLICY_CONSENT_ERROR } from "@/lib/policy-consent";
 import { NEBO_REKA_SLOT_KIND } from "@/lib/slot-kind";
 
 type CalendarResponse = {
@@ -33,6 +35,8 @@ type MonthGroup = {
   days: { dateKey: string; day: number; bookable: boolean; hover: string }[];
 };
 
+const WEEKDAY_SHORT_RU = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"] as const;
+
 const MONTH_NOMINATIVE = [
   "",
   "Январь",
@@ -56,6 +60,17 @@ function isSummerMonth(dateKey: string): boolean {
 
 function sortDateKeysAsc(keys: string[]): string[] {
   return [...keys].sort((a, b) => a.localeCompare(b));
+}
+
+/** пн–вс по календарной дате YYYY-MM-DD (без сдвига TZ). */
+function weekdayShortRu(dateKey: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!m) return "";
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const wd = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+  return WEEKDAY_SHORT_RU[wd] ?? "";
 }
 
 function formatMoneyCents(cents: number, currency: string): string {
@@ -147,6 +162,7 @@ export default function BuyTicketsSmrPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [formError, setFormError] = useState("");
+  const [policyConsent, setPolicyConsent] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const monthGroups = useMemo(() => groupSummerDays(calendarDays), [calendarDays]);
@@ -318,6 +334,10 @@ export default function BuyTicketsSmrPage() {
       setFormError("Укажите количество билетов.");
       return;
     }
+    if (!policyConsent) {
+      setFormError(DEI_POLICY_CONSENT_ERROR);
+      return;
+    }
     setFormError("");
     setBusy(true);
     try {
@@ -397,7 +417,10 @@ export default function BuyTicketsSmrPage() {
                           aria-pressed={date === d.dateKey}
                           onClick={() => onSelectDate(d.dateKey, d.bookable)}
                         >
-                          {String(d.day).padStart(2, "0")}
+                          <span className="sv2-day__num">{String(d.day).padStart(2, "0")}</span>
+                          <span className="sv2-day__wd" aria-hidden>
+                            {weekdayShortRu(d.dateKey)}
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -635,11 +658,20 @@ export default function BuyTicketsSmrPage() {
               </div>
             </div>
 
+            <PolicyConsentField
+              checked={policyConsent}
+              onChange={(v) => {
+                setPolicyConsent(v);
+                if (v) setFormError("");
+              }}
+              disabled={busy}
+            />
+
             {formError ? <p className="nom-plain-msg">{formError}</p> : null}
 
             <button
               type="submit"
-              disabled={busy || !date || !time || ticketCount < 1}
+              disabled={busy || !date || !time || ticketCount < 1 || !policyConsent}
               className="t-submit nom-submit"
             >
               {busy ? "Оформляем…" : "Перейти к оплате"}

@@ -485,6 +485,37 @@ body:has(.nom-page) {
   color: rgba(255, 255, 255, 0.65);
 }
 
+.dei-policy-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 16px;
+  cursor: pointer;
+  font-family: var(--t-text-font), system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 200;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.dei-policy-consent input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--dei-cal-day-accent, var(--nom-accent, #ff6282));
+  cursor: pointer;
+}
+
+.dei-policy-consent__text a {
+  color: var(--dei-cal-day-accent, var(--nom-accent, #ff6282));
+  text-decoration: underline;
+}
+
+.dei-policy-consent__text a:hover {
+  opacity: 0.9;
+}
+
 /* Как button.t-submit в plain-checkout */
 #nom-checkout-form button.t-submit.nom-submit,
 #nom-checkout-form button.nom-submit.t-submit {

@@ -1515,6 +1515,7 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
 
         form.parentNode.removeChild(form);
         slot.appendChild(form);
+        deiEnsurePolicyConsentCheckbox(form);
 
         deiSyncPlainCountDisplays();
 
@@ -2139,6 +2140,32 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
     return form.id === FORM_ID || form.getAttribute("name") === FORM_ID;
   }
 
+  var DEI_POLICY_URL = "https://dei.by/policy";
+  var DEI_POLICY_CONSENT_ERROR =
+    "Вы не согласились с Политикой обработки персональных данных (https://dei.by/policy)";
+
+  function deiEnsurePolicyConsentCheckbox(form) {
+    if (!form || form.querySelector('input[name="deiPolicyConsent"]')) return;
+    var submitWrap = form.querySelector(".tn-form__submit");
+    var wrap = document.createElement("div");
+    wrap.className = "t-input-group t-input-group_cb dei-policy-consent-group";
+    wrap.style.marginBottom = "16px";
+    wrap.innerHTML =
+      '<div class="t-input-block">' +
+      '<label class="t-checkbox__control t-checkbox__control_flex" style="font-size:14px;font-weight:200;color:rgb(255,255,255);">' +
+      '<input type="checkbox" name="deiPolicyConsent" value="yes" class="t-checkbox js-tilda-rule">' +
+      '<div class="t-checkbox__indicator"></div>' +
+      '<span class="t-checkbox__labeltext">Я согласен с\u00a0<a href="' +
+      DEI_POLICY_URL +
+      '" target="_blank" rel="noopener noreferrer">Политикой обработки персональных данных</a></span>' +
+      "</label></div>";
+    if (submitWrap && submitWrap.parentNode) {
+      submitWrap.parentNode.insertBefore(wrap, submitWrap);
+    } else {
+      form.appendChild(wrap);
+    }
+  }
+
   function doCheckout(form) {
     if (form.dataset.deiSending === "1") return;
     form.dataset.deiSending = "1";
@@ -2177,6 +2204,13 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
     }
     if (consent && !consent.checked) {
       deiShowFormError(form, "Нужно согласие с условиями приобретения и офертой.");
+      form.dataset.deiSending = "0";
+      return;
+    }
+    deiEnsurePolicyConsentCheckbox(form);
+    var policyConsent = form.querySelector('input[name="deiPolicyConsent"]');
+    if (!policyConsent || !policyConsent.checked) {
+      deiShowFormError(form, DEI_POLICY_CONSENT_ERROR);
       form.dataset.deiSending = "0";
       return;
     }
@@ -2327,6 +2361,7 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
     getTicketForms().forEach(function (form) {
       hookForm(form);
       deiEnsurePromoFieldAfterPhone(form);
+      deiEnsurePolicyConsentCheckbox(form);
     });
     deiMountPlainPopupOnce();
   }
@@ -2972,6 +3007,15 @@ ym(108517548,"init",{ssr:!0,webvisor:!0,clickmap:!0,ecommerce:"dataLayer",referr
   font-weight: 200 !important;
   line-height: 1.45 !important;
   color: rgba(255, 255, 255, 0.92) !important;
+}
+
+#form1961449631 .dei-policy-consent-group a {
+  color: #ff6282;
+  color: var(--dei-cal-day-accent, #ff6282);
+  text-decoration: underline;
+}
+#form1961449631 .dei-policy-consent-group a:hover {
+  opacity: 0.9;
 }
 #rec1961449631:has(#dei-plain-checkout-root) #form1961449631 button.t-submit {
   width: 100% !important;

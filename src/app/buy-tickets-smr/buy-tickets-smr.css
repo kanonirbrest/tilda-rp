@@ -64,16 +64,18 @@
 .sv2-day {
   appearance: none;
   box-sizing: border-box;
-  min-height: 44px;
-  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 6px 4px;
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 12px;
   background: rgba(12, 6, 32, 0.35);
   color: #fff;
   font-family: var(--t-headline-font);
-  font-size: 16px;
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition:
     border-color 0.15s ease,
@@ -95,6 +97,21 @@
   border-color: var(--nom-accent);
   background: rgba(255, 98, 130, 0.28);
   box-shadow: 0 0 0 1px var(--nom-accent);
+}
+
+.sv2-day__num {
+  font-size: 16px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.sv2-day__wd {
+  font-size: 11px;
+  font-weight: 300;
+  line-height: 1;
+  opacity: 0.72;
+  letter-spacing: 0.02em;
 }
 
 .sv2-day--disabled {

@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { PolicyConsentField } from "@/components/policy-consent-field";
+import { DEI_POLICY_CONSENT_ERROR } from "@/lib/policy-consent";
 import { NIGHT_OF_MUSEUMS_SLOT_KIND } from "@/lib/slot-kind";
 
 type CalendarResponse = {
@@ -85,6 +87,7 @@ export default function NightOfMuseumsPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [formError, setFormError] = useState("");
+  const [policyConsent, setPolicyConsent] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -186,6 +189,10 @@ export default function NightOfMuseumsPage() {
     e.preventDefault();
     if (!date || !time) {
       setFormError("Слот для покупки пока недоступен.");
+      return;
+    }
+    if (!policyConsent) {
+      setFormError(DEI_POLICY_CONSENT_ERROR);
       return;
     }
     setFormError("");
@@ -353,9 +360,22 @@ export default function NightOfMuseumsPage() {
                 </div>
               </div>
 
+              <PolicyConsentField
+                checked={policyConsent}
+                onChange={(v) => {
+                  setPolicyConsent(v);
+                  if (v) setFormError("");
+                }}
+                disabled={busy}
+              />
+
               {formError ? <p className="nom-plain-msg">{formError}</p> : null}
 
-              <button type="submit" disabled={busy} className="t-submit nom-submit">
+              <button
+                type="submit"
+                disabled={busy || !policyConsent}
+                className="t-submit nom-submit"
+              >
                 {busy ? "Оформляем..." : "Перейти к оплате"}
               </button>
             </form>
