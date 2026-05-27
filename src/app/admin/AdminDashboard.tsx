@@ -1554,6 +1554,22 @@ export default function AdminDashboard() {
           >
             Ночь музеев
           </a>
+          <a
+            href="/buy-tickets-summer"
+            className="btn btn-secondary btn-compact"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Купить билет - лето
+          </a>
+          <a
+            href="/buy-tickets-smr"
+            className="btn btn-secondary btn-compact"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Купить билет лето v2
+          </a>
           <button type="button" className="btn-ghost" onClick={() => void logout()}>
             Выйти
           </button>
@@ -1816,6 +1832,27 @@ export default function AdminDashboard() {
               >
                 + Группа на день
               </button>
+              <details className="admin-summer-menu">
+                <summary className="btn btn-secondary">Купить билет - лето ▾</summary>
+                <div className="admin-summer-menu__panel">
+                  <a
+                    href="/buy-tickets-summer"
+                    className="admin-summer-menu__link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Купить билет - лето
+                  </a>
+                  <a
+                    href="/buy-tickets-smr"
+                    className="admin-summer-menu__link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Купить билет лето v2
+                  </a>
+                </div>
+              </details>
               <button
                 type="button"
                 className="btn btn-danger"

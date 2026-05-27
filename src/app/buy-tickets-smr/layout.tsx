@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "../nightofmuseums/nightofmuseums.css";
-import "./summer-v2.css";
+import "./buy-tickets-smr.css";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   description: "Купить билет на выставку Небо.Река",
 };
 
-export default function SummerV2Layout({
+export default function BuyTicketsSmrLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;

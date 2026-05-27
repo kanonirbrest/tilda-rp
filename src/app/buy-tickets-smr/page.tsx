@@ -114,7 +114,7 @@ function groupSummerDays(
   return sortDateKeysAsc([...byMonth.keys()]).map((k) => byMonth.get(k)!);
 }
 
-export default function SummerV2Page() {
+export default function BuyTicketsSmrPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [calendarDays, setCalendarDays] = useState<Record<string, { bookable: boolean; hover: string }>>(

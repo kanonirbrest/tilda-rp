@@ -699,6 +699,49 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.35rem;
+  align-items: center;
+}
+
+.admin-root .admin-summer-menu {
+  position: relative;
+}
+
+.admin-root .admin-summer-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.admin-root .admin-summer-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-root .admin-summer-menu__panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 0.35rem;
+  border-radius: 10px;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.admin-root .admin-summer-menu__link {
+  display: block;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--admin-text);
+  text-decoration: none;
+}
+
+.admin-root .admin-summer-menu__link:hover {
+  background: var(--admin-surface2);
 }
 
 /* Модальные окна */

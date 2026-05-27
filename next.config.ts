@@ -31,7 +31,11 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   /** С Тильды и старых ссылок часто ведут на `/tickets`, а приложение — `/buy-tickets`. */
   async redirects() {
-    return [{ source: "/tickets", destination: "/buy-tickets", permanent: true }];
+    return [
+      { source: "/tickets", destination: "/buy-tickets", permanent: true },
+      { source: "/summer-v2", destination: "/buy-tickets-smr", permanent: true },
+      { source: "/summer-v2/:path*", destination: "/buy-tickets-smr/:path*", permanent: true },
+    ];
   },
   /**
    * Билеты — полный HTML Тильды из `public/` без iframe (высота = документ).
