@@ -308,8 +308,14 @@ export default function BuyTicketsSmrPage() {
           setPromoForQuote("");
           setPromoConfirmed("");
         } else if (qt.body.promo?.applied === true) {
-          setPromoHint("");
+          setPromoHint(qt.body.promo.hint || "");
           setPromoConfirmed(promoQ);
+          if (typeof qt.body.promo.amountCents === "number") {
+            setQuoteTotalCents(qt.body.promo.amountCents);
+            if (typeof qt.body.promo.formattedAmount === "string") {
+              setQuoteTotalLabel(qt.body.promo.formattedAmount);
+            }
+          }
         } else if (!promoQ) {
           setPromoConfirmed("");
         }

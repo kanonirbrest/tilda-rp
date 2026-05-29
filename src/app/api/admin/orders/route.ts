@@ -83,7 +83,8 @@ export async function GET(req: Request) {
       amountCents: o.amountCents,
       refundedCents: o.refundedCents,
       currency: o.currency,
-      promoCode: o.promoCode?.code ?? null,
+      promoCode: o.promoCode?.code ?? o.clubPromoCode ?? null,
+      clubPromoTelegramUserId: o.clubPromoTelegramUserId ?? null,
       visitState,
       visitedAt,
       tickets: o.tickets.map((t) => ({

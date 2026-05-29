@@ -99,6 +99,9 @@ model Order {
   refundedCents Int       @default(0)
   promoCodeId  String?
   promoCode    PromoCode?  @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
+  /// NR-XXXXXXXX из Telegram-бота DEI (после POST /api/promo/redeem).
+  clubPromoCode            String?
+  clubPromoTelegramUserId  String?
   tickets      Ticket[]
   lines        OrderLine[]
 

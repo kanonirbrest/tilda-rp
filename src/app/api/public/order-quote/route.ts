@@ -2,13 +2,7 @@ import { NextResponse } from "next/server";
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
-import { prisma } from "@/lib/prisma";
-import {
-  computePromoAmounts,
-  isPromoActiveBySchedule,
-  normalizePromoCode,
-  promoAppliesToSlotKind,
-} from "@/lib/promo-code";
+import { resolvePromoForQuote } from "@/lib/resolve-order-promo";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
 import { normalizeSlotKind } from "@/lib/slot-kind";
 import { buildLinesFromCounts, totalCentsForLines } from "@/lib/slot-pricing";
@@ -78,61 +72,25 @@ export async function GET(req: Request) {
     discountCents: number;
     amountCents: number;
     formattedAmount: string;
+    hint?: string;
   };
   type PromoErr = { applied: false; error: string; hint: string };
   let promo: PromoOk | PromoErr | null = null;
 
   if (promoRaw) {
-    const norm = normalizePromoCode(promoRaw);
-    const row = await prisma.promoCode.findUnique({ where: { code: norm } });
-    if (!row) {
+    const resolved = await resolvePromoForQuote(promoRaw, totalCents, slot);
+    if (!resolved) {
       promo = { applied: false, error: "INVALID_PROMO", hint: "Промокод не найден" };
+    } else if (!resolved.applied) {
+      promo = { applied: false, error: resolved.error, hint: resolved.hint };
     } else {
-      const now = new Date();
-      if (!isPromoActiveBySchedule(row, now)) {
-        promo = {
-          applied: false,
-          error: "PROMO_INACTIVE",
-          hint: "Промокод недействителен или срок действия истёк",
-        };
-      } else if (!promoAppliesToSlotKind(row, slot.kind)) {
-        promo = {
-          applied: false,
-          error: "PROMO_WRONG_CHANNEL",
-          hint: "Промокод не действует для этого канала продажи",
-        };
-      } else if (row.maxUses != null) {
-        const used = await prisma.order.count({
-          where: {
-            promoCodeId: row.id,
-            status: { in: ["PENDING", "PAID"] },
-          },
-        });
-        if (used >= row.maxUses) {
-          promo = {
-            applied: false,
-            error: "PROMO_EXHAUSTED",
-            hint: "Лимит использований этого промокода исчерпан",
-          };
-        }
-      }
-      if (!promo) {
-        const { discountCents, amountCents } = computePromoAmounts(totalCents, row);
-        if (amountCents < 1) {
-          promo = {
-            applied: false,
-            error: "PROMO_ZERO_PAYMENT",
-            hint: "После скидки сумма слишком мала для онлайн-оплаты",
-          };
-        } else {
-          promo = {
-            applied: true,
-            discountCents,
-            amountCents,
-            formattedAmount: formatTotal(amountCents, currency),
-          };
-        }
-      }
+      promo = {
+        applied: true,
+        discountCents: resolved.discountCents,
+        amountCents: resolved.amountCents,
+        formattedAmount: formatTotal(resolved.amountCents, currency),
+        ...(resolved.hint ? { hint: resolved.hint } : {}),
+      };
     }
   }
 

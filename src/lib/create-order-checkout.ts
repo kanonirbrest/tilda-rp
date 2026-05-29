@@ -3,13 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { createPublicTicketToken } from "@/lib/ticket-token";
 import { createBepaidPayment } from "@/lib/bepaid";
 import { fulfillPaidOrder } from "@/lib/fulfill-order";
-import {
-  computePromoAmounts,
-  isPromoActiveBySchedule,
-  normalizePromoCode,
-  promoAppliesToSlotKind,
-  PromoApplyError,
-} from "@/lib/promo-code";
+import { applyPromoAtCheckout } from "@/lib/resolve-order-promo";
+import { PromoApplyError } from "@/lib/promo-code";
 import {
   expandLineTiers,
   totalAdmission,
@@ -107,58 +102,24 @@ export async function createOrderCheckout(
         }
       }
 
-      let discountCents = 0;
-      let amountCents = subtotalCents;
-      let promoCodeId: string | null = null;
-
       const rawPromo = input.promoCode?.trim();
-      if (rawPromo) {
-        const norm = normalizePromoCode(rawPromo);
-        const promo = await tx.promoCode.findUnique({ where: { code: norm } });
-        if (!promo) {
-          throw new PromoApplyError("Промокод не найден", "INVALID_PROMO");
-        }
-        await tx.$executeRaw(
-          Prisma.sql`SELECT id FROM "PromoCode" WHERE id = ${promo.id} FOR UPDATE`,
-        );
-        const now = new Date();
-        if (!isPromoActiveBySchedule(promo, now)) {
-          throw new PromoApplyError(
-            "Промокод недействителен или срок действия истёк",
-            "PROMO_INACTIVE",
-          );
-        }
-        if (!promoAppliesToSlotKind(promo, slot.kind)) {
-          throw new PromoApplyError(
-            "Промокод не действует для этого канала продажи",
-            "PROMO_WRONG_CHANNEL",
-          );
-        }
-        if (promo.maxUses != null) {
-          const reservedPromo = await tx.order.count({
-            where: {
-              promoCodeId: promo.id,
-              status: { in: ["PENDING", "PAID"] },
-            },
-          });
-          if (reservedPromo >= promo.maxUses) {
-            throw new PromoApplyError(
-              "Лимит использований этого промокода исчерпан",
-              "PROMO_EXHAUSTED",
-            );
-          }
-        }
-        const applied = computePromoAmounts(subtotalCents, promo);
-        discountCents = applied.discountCents;
-        amountCents = applied.amountCents;
-        if (amountCents < 1 && !skipPayment) {
-          throw new PromoApplyError(
-            "После скидки сумма слишком мала для онлайн-оплаты. Измените состав заказа или промокод.",
-            "PROMO_ZERO_PAYMENT",
-          );
-        }
-        promoCodeId = promo.id;
-      }
+      const promoApplied = rawPromo
+        ? await applyPromoAtCheckout(tx, {
+            promoRaw: rawPromo,
+            subtotalCents,
+            slot,
+            skipPayment,
+          })
+        : {
+            discountCents: 0,
+            amountCents: subtotalCents,
+            promoCodeId: null,
+            clubPromoCode: null,
+            clubPromoTelegramUserId: null,
+          };
+
+      const { discountCents, amountCents, promoCodeId, clubPromoCode, clubPromoTelegramUserId } =
+        promoApplied;
 
       chargedAmountCents = amountCents;
 
@@ -175,6 +136,8 @@ export async function createOrderCheckout(
           currency: slot.currency,
           status: "PENDING",
           promoCodeId,
+          clubPromoCode,
+          clubPromoTelegramUserId,
         },
       });
       for (const l of lines) {
@@ -271,7 +234,7 @@ export async function createOrderCheckout(
     if (e instanceof PromoApplyError) {
       return {
         ok: false,
-        status: 400,
+        status: e.httpStatus,
         message: e.message,
         error: e.code,
       };

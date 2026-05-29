@@ -28,6 +28,15 @@ services:
         value: "false"
       - key: EXHIBITION_TIMEZONE
         value: "Europe/Minsk"
+      # Промокоды NR-* из rp_bot (секрет и URL задайте в Dashboard)
+      - key: PROMO_API_URL
+        sync: false
+      - key: PROMO_API_SECRET
+        sync: false
+      - key: PROMO_DISCOUNT_PERCENT
+        value: "10"
+      - key: PROMO_CAMPAIGN_VALID_UNTIL
+        value: "01.07.2026"
       # Необязательно: если задать — перекроет автоматический URL *.onrender.com в ссылках/QR.
       - key: APP_BASE_URL
         sync: false

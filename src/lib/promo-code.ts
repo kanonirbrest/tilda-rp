@@ -8,7 +8,9 @@ export class PromoApplyError extends Error {
       | "PROMO_INACTIVE"
       | "PROMO_EXHAUSTED"
       | "PROMO_ZERO_PAYMENT"
-      | "PROMO_WRONG_CHANNEL",
+      | "PROMO_WRONG_CHANNEL"
+      | "PROMO_UNAVAILABLE",
+    public readonly httpStatus = 400,
   ) {
     super(message);
     this.name = "PromoApplyError";
