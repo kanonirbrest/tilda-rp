@@ -25,7 +25,14 @@ type QuoteResponse = {
   formattedTotal?: string;
   totalCents?: number;
   currency?: string;
-  promo?: { applied?: boolean; hint?: string };
+  promo?: {
+    applied?: boolean;
+    hint?: string;
+    error?: string;
+    discountCents?: number;
+    amountCents?: number;
+    formattedAmount?: string;
+  };
   error?: string;
   hint?: string;
 };
