@@ -2,6 +2,7 @@ import type { Slot } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   getExhibitionTimezone,
+  isWallSessionTimeBeforeNow,
   normalizeTimeInput,
   timeKeyInTz,
   wallDateAndTimeToUtc,
@@ -14,7 +15,8 @@ export async function resolveCheckoutSlot(params: {
   time?: string | null;
   slotKind?: string | null;
 }): Promise<
-  { ok: true; slot: Slot } | { ok: false; code: "SLOT_NOT_FOUND" | "DATE_REQUIRED" | "TIME_REQUIRED" | "AMBIGUOUS" }
+  | { ok: true; slot: Slot }
+  | { ok: false; code: "SLOT_NOT_FOUND" | "DATE_REQUIRED" | "TIME_REQUIRED" | "AMBIGUOUS" | "TIME_PAST" }
 > {
   const slotKind = params.slotKind?.trim() || null;
   const kindWhere = slotKind ? { kind: slotKind } : {};
@@ -36,6 +38,10 @@ export async function resolveCheckoutSlot(params: {
   }
 
   const tz = getExhibitionTimezone();
+  if (isWallSessionTimeBeforeNow(date, timeNorm, tz)) {
+    return { ok: false, code: "TIME_PAST" };
+  }
+
   const target = wallDateAndTimeToUtc(date, timeNorm, tz);
   if (!target) {
     return { ok: false, code: "DATE_REQUIRED" };

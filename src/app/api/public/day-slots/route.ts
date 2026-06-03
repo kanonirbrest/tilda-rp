@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
-import { getExhibitionTimezone, timeKeyInTz, wallDayUtcRange } from "@/lib/exhibition-time";
+import {
+  getExhibitionTimezone,
+  isWallSessionTimeBeforeNow,
+  timeKeyInTz,
+  wallDayUtcRange,
+} from "@/lib/exhibition-time";
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
 import {
@@ -23,6 +28,9 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date")?.trim() ?? "";
   const slotKind = normalizeSlotKind(searchParams.get("kind"));
+  const hidePastTimes =
+    searchParams.get("hidePastTimes") === "1" ||
+    searchParams.get("hidePastTimes")?.toLowerCase() === "true";
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return jsonPublicReadResponse(
       req,
@@ -63,6 +71,7 @@ export async function GET(req: Request) {
 
     const tk = timeKeyInTz(s.startsAt, tz);
     if (seen.has(tk)) continue;
+    if (hidePastTimes && isWallSessionTimeBeforeNow(date, tk, tz)) continue;
     seen.add(tk);
     times.push(tk);
 

@@ -53,7 +53,10 @@ export async function GET(req: Request) {
   if (!resolved.ok) {
     const code = resolved.code;
     const status =
-      code === "DATE_REQUIRED" || code === "TIME_REQUIRED" ? 400 : code === "AMBIGUOUS" ? 409 : 404;
+      code === "DATE_REQUIRED" || code === "TIME_REQUIRED" || code === "TIME_PAST" ?
+        400
+      : code === "AMBIGUOUS" ? 409
+      : 404;
     return jsonPublicReadResponse(
       req,
       { error: code, hint: messageForResolveFailure(code, "checkout") },

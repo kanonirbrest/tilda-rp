@@ -1329,7 +1329,7 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
 
   function deiFetchDaySlotTimes(isoDate, onOk, onErr) {
     var base = API_BASE.replace(/\/$/, "");
-    fetch(base + "/api/public/day-slots?date=" + encodeURIComponent(isoDate))
+    fetch(base + "/api/public/day-slots?hidePastTimes=1&date=" + encodeURIComponent(isoDate))
       .then(function (r) {
         return r.json().then(function (data) {
           if (!r.ok) throw new Error((data && data.error) || "day-slots");

@@ -251,7 +251,12 @@ def main() -> None:
     for name in ("calendar.html", "slot.html"):
         path = DST_DIR / name
         text = path.read_text(encoding="utf-8")
-        path.write_text(transform(text), encoding="utf-8")
+        text = transform(text)
+        text = text.replace(
+            "/api/public/day-slots?date=",
+            "/api/public/day-slots?hidePastTimes=1&date=",
+        )
+        path.write_text(text, encoding="utf-8")
         print(f"Written {path}")
 
     print("Done:", DST_DIR)

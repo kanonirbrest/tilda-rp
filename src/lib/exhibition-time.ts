@@ -66,6 +66,31 @@ export function dateKeyInTz(iso: Date, tz: string): string {
   return iso.toLocaleDateString("en-CA", { timeZone: tz });
 }
 
+function wallTimeToMinutes(hhMm: string): number | null {
+  const norm = normalizeTimeInput(hhMm);
+  if (!norm) return null;
+  const [h, m] = norm.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+/**
+ * Для выбранного календарного дня: сеанс HH:mm уже прошёл по стенным часам выставки.
+ * Пример: сейчас 15:00 — 14:00 прошло, 15:00 ещё нет.
+ */
+export function isWallSessionTimeBeforeNow(
+  dateYmd: string,
+  timeHhMm: string,
+  timeZone: string,
+  now = new Date(),
+): boolean {
+  if (dateKeyInTz(now, timeZone) !== dateYmd.trim()) return false;
+  const slotMins = wallTimeToMinutes(timeHhMm);
+  const nowMins = wallTimeToMinutes(timeKeyInTz(now, timeZone));
+  if (slotMins == null || nowMins == null) return false;
+  return slotMins < nowMins;
+}
+
 /** Дата события для билета/PDF (длинный месяц, верхний регистр снаружи). */
 export function formatWallDateLongRu(d: Date, tz: string): string {
   return d

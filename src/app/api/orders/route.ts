@@ -44,8 +44,10 @@ const bodySchema = z
     { message: "Нужен slotId или пара date и time", path: ["slotId"] },
   );
 
-function resolveFailureStatus(code: "SLOT_NOT_FOUND" | "DATE_REQUIRED" | "TIME_REQUIRED" | "AMBIGUOUS"): number {
-  if (code === "DATE_REQUIRED" || code === "TIME_REQUIRED") return 400;
+function resolveFailureStatus(
+  code: "SLOT_NOT_FOUND" | "DATE_REQUIRED" | "TIME_REQUIRED" | "TIME_PAST" | "AMBIGUOUS",
+): number {
+  if (code === "DATE_REQUIRED" || code === "TIME_REQUIRED" || code === "TIME_PAST") return 400;
   if (code === "AMBIGUOUS") return 409;
   return 404;
 }
