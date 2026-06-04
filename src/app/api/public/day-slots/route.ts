@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
 import {
   getExhibitionTimezone,
-  isWallDayClosedOnSummerCalendar,
+  isWallCalendarDayBeforeToday,
   isWallSessionTimeBeforeNow,
   timeKeyInTz,
   wallDayUtcRange,
@@ -48,12 +48,8 @@ export async function GET(req: Request) {
       return jsonPublicReadResponse(req, { error: "DATE_INVALID", hint: "Некорректная дата" }, 400);
     }
 
-    if (hidePastTimes && isWallDayClosedOnSummerCalendar(date, tz)) {
-      return jsonPublicReadResponse(
-        req,
-        { timezone: tz, date, kind: slotKind, times: [] },
-        200,
-      );
+    if (hidePastTimes && isWallCalendarDayBeforeToday(date, tz)) {
+      return jsonPublicReadResponse(req, { timezone: tz, date, kind: slotKind, times: [] }, 200);
     }
 
     const slots = await prisma.slot.findMany({

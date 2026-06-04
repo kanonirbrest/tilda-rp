@@ -4,7 +4,7 @@ import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
 import {
   dateKeyInTz,
   getExhibitionTimezone,
-  isWallDayClosedOnSummerCalendar,
+  isWallCalendarDayBeforeToday,
   isWallSessionTimeBeforeNow,
   timeKeyInTz,
 } from "@/lib/exhibition-time";
@@ -57,7 +57,7 @@ export async function GET(req: Request) {
     for (const s of slots) {
       const dk = dateKeyInTz(s.startsAt, tz);
       if (hidePastTimes) {
-        if (isWallDayClosedOnSummerCalendar(dk, tz, now)) continue;
+        if (isWallCalendarDayBeforeToday(dk, tz, now)) continue;
         if (isWallSessionTimeBeforeNow(dk, timeKeyInTz(s.startsAt, tz), tz, now)) continue;
       }
       const st = stats.get(s.id)!;

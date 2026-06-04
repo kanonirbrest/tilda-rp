@@ -2497,37 +2497,18 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
     if (tip) a.setAttribute("data-dei-cal-tip", tip);
   }
 
-  var SUMMER_DAY_EVENING_CUTOFF_MINS = 20 * 60;
-
-  function wallMinutesNowInTz(tz) {
-    var z = (tz && String(tz).trim()) || "Europe/Minsk";
-    try {
-      var parts = new Intl.DateTimeFormat("en-GB", {
-        timeZone: z,
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }).formatToParts(new Date());
-      var h = 0;
-      var m = 0;
-      parts.forEach(function (p) {
-        if (p.type === "hour") h = parseInt(p.value, 10);
-        if (p.type === "minute") m = parseInt(p.value, 10);
-      });
-      return h * 60 + m;
-    } catch (e) {
-      var d = new Date();
-      return d.getHours() * 60 + d.getMinutes();
-    }
-  }
-
   function isCalendarDayEnded(iso, today, row) {
     if (iso < today) return true;
-    if (iso === today && wallMinutesNowInTz(CAL_TIMEZONE) >= SUMMER_DAY_EVENING_CUTOFF_MINS) return true;
-    if (!row || !row.lastSlotStartsAt) return false;
-    var t = Date.parse(row.lastSlotStartsAt);
-    if (isNaN(t)) return false;
-    return Date.now() >= t;
+    if (iso === today) {
+      if (!CAL_LOADED || !CAL_DAYS) return false;
+      if (!row) return true;
+      if (row.lastSlotStartsAt) {
+        var t = Date.parse(row.lastSlotStartsAt);
+        if (!isNaN(t) && Date.now() >= t) return true;
+      }
+      return false;
+    }
+    return false;
   }
 
   function applyCalendarDayUi() {
