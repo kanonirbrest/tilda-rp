@@ -91,6 +91,26 @@ export function isWallSessionTimeBeforeNow(
   return slotMins < nowMins;
 }
 
+/** После этого времени (стенные часы) летняя витрина скрывает текущий календарный день. */
+export const SUMMER_CALENDAR_EVENING_CUTOFF = "20:00";
+
+/** Прошлый день или сегодня уже после вечернего отсечка — день не показываем на календаре summer. */
+export function isWallDayClosedOnSummerCalendar(
+  dateYmd: string,
+  timeZone: string,
+  now = new Date(),
+  eveningCutoff = SUMMER_CALENDAR_EVENING_CUTOFF,
+): boolean {
+  const today = dateKeyInTz(now, timeZone);
+  const dk = dateYmd.trim();
+  if (dk < today) return true;
+  if (dk > today) return false;
+  const nowMins = wallTimeToMinutes(timeKeyInTz(now, timeZone));
+  const cutoffMins = wallTimeToMinutes(eveningCutoff);
+  if (nowMins == null || cutoffMins == null) return false;
+  return nowMins >= cutoffMins;
+}
+
 /** Дата события для билета/PDF (длинный месяц, верхний регистр снаружи). */
 export function formatWallDateLongRu(d: Date, tz: string): string {
   return d

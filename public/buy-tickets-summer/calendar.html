@@ -1793,7 +1793,11 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
         var lab = (svg.getAttribute("aria-label") || "").trim();
         if (DATE_ARIA.test(lab)) {
           var dayLink = svg.closest("a.tn-atom__vector");
-          if (dayLink && dayLink.classList.contains("dei-cal-day--disabled")) {
+          if (
+            dayLink &&
+            (dayLink.classList.contains("dei-cal-day--disabled") ||
+              dayLink.classList.contains("dei-cal-day--hidden"))
+          ) {
             e.preventDefault();
             e.stopPropagation();
             if (e.stopImmediatePropagation) e.stopImmediatePropagation();
@@ -2429,7 +2433,7 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
 
   function loadCalendarAvailability(cb) {
     var base = API_BASE.replace(/\/$/, "");
-    fetch(base + "/api/public/calendar")
+    fetch(base + "/api/public/calendar?hidePastTimes=1")
       .then(function (r) {
         return r.json();
       })
@@ -2463,6 +2467,69 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
     });
   }
 
+  function calDayWrap(a) {
+    return a.closest(".t396__elem");
+  }
+
+  function resetCalendarDayUi(a) {
+    a.classList.remove("dei-cal-day--hidden", "dei-cal-day--disabled", "dei-cal-day--past", "dei-cal-day--no-slots");
+    a.removeAttribute("aria-disabled");
+    a.removeAttribute("aria-hidden");
+    var wrap = calDayWrap(a);
+    if (wrap) wrap.classList.remove("dei-cal-day-wrap--hidden");
+  }
+
+  function hideCalendarDay(a) {
+    var wrap = calDayWrap(a);
+    if (wrap) wrap.classList.add("dei-cal-day-wrap--hidden");
+    a.classList.add("dei-cal-day--hidden", "dei-cal-day--disabled", "dei-cal-day--past");
+    a.setAttribute("aria-hidden", "true");
+    a.setAttribute("aria-disabled", "true");
+    a.setAttribute("tabindex", "-1");
+    a.classList.remove("dei-cal-day-selected");
+  }
+
+  function disableCalendarDay(a, tip) {
+    a.classList.add("dei-cal-day--disabled", "dei-cal-day--no-slots");
+    a.setAttribute("aria-disabled", "true");
+    a.setAttribute("tabindex", "-1");
+    a.classList.remove("dei-cal-day-selected");
+    if (tip) a.setAttribute("data-dei-cal-tip", tip);
+  }
+
+  var SUMMER_DAY_EVENING_CUTOFF_MINS = 20 * 60;
+
+  function wallMinutesNowInTz(tz) {
+    var z = (tz && String(tz).trim()) || "Europe/Minsk";
+    try {
+      var parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: z,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).formatToParts(new Date());
+      var h = 0;
+      var m = 0;
+      parts.forEach(function (p) {
+        if (p.type === "hour") h = parseInt(p.value, 10);
+        if (p.type === "minute") m = parseInt(p.value, 10);
+      });
+      return h * 60 + m;
+    } catch (e) {
+      var d = new Date();
+      return d.getHours() * 60 + d.getMinutes();
+    }
+  }
+
+  function isCalendarDayEnded(iso, today, row) {
+    if (iso < today) return true;
+    if (iso === today && wallMinutesNowInTz(CAL_TIMEZONE) >= SUMMER_DAY_EVENING_CUTOFF_MINS) return true;
+    if (!row || !row.lastSlotStartsAt) return false;
+    var t = Date.parse(row.lastSlotStartsAt);
+    if (isNaN(t)) return false;
+    return Date.now() >= t;
+  }
+
   function applyCalendarDayUi() {
     applyCalendarStripe();
     var today = todayYmdInTz(CAL_TIMEZONE);
@@ -2473,29 +2540,23 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
       if (!DATE_ARIA.test(lab)) return;
       var iso = ruLabelToIso(lab);
       if (!iso) return;
+      resetCalendarDayUi(a);
       a.removeAttribute("data-dei-cal-tip");
       a.removeAttribute("title");
       a.removeAttribute("tabindex");
-      if (iso < today) {
-        a.classList.add("dei-cal-day--disabled", "dei-cal-day--past");
-        a.setAttribute("aria-disabled", "true");
-        a.setAttribute("tabindex", "-1");
-        a.setAttribute("data-dei-cal-tip", "Эта дата уже прошла");
-        a.classList.remove("dei-cal-day-selected");
+
+      var row = CAL_LOADED && CAL_DAYS ? CAL_DAYS[iso] : null;
+      if (isCalendarDayEnded(iso, today, row)) {
+        hideCalendarDay(a);
         return;
       }
-      a.classList.remove("dei-cal-day--past");
+
       if (!CAL_LOADED || !CAL_DAYS) return;
-      var row = CAL_DAYS[iso];
       if (!row || row.bookable === false) {
-        a.classList.add("dei-cal-day--disabled");
-        a.setAttribute("aria-disabled", "true");
-        a.setAttribute("tabindex", "-1");
-        a.classList.remove("dei-cal-day-selected");
-        if (row && row.hover) a.setAttribute("data-dei-cal-tip", row.hover);
+        disableCalendarDay(a, (row && row.hover) || "На этот день билетов нет");
         return;
       }
-      a.classList.remove("dei-cal-day--disabled");
+      a.classList.remove("dei-cal-day--disabled", "dei-cal-day--no-slots");
       a.removeAttribute("aria-disabled");
       if (row.hover) a.setAttribute("data-dei-cal-tip", row.hover);
     });
@@ -3182,16 +3243,20 @@ a.tn-atom.tn-atom__vector.dei-cal-day-selected svg[role="img"][aria-label*="203"
   fill: var(--dei-cal-day-accent) !important;
 }
 
-a.tn-atom.tn-atom__vector.dei-cal-day--disabled {
+.t396__elem.dei-cal-day-wrap--hidden,
+a.tn-atom.tn-atom__vector.dei-cal-day--hidden {
+  display: none !important;
+  pointer-events: none !important;
+}
+a.tn-atom.tn-atom__vector.dei-cal-day--disabled:not(.dei-cal-day--hidden) {
   pointer-events: none !important;
   cursor: not-allowed !important;
   opacity: 0.72 !important;
   filter: grayscale(0.42) brightness(0.94) !important;
 }
-/* Прошедшие дни — сильнее серый и тише */
-a.tn-atom.tn-atom__vector.dei-cal-day--past.dei-cal-day--disabled {
-  opacity: 0.48 !important;
-  filter: grayscale(0.55) brightness(0.88) !important;
+a.tn-atom.tn-atom__vector.dei-cal-day--no-slots.dei-cal-day--disabled:not(.dei-cal-day--hidden) {
+  opacity: 0.42 !important;
+  filter: grayscale(0.65) brightness(0.82) !important;
 }
 a.tn-atom.tn-atom__vector.dei-cal-day--disabled svg[role="img"] path[fill="#ff6282"],
 a.tn-atom.tn-atom__vector.dei-cal-day--disabled svg[role="img"] path[fill="#FF6282"],

@@ -256,6 +256,10 @@ def main() -> None:
             "/api/public/day-slots?date=",
             "/api/public/day-slots?hidePastTimes=1&date=",
         )
+        text = text.replace(
+            "/api/public/calendar",
+            "/api/public/calendar?hidePastTimes=1",
+        )
         path.write_text(text, encoding="utf-8")
         print(f"Written {path}")
 
