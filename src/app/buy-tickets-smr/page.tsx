@@ -186,12 +186,37 @@ function groupSummerDays(
   return groups;
 }
 
+const DEFAULT_EXHIBITION_TZ = "Europe/Minsk";
+
+/** YYYY-MM в часовом поясе витрины */
+function wallMonthKeyNow(timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(new Date());
+  const y = parts.find((p) => p.type === "year")?.value ?? "";
+  const m = parts.find((p) => p.type === "month")?.value ?? "";
+  return `${y}-${m}`;
+}
+
+function defaultExpandedMonthKeys(groups: MonthGroup[], timeZone: string): Set<string> {
+  if (groups.length === 0) return new Set();
+  const nowKey = wallMonthKeyNow(timeZone);
+  if (groups.some((g) => g.key === nowKey)) return new Set([nowKey]);
+  const next = groups.find((g) => g.key >= nowKey);
+  return new Set([next?.key ?? groups[0]!.key]);
+}
+
 export default function BuyTicketsSmrPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [calendarDays, setCalendarDays] = useState<Record<string, { bookable: boolean; hover: string }>>(
     {},
   );
+  const [calendarTimezone, setCalendarTimezone] = useState(DEFAULT_EXHIBITION_TZ);
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(() => new Set());
+  const expandedMonthsInitRef = useRef(false);
 
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
@@ -231,6 +256,12 @@ export default function BuyTicketsSmrPage() {
   const monthGroups = useMemo(() => groupSummerDays(calendarDays), [calendarDays]);
   const ticketCount = adult + child + concession;
 
+  useEffect(() => {
+    if (expandedMonthsInitRef.current || monthGroups.length === 0) return;
+    setExpandedMonths(defaultExpandedMonthKeys(monthGroups, calendarTimezone));
+    expandedMonthsInitRef.current = true;
+  }, [monthGroups, calendarTimezone]);
+
   const loadCalendar = useCallback(async () => {
     const calRes = await fetch(
       `/api/public/calendar?${PUBLIC_API_HIDE_PAST}&kind=${encodeURIComponent(NEBO_REKA_SLOT_KIND)}`,
@@ -239,9 +270,19 @@ export default function BuyTicketsSmrPage() {
     if (!calRes.ok) {
       throw new Error(calJson.hint || calJson.error || "calendar");
     }
+    if (calJson.timezone) setCalendarTimezone(calJson.timezone);
     setCalendarDays(calJson.days || {});
     return calJson.days || {};
   }, []);
+
+  function toggleMonthExpanded(monthKey: string) {
+    setExpandedMonths((prev) => {
+      const next = new Set(prev);
+      if (next.has(monthKey)) next.delete(monthKey);
+      else next.add(monthKey);
+      return next;
+    });
+  }
 
   const loadTimesForDate = useCallback(async (dateKey: string) => {
     setTimesLoading(true);
@@ -502,10 +543,37 @@ export default function BuyTicketsSmrPage() {
                 Выберите дату
               </p>
               <div className="sv2-months">
-                {monthGroups.map((month) => (
-                  <div key={month.key} className="sv2-month">
-                    <h2 className="sv2-month__title">{month.title}</h2>
-                    <div className="sv2-days" role="group" aria-label={month.title}>
+                {monthGroups.map((month) => {
+                  const monthOpen = expandedMonths.has(month.key);
+                  const monthToggleId = `sv2-month-${month.key}`;
+                  const monthPanelId = `sv2-month-panel-${month.key}`;
+                  return (
+                  <div
+                    key={month.key}
+                    className={["sv2-month", monthOpen ? "sv2-month--open" : "sv2-month--collapsed"]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    <button
+                      type="button"
+                      className="sv2-month__toggle"
+                      id={monthToggleId}
+                      aria-expanded={monthOpen}
+                      aria-controls={monthPanelId}
+                      disabled={busy}
+                      onClick={() => toggleMonthExpanded(month.key)}
+                    >
+                      <span className="sv2-month__title">{month.title}</span>
+                      <span className="sv2-month__chevron" aria-hidden />
+                    </button>
+                    {monthOpen ? (
+                    <div
+                      id={monthPanelId}
+                      className="sv2-days"
+                      role="group"
+                      aria-label={month.title}
+                      aria-labelledby={monthToggleId}
+                    >
                       {month.days.map((d) => (
                         <button
                           key={d.dateKey}
@@ -536,8 +604,10 @@ export default function BuyTicketsSmrPage() {
                         </button>
                       ))}
                     </div>
+                    ) : null}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
 
