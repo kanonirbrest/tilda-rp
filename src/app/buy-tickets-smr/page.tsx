@@ -37,10 +37,19 @@ type QuoteResponse = {
   hint?: string;
 };
 
+type CalendarDayCell = {
+  dateKey: string;
+  day: number;
+  bookable: boolean;
+  hover: string;
+  /** В БД есть хотя бы один сеанс на этот календарный день */
+  hasSlots: boolean;
+};
+
 type MonthGroup = {
   key: string;
   title: string;
-  days: { dateKey: string; day: number; bookable: boolean; hover: string }[];
+  days: CalendarDayCell[];
 };
 
 const WEEKDAY_SHORT_RU = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"] as const;
@@ -104,37 +113,77 @@ function ticketsWord(n: number): string {
   return "билетов";
 }
 
+const SUMMER_MONTHS = [6, 7, 8] as const;
+
+/** Не показывать прошедшие сеансы сегодня и прошлые дни (как на /buy-tickets-summer). */
+const PUBLIC_API_HIDE_PAST = "hidePastTimes=1";
+
+function daysInCalendarMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function summerYearsFromCalendar(
+  days: Record<string, { bookable: boolean; hover: string }>,
+): number[] {
+  const years = new Set<number>();
+  for (const dateKey of Object.keys(days)) {
+    if (!isSummerMonth(dateKey)) continue;
+    const y = Number(dateKey.split("-")[0]);
+    if (Number.isFinite(y)) years.add(y);
+  }
+  return sortDateKeysAsc([...years].map(String)).map((s) => Number(s));
+}
+
+function buildMonthDayCells(
+  year: number,
+  month: number,
+  days: Record<string, { bookable: boolean; hover: string }>,
+): CalendarDayCell[] {
+  const last = daysInCalendarMonth(year, month);
+  const cells: CalendarDayCell[] = [];
+  for (let d = 1; d <= last; d++) {
+    const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const row = days[dateKey];
+    if (row) {
+      cells.push({
+        dateKey,
+        day: d,
+        bookable: row.bookable,
+        hover: row.hover,
+        hasSlots: true,
+      });
+    } else {
+      cells.push({
+        dateKey,
+        day: d,
+        bookable: false,
+        hover: "На этот день сеансов нет",
+        hasSlots: false,
+      });
+    }
+  }
+  return cells;
+}
+
+/** Июнь–август: все календарные дни месяца; без слотов в БД — неактивная ячейка */
 function groupSummerDays(
   days: Record<string, { bookable: boolean; hover: string }>,
 ): MonthGroup[] {
-  const keys = sortDateKeysAsc(Object.keys(days).filter(isSummerMonth));
-  const byMonth = new Map<string, MonthGroup>();
+  const years = summerYearsFromCalendar(days);
+  const groups: MonthGroup[] = [];
 
-  for (const dateKey of keys) {
-    const parts = dateKey.split("-").map((x) => Number(x));
-    const y = parts[0]!;
-    const m = parts[1]!;
-    const d = parts[2]!;
-    const monthKey = `${y}-${String(m).padStart(2, "0")}`;
-    let group = byMonth.get(monthKey);
-    if (!group) {
-      group = {
+  for (const year of years) {
+    for (const month of SUMMER_MONTHS) {
+      const monthKey = `${year}-${String(month).padStart(2, "0")}`;
+      groups.push({
         key: monthKey,
-        title: `${MONTH_NOMINATIVE[m] ?? ""} ${y}`,
-        days: [],
-      };
-      byMonth.set(monthKey, group);
+        title: `${MONTH_NOMINATIVE[month] ?? ""} ${year}`,
+        days: buildMonthDayCells(year, month, days),
+      });
     }
-    const row = days[dateKey]!;
-    group.days.push({
-      dateKey,
-      day: d,
-      bookable: row.bookable,
-      hover: row.hover,
-    });
   }
 
-  return sortDateKeysAsc([...byMonth.keys()]).map((k) => byMonth.get(k)!);
+  return groups;
 }
 
 export default function BuyTicketsSmrPage() {
@@ -184,7 +233,7 @@ export default function BuyTicketsSmrPage() {
 
   const loadCalendar = useCallback(async () => {
     const calRes = await fetch(
-      `/api/public/calendar?kind=${encodeURIComponent(NEBO_REKA_SLOT_KIND)}`,
+      `/api/public/calendar?${PUBLIC_API_HIDE_PAST}&kind=${encodeURIComponent(NEBO_REKA_SLOT_KIND)}`,
     );
     const calJson = await readResponseJson<CalendarResponse>(calRes);
     if (!calRes.ok) {
@@ -198,7 +247,7 @@ export default function BuyTicketsSmrPage() {
     setTimesLoading(true);
     try {
       const r = await fetch(
-        `/api/public/day-slots?kind=${encodeURIComponent(NEBO_REKA_SLOT_KIND)}&date=${encodeURIComponent(dateKey)}`,
+        `/api/public/day-slots?${PUBLIC_API_HIDE_PAST}&kind=${encodeURIComponent(NEBO_REKA_SLOT_KIND)}&date=${encodeURIComponent(dateKey)}`,
       );
       const j = await readResponseJson<DaySlotsResponse>(r);
       if (!r.ok) throw new Error(j.hint || j.error || "day-slots");
@@ -349,8 +398,8 @@ export default function BuyTicketsSmrPage() {
     return `${ticketCount} ${ticketsWord(ticketCount)} на сумму ${quoteTotalLabel}`;
   }, [ticketCount, quotePending, quoteTotalCents, quoteTotalLabel]);
 
-  function onSelectDate(dateKey: string, bookable: boolean) {
-    if (!bookable) return;
+  function onSelectDate(dateKey: string, bookable: boolean, hasSlots: boolean) {
+    if (!hasSlots || !bookable) return;
     scrollToTimeAfterDateRef.current = true;
     setDate(dateKey);
     setFormError("");
@@ -464,14 +513,21 @@ export default function BuyTicketsSmrPage() {
                           className={[
                             "sv2-day",
                             date === d.dateKey ? "sv2-day--selected" : "",
-                            !d.bookable ? "sv2-day--disabled" : "",
+                            !d.hasSlots ? "sv2-day--no-slots" : "",
+                            d.hasSlots && !d.bookable ? "sv2-day--disabled" : "",
                           ]
                             .filter(Boolean)
                             .join(" ")}
-                          disabled={!d.bookable || busy}
-                          title={!d.bookable ? d.hover || "Недоступно" : undefined}
+                          disabled={!d.hasSlots || !d.bookable || busy}
+                          title={
+                            !d.hasSlots
+                              ? d.hover
+                              : !d.bookable
+                                ? d.hover || "Недоступно"
+                                : undefined
+                          }
                           aria-pressed={date === d.dateKey}
-                          onClick={() => onSelectDate(d.dateKey, d.bookable)}
+                          onClick={() => onSelectDate(d.dateKey, d.bookable, d.hasSlots)}
                         >
                           <span className="sv2-day__num">{String(d.day).padStart(2, "0")}</span>
                           <span className="sv2-day__wd" aria-hidden>

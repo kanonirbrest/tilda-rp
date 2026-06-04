@@ -114,6 +114,20 @@
   letter-spacing: 0.02em;
 }
 
+.sv2-day--no-slots {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(32, 32, 38, 0.92);
+}
+
+.sv2-day--no-slots:hover,
+.sv2-day--no-slots:active {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(32, 32, 38, 0.92);
+  transform: none;
+}
+
 .sv2-day--disabled {
   opacity: 0.38;
   cursor: not-allowed;
