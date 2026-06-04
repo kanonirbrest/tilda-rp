@@ -79,15 +79,25 @@ function sortDateKeysAsc(keys: string[]): string[] {
   return [...keys].sort((a, b) => a.localeCompare(b));
 }
 
-/** пн–вс по календарной дате YYYY-MM-DD (без сдвига TZ). */
-function weekdayShortRu(dateKey: string): string {
+/** 0=вс … 6=сб по календарной дате YYYY-MM-DD (без сдвига TZ). */
+function calendarWeekdayUtc(dateKey: string): number {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
-  if (!m) return "";
+  if (!m) return -1;
   const y = Number(m[1]);
   const mo = Number(m[2]);
   const d = Number(m[3]);
-  const wd = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
-  return WEEKDAY_SHORT_RU[wd] ?? "";
+  return new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+}
+
+function isMondayOrTuesday(dateKey: string): boolean {
+  const wd = calendarWeekdayUtc(dateKey);
+  return wd === 1 || wd === 2;
+}
+
+/** пн–вс по календарной дате YYYY-MM-DD (без сдвига TZ). */
+function weekdayShortRu(dateKey: string): string {
+  const wd = calendarWeekdayUtc(dateKey);
+  return wd >= 0 ? (WEEKDAY_SHORT_RU[wd] ?? "") : "";
 }
 
 function formatMoneyCents(cents: number, currency: string): string {
@@ -144,6 +154,7 @@ function buildMonthDayCells(
   for (let d = 1; d <= last; d++) {
     const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     const row = days[dateKey];
+    if (isMondayOrTuesday(dateKey) && !row) continue;
     if (row) {
       cells.push({
         dateKey,
@@ -165,7 +176,7 @@ function buildMonthDayCells(
   return cells;
 }
 
-/** Июнь–август: все календарные дни месяца; без слотов в БД — неактивная ячейка */
+/** Июнь–август: все дни месяца; пн/вт без слотов в БД скрыты; остальные — как раньше */
 function groupSummerDays(
   days: Record<string, { bookable: boolean; hover: string }>,
 ): MonthGroup[] {
