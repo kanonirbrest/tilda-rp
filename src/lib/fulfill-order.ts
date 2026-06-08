@@ -5,6 +5,7 @@ import { sendCrmWebhook } from "./crm";
 import { getPublicAppBaseUrl } from "./request-origin";
 import { formatMinorUnits } from "./money";
 import { paidCentsForOrderTicketAtIndex } from "./ticket-refund-alloc";
+import { BELYE_NOCHI_18_SLOT_KIND } from "./slot-kind";
 import { linesSummaryRu, tierTicketSingularRu } from "./slot-pricing";
 
 export async function fulfillPaidOrder(orderId: string): Promise<void> {
@@ -66,7 +67,10 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
       currency: full.currency,
       orderId: full.id,
       qrUrl,
-      ticketTierLabel: t.tier ? tierTicketSingularRu(t.tier) : undefined,
+      ticketTierLabel:
+        full.slot.kind === BELYE_NOCHI_18_SLOT_KIND ?
+          undefined
+        : t.tier ? tierTicketSingularRu(t.tier) : undefined,
       admissionCount: multiPdf ? 1 : t.admissionCount,
       ticketOrdinal: multiPdf
         ? { index: i + 1, total: tickets.length }

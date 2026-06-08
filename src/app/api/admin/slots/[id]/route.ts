@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
 import { reservedSeatsForSlot } from "@/lib/slot-reserved";
-import { parseOptionalSlotKind } from "@/lib/slot-kind";
+import { parseOptionalSlotKind, SLOT_KIND_OPTIONS } from "@/lib/slot-kind";
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
@@ -44,7 +44,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (!parsedKind) {
       return jsonWithCors(
         req,
-        { error: "BAD_REQUEST", message: "kind должен быть одним из: NEBO_REKA, NIGHT_OF_MUSEUMS" },
+        {
+          error: "BAD_REQUEST",
+          message: `kind должен быть одним из: ${SLOT_KIND_OPTIONS.join(", ")}`,
+        },
         { status: 400 },
       );
     }

@@ -1,8 +1,5 @@
 import type { NextConfig } from "next";
-import {
-  getProductionAppBaseUrl,
-  shouldProxyPublicApiToProduction,
-} from "./src/lib/production-app-base";
+import { buildDevApiProxyRewrites } from "./src/lib/production-app-base";
 
 /**
  * HMR (webpack-hmr / turbopack) по IP в LAN: иначе Next блокирует WebSocket как cross-origin.
@@ -42,18 +39,9 @@ const nextConfig: NextConfig = {
    * beforeFiles: раньше матчинга App Router, иначе сработал бы пустой сегмент.
    */
   async rewrites() {
-    const publicApiProxy = shouldProxyPublicApiToProduction() ?
-      [
-        {
-          source: "/api/public/:path*",
-          destination: `${getProductionAppBaseUrl()}/api/public/:path*`,
-        },
-      ]
-    : [];
-
     return {
       beforeFiles: [
-        ...publicApiProxy,
+        ...buildDevApiProxyRewrites(),
         { source: "/buy-tickets", destination: "/buy-tickets/calendar.html" },
         { source: "/buy-tickets/select", destination: "/buy-tickets/slot.html" },
         { source: "/buy-tickets-summer", destination: "/buy-tickets-summer/calendar.html" },

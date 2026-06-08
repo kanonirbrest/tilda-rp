@@ -7,7 +7,12 @@ import {
   parseMajorUnitsToMinor,
   parseOptionalMajorUnitsToMinor,
 } from "@/lib/money";
-import { NEBO_REKA_SLOT_KIND, NIGHT_OF_MUSEUMS_SLOT_KIND } from "@/lib/slot-kind";
+import {
+  BELYE_NOCHI_18_SLOT_KIND,
+  NEBO_REKA_SLOT_KIND,
+  NIGHT_OF_MUSEUMS_SLOT_KIND,
+  SLOT_KIND_OPTIONS,
+} from "@/lib/slot-kind";
 import {
   getExhibitionTimezone,
   wallDateAndTimeToUtc,
@@ -150,8 +155,21 @@ type SalesStatsResponse = {
   sold: TierSoldCounts;
   bySlot: SalesStatsBySlot[];
 };
-const SLOT_KIND_CHOICES = [NEBO_REKA_SLOT_KIND, NIGHT_OF_MUSEUMS_SLOT_KIND] as const;
+const SLOT_KIND_CHOICES = SLOT_KIND_OPTIONS;
 const DATE_CHIPS_VISIBLE_LIMIT = 15;
+
+/** Ссылки на публичные страницы покупки билетов (шапка админки). */
+const ADMIN_TICKET_STOREFRONTS = [
+  { href: "/buy-tickets", label: "Купить билет" },
+  { href: "/nightofmuseums", label: "Ночь музеев" },
+  { href: "/belye-nochi-18", label: "Белые ночи 18+" },
+  { href: "/buy-tickets-summer", label: "Лето (Tilda)" },
+  { href: "/buy-tickets-smr", label: "Лето v2" },
+] as const;
+
+function openTicketStorefront(href: string) {
+  window.open(href, "_blank", "noopener,noreferrer");
+}
 
 type ScheduleKindFilter = "all" | (typeof SLOT_KIND_CHOICES)[number];
 
@@ -159,6 +177,7 @@ type ScheduleKindFilter = "all" | (typeof SLOT_KIND_CHOICES)[number];
 function slotSalesChannelLabel(kind: string): string {
   if (kind === NEBO_REKA_SLOT_KIND) return "Небо.Река";
   if (kind === NIGHT_OF_MUSEUMS_SLOT_KIND) return "Ночь музеев";
+  if (kind === BELYE_NOCHI_18_SLOT_KIND) return "Белые ночи 18+";
   return kind;
 }
 
@@ -167,6 +186,7 @@ type AdminModal =
   | { type: "order"; order: OrderRow }
   | { type: "slot-single" }
   | { type: "slot-night" }
+  | { type: "slot-belye-nochi" }
   | { type: "slot-bulk" }
   | { type: "slot-edit"; slot: SlotRow }
   | { type: "promo-new" }
@@ -1235,6 +1255,65 @@ export default function AdminDashboard() {
     }
   }
 
+  async function onNewBelyeNochiSlot(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const date = String(fd.get("belyeDate") ?? "").trim();
+    const from = String(fd.get("belyeFrom") ?? "").trim();
+    const to = String(fd.get("belyeTo") ?? "").trim();
+    const currency = String(fd.get("belyeCurrency") ?? "BYN").trim() || "BYN";
+    const capRaw = String(fd.get("belyeCapacity") ?? "").trim();
+    const priceMajor = Number(String(fd.get("belyePriceMajor") ?? "").replace(",", "."));
+    if (!date || !from || !to) {
+      setErrMsg("Укажите дату и диапазон времени.");
+      return;
+    }
+    const standardPrice = Math.round(priceMajor * 100);
+    if (!Number.isFinite(standardPrice) || standardPrice < 0) {
+      setErrMsg("Цена не может быть отрицательной.");
+      return;
+    }
+
+    const tz = getExhibitionTimezone();
+    const startsUtc = wallDateAndTimeToUtc(date, from, tz);
+    if (!startsUtc) {
+      setErrMsg("Некорректные дата и время сеанса.");
+      return;
+    }
+    const startsAt = startsUtc.toISOString();
+    const title = `Белые ночи 18+ ${from}-${to}`;
+    const body: Record<string, unknown> = {
+      kind: BELYE_NOCHI_18_SLOT_KIND,
+      title,
+      startsAt,
+      priceCents: standardPrice,
+      priceAdultCents: standardPrice,
+      priceChildCents: standardPrice,
+      priceConcessionCents: standardPrice,
+      currency,
+      active: true,
+    };
+    if (capRaw) body.capacity = Number.parseInt(capRaw, 10);
+
+    setErrMsg("");
+    setInfoMsg("");
+    setLoading(true);
+    try {
+      await apiFetch("/api/admin/slots", { method: "POST", body: JSON.stringify(body) });
+      setModal({ type: "none" });
+      form.reset();
+      setInfoMsg(`Сеанс «Белые ночи 18+» создан: ${date}, ${from}-${to}.`);
+      await loadSlots();
+      setTab("schedule");
+      setSelectedDate(date);
+    } catch (err: unknown) {
+      setErrMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function downloadCustomersCsv() {
     setErrMsg("");
     setInfoMsg("");
@@ -1560,38 +1639,29 @@ export default function AdminDashboard() {
           <h1 className="admin-brand-title">Админка билетов</h1>
         </div>
         <div className="admin-header-right">
-          <a
-            href="/buy-tickets"
-            className="btn btn-secondary btn-compact"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Купить билет
-          </a>
-          <a
-            href="/nightofmuseums"
-            className="btn btn-secondary btn-compact"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Ночь музеев
-          </a>
-          <a
-            href="/buy-tickets-summer"
-            className="btn btn-secondary btn-compact"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Купить билет - лето
-          </a>
-          <a
-            href="/buy-tickets-smr"
-            className="btn btn-secondary btn-compact"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Купить билет лето v2
-          </a>
+          <label className="admin-storefront-picker">
+            <span className="admin-storefront-picker__label">Витрина</span>
+            <select
+              className="admin-storefront-picker__select"
+              defaultValue=""
+              aria-label="Открыть страницу покупки билетов"
+              onChange={(e) => {
+                const href = e.target.value;
+                if (!href) return;
+                openTicketStorefront(href);
+                e.target.selectedIndex = 0;
+              }}
+            >
+              <option value="" disabled>
+                Открыть…
+              </option>
+              {ADMIN_TICKET_STOREFRONTS.map((item) => (
+                <option key={item.href} value={item.href}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <button type="button" className="btn-ghost" onClick={() => void logout()}>
             Выйти
           </button>
@@ -1845,6 +1915,9 @@ export default function AdminDashboard() {
               </button>
               <button type="button" className="btn" onClick={() => setModal({ type: "slot-night" })}>
                 + Night of Museums
+              </button>
+              <button type="button" className="btn" onClick={() => setModal({ type: "slot-belye-nochi" })}>
+                + Белые ночи 18+
               </button>
               <button
                 type="button"
@@ -2613,6 +2686,83 @@ export default function AdminDashboard() {
               <div className="admin-field admin-field-narrow">
                 <label htmlFor="night-currency">Валюта</label>
                 <input id="night-currency" name="nightCurrency" defaultValue="BYN" maxLength={8} />
+              </div>
+            </div>
+            <div className="admin-modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "none" })}>
+                Отмена
+              </button>
+              <button type="submit" className="btn" disabled={loading}>
+                Создать
+              </button>
+            </div>
+          </form>
+        </AdminModalFrame>
+      ) : null}
+
+      {modal.type === "slot-belye-nochi" ? (
+        <AdminModalFrame title="Новый сеанс «Белые ночи 18+»" onClose={() => setModal({ type: "none" })}>
+          <form
+            key={`slot-belye-nochi-${selectedDate}`}
+            onSubmit={(e) => void onNewBelyeNochiSlot(e)}
+            className="admin-modal-form"
+          >
+            <p className="admin-hint admin-hint--tight">
+              Создаётся один слот с витриной <span className="mono">{BELYE_NOCHI_18_SLOT_KIND}</span>. В названии
+              сохраняется диапазон времени (например <span className="mono">22:00</span>–
+              <span className="mono">03:00</span>). Страница покупки:{" "}
+              <a href="/belye-nochi-18" target="_blank" rel="noreferrer">
+                /belye-nochi-18
+              </a>
+              .
+            </p>
+            <div className="admin-row admin-row--modal">
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="belye-date">Дата</label>
+                <input
+                  id="belye-date"
+                  name="belyeDate"
+                  type="date"
+                  defaultValue={selectedDate || "2026-06-27"}
+                  required
+                />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="belye-from">С</label>
+                <input id="belye-from" name="belyeFrom" type="time" step={60} defaultValue="22:00" required />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="belye-to">По</label>
+                <input id="belye-to" name="belyeTo" type="time" step={60} defaultValue="03:00" required />
+              </div>
+            </div>
+            <div className="admin-row admin-row--modal">
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="belye-price">Стандартный билет, BYN</label>
+                <input
+                  id="belye-price"
+                  name="belyePriceMajor"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  defaultValue={50}
+                  required
+                />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="belye-capacity">Лимит мест</label>
+                <input
+                  id="belye-capacity"
+                  name="belyeCapacity"
+                  type="number"
+                  min={1}
+                  defaultValue={1000}
+                  placeholder="∞"
+                />
+              </div>
+              <div className="admin-field admin-field-narrow">
+                <label htmlFor="belye-currency">Валюта</label>
+                <input id="belye-currency" name="belyeCurrency" defaultValue="BYN" maxLength={8} />
               </div>
             </div>
             <div className="admin-modal-actions">

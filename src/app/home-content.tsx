@@ -35,6 +35,12 @@ export function HomeContent() {
           Ночь музеев
         </Link>
         <Link
+          href="/belye-nochi-18"
+          className="rounded-xl border border-emerald-700/40 bg-emerald-50 px-6 py-3 text-sm font-medium text-emerald-900 hover:bg-emerald-100"
+        >
+          Белые ночи 18+
+        </Link>
+        <Link
           href="/staff/login"
           className="rounded-xl border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-800"
         >

@@ -5,8 +5,12 @@ import QRCode from "qrcode";
 import { formatMinorUnits } from "@/lib/money";
 import { DEFAULT_TICKET_LEGAL_BLOCK } from "@/lib/ticket-legal-default";
 import { getExhibitionTimezone, formatWallDateLongRu, timeKeyInTz } from "@/lib/exhibition-time";
-import { parseNightOfMuseumsTimeRangeFromTitle } from "@/lib/night-of-museums-session";
-import { NEBO_REKA_SLOT_KIND, NIGHT_OF_MUSEUMS_SLOT_KIND } from "@/lib/slot-kind";
+import { parseEventSessionTimeRangeFromTitle } from "@/lib/event-session-title";
+import {
+  BELYE_NOCHI_18_SLOT_KIND,
+  isEventSessionSlotKind,
+  NEBO_REKA_SLOT_KIND,
+} from "@/lib/slot-kind";
 
 export type TicketPdfInput = {
   title: string;
@@ -219,15 +223,13 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
   const hasBg = Boolean(bg.dataUrl);
 
   const tz = getExhibitionTimezone();
-  const nightTimeRange =
-    opts.slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND ?
-      parseNightOfMuseumsTimeRangeFromTitle(opts.title)
+  const eventTimeRange =
+    opts.slotKind && isEventSessionSlotKind(opts.slotKind) ?
+      parseEventSessionTimeRangeFromTitle(opts.title, opts.slotKind)
     : null;
   const whenDateLine = formatEventDateOnlyRuUpper(opts.startsAt, tz);
   const whenTimePart =
-    opts.slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND && nightTimeRange ?
-      sanitizeForPdfText(nightTimeRange)
-    : formatEventWallTime(opts.startsAt, tz);
+    eventTimeRange ? sanitizeForPdfText(eventTimeRange) : formatEventWallTime(opts.startsAt, tz);
   const whenValueHtml =
     opts.slotKind === NEBO_REKA_SLOT_KIND ?
       (() => {
@@ -286,13 +288,18 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
         <span class="dei-sub">Дом экспериментального искусства</span>
       </div>`;
 
-  const neboRekaSvg = resolveNeboRekaTitleSvgDataUrl();
-  const heroTitleBlock =
-    neboRekaSvg ?
-      `<div class="brand-mark" role="img" aria-label="${escapeHtml(sanitizeForPdfText(opts.title))}">
+  const heroTitleBlock = (() => {
+    if (opts.slotKind === BELYE_NOCHI_18_SLOT_KIND) {
+      return `<h1 class="brand-title">${escapeHtml("Белые ночи 18+")}</h1>`;
+    }
+    const neboRekaSvg = resolveNeboRekaTitleSvgDataUrl();
+    if (neboRekaSvg) {
+      return `<div class="brand-mark" role="img" aria-label="${escapeHtml(sanitizeForPdfText(opts.title))}">
           <img class="brand-mark__img" src="${neboRekaSvg}" width="411" height="75" alt="" />
-        </div>`
-    : `<h1 class="brand-title">${escapeHtml(sanitizeForPdfText(opts.title))}</h1>`;
+        </div>`;
+    }
+    return `<h1 class="brand-title">${escapeHtml(sanitizeForPdfText(opts.title))}</h1>`;
+  })();
 
   const ruleLineLeftUrl = resolveRuleLineStarSvgDataUrl("left");
   const ruleLineRightUrl = resolveRuleLineStarSvgDataUrl("right");

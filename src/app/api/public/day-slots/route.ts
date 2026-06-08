@@ -11,10 +11,10 @@ import {
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
 import {
-  formatNightSessionRangeForUi,
-  parseNightOfMuseumsTimeRangeFromTitle,
-} from "@/lib/night-of-museums-session";
-import { NIGHT_OF_MUSEUMS_SLOT_KIND, normalizeSlotKind } from "@/lib/slot-kind";
+  formatEventSessionRangeForUi,
+  parseEventSessionTimeRangeFromTitle,
+} from "@/lib/event-session-title";
+import { isEventSessionSlotKind, normalizeSlotKind } from "@/lib/slot-kind";
 import { slotOrderLineStatsMap } from "@/lib/slot-order-line-stats";
 
 export async function OPTIONS(req: Request) {
@@ -65,7 +65,7 @@ export async function GET(req: Request) {
   const stats = await slotOrderLineStatsMap(slots.map((s) => s.id));
   const seen = new Set<string>();
   const times: string[] = [];
-  /** Для NIGHT_OF_MUSEUMS: HH:MM начала → подпись диапазона из title слота («21:00 - 00:00»). */
+  /** Для сеансов-мероприятий: HH:MM начала → подпись диапазона из title слота («22:00 - 03:00»). */
   const sessionLabels: Record<string, string> = {};
 
   for (const s of slots) {
@@ -80,9 +80,9 @@ export async function GET(req: Request) {
     seen.add(tk);
     times.push(tk);
 
-    if (slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND) {
-      const parsed = parseNightOfMuseumsTimeRangeFromTitle(s.title);
-      if (parsed) sessionLabels[tk] = formatNightSessionRangeForUi(parsed);
+    if (isEventSessionSlotKind(slotKind)) {
+      const parsed = parseEventSessionTimeRangeFromTitle(s.title, slotKind);
+      if (parsed) sessionLabels[tk] = formatEventSessionRangeForUi(parsed);
     }
   }
 
@@ -93,7 +93,7 @@ export async function GET(req: Request) {
     times: string[];
     sessionLabels?: Record<string, string>;
   } = { timezone: tz, date, kind: slotKind, times };
-  if (slotKind === NIGHT_OF_MUSEUMS_SLOT_KIND && Object.keys(sessionLabels).length > 0) {
+  if (isEventSessionSlotKind(slotKind) && Object.keys(sessionLabels).length > 0) {
     payload.sessionLabels = sessionLabels;
   }
 

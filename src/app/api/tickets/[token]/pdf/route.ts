@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { buildTicketPdf } from "@/lib/pdf-ticket";
 import { getPublicAppBaseUrl } from "@/lib/request-origin";
 import { paidCentsForOrderTicketAtIndex } from "@/lib/ticket-refund-alloc";
+import { BELYE_NOCHI_18_SLOT_KIND } from "@/lib/slot-kind";
 import { tierTicketSingularRu } from "@/lib/slot-pricing";
 
 /** На Vercel и др. поднимает лимит выполнения route (иначе PDF + очередь семафора могут обрезаться). На self-hosted `next start` часто игнорируется. */
@@ -50,7 +51,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
       currency: ticket.order.currency,
       orderId: ticket.order.id,
       qrUrl,
-      ticketTierLabel: ticket.tier ? tierTicketSingularRu(ticket.tier) : undefined,
+      ticketTierLabel:
+        ticket.order.slot.kind === BELYE_NOCHI_18_SLOT_KIND ?
+          undefined
+        : ticket.tier ? tierTicketSingularRu(ticket.tier) : undefined,
       admissionCount: multiPdf ? 1 : ticket.admissionCount,
       ticketOrdinal:
         multiPdf && idx >= 0
