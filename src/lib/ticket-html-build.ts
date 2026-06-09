@@ -288,15 +288,24 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
         <span class="dei-sub">Дом экспериментального искусства</span>
       </div>`;
 
+  const eyebrowSoftHtml =
+    opts.slotKind === BELYE_NOCHI_18_SLOT_KIND ?
+      `<div class="brand-title brand-title--event">${escapeHtml("Белые ночи 18+")}</div>`
+    : `<div class="eyebrow-soft">На иммерсивную медиа-выставку</div>`;
+
   const heroTitleBlock = (() => {
-    if (opts.slotKind === BELYE_NOCHI_18_SLOT_KIND) {
-      return `<h1 class="brand-title">${escapeHtml("Белые ночи 18+")}</h1>`;
-    }
     const neboRekaSvg = resolveNeboRekaTitleSvgDataUrl();
     if (neboRekaSvg) {
-      return `<div class="brand-mark" role="img" aria-label="${escapeHtml(sanitizeForPdfText(opts.title))}">
+      const ariaLabel =
+        opts.slotKind === BELYE_NOCHI_18_SLOT_KIND ?
+          "Небо.Река"
+        : sanitizeForPdfText(opts.title);
+      return `<div class="brand-mark" role="img" aria-label="${escapeHtml(ariaLabel)}">
           <img class="brand-mark__img" src="${neboRekaSvg}" width="411" height="75" alt="" />
         </div>`;
+    }
+    if (opts.slotKind === BELYE_NOCHI_18_SLOT_KIND) {
+      return `<h1 class="brand-title">${escapeHtml("Небо.Река")}</h1>`;
     }
     return `<h1 class="brand-title">${escapeHtml(sanitizeForPdfText(opts.title))}</h1>`;
   })();
@@ -446,6 +455,10 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       letter-spacing: -0.01em;
       word-wrap: break-word;
       color: #ffffff;
+    }
+    /* «Белые ночи 18+» на месте подзаголовка выставки */
+    .brand-title.brand-title--event {
+      margin-bottom: 36px;
     }
     .hero-qr {
       flex: 0 0 auto;
@@ -733,7 +746,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     <div class="hero">
       <div class="hero-main">
         <div class="eyebrow-strong">Ваш билет</div>
-        <div class="eyebrow-soft">На иммерсивную медиа-выставку</div>
+        ${eyebrowSoftHtml}
         ${heroTitleBlock}
       </div>
       <div class="hero-qr">

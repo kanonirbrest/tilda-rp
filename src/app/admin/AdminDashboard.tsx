@@ -167,10 +167,6 @@ const ADMIN_TICKET_STOREFRONTS = [
   { href: "/buy-tickets-smr", label: "Лето v2" },
 ] as const;
 
-function openTicketStorefront(href: string) {
-  window.open(href, "_blank", "noopener,noreferrer");
-}
-
 type ScheduleKindFilter = "all" | (typeof SLOT_KIND_CHOICES)[number];
 
 /** Подпись витрины / канала продажи для списка сеансов. */
@@ -405,7 +401,7 @@ function AdminModalFrame({
     <div
       className="admin-modal-backdrop"
       role="presentation"
-      onMouseDown={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
@@ -414,7 +410,7 @@ function AdminModalFrame({
         role="dialog"
         aria-modal="true"
         aria-labelledby="admin-modal-title"
-        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="admin-modal-head">
           <h2 id="admin-modal-title" className="admin-modal-title">
@@ -1639,29 +1635,25 @@ export default function AdminDashboard() {
           <h1 className="admin-brand-title">Админка билетов</h1>
         </div>
         <div className="admin-header-right">
-          <label className="admin-storefront-picker">
-            <span className="admin-storefront-picker__label">Витрина</span>
-            <select
-              className="admin-storefront-picker__select"
-              defaultValue=""
-              aria-label="Открыть страницу покупки билетов"
-              onChange={(e) => {
-                const href = e.target.value;
-                if (!href) return;
-                openTicketStorefront(href);
-                e.target.selectedIndex = 0;
-              }}
-            >
-              <option value="" disabled>
-                Открыть…
-              </option>
+          <details className="admin-summer-menu admin-storefront-menu">
+            <summary className="admin-storefront-menu__summary" aria-label="Открыть страницу покупки билетов">
+              <span className="admin-storefront-menu__label">Витрина</span>
+              <span className="admin-storefront-menu__value">Открыть…</span>
+            </summary>
+            <div className="admin-summer-menu__panel admin-summer-menu__panel--end">
               {ADMIN_TICKET_STOREFRONTS.map((item) => (
-                <option key={item.href} value={item.href}>
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="admin-summer-menu__link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   {item.label}
-                </option>
+                </a>
               ))}
-            </select>
-          </label>
+            </div>
+          </details>
           <button type="button" className="btn-ghost" onClick={() => void logout()}>
             Выйти
           </button>
