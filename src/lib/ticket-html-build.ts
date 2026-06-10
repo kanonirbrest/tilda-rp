@@ -290,7 +290,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
 
   const eyebrowSoftHtml =
     opts.slotKind === BELYE_NOCHI_18_SLOT_KIND ?
-      `<div class="brand-title brand-title--event">${escapeHtml("Белые ночи 18+")}</div>`
+      `<div class="eyebrow-soft">${escapeHtml("Белые ночи 18+")}</div>`
     : `<div class="eyebrow-soft">На иммерсивную медиа-выставку</div>`;
 
   const heroTitleBlock = (() => {
@@ -424,7 +424,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       color: #ffffff;
       margin-bottom: 2mm;
     }
-    /* «На иммерсивную…» — отступ снизу 36px до «Небо.Река» / заголовка */
+    /* «На иммерсивную…» / «Белые ночи 18+» — Cy Grotesk, 14.5px; отступ до логотипа */
     .eyebrow-soft {
       font-family: "Cy Grotesk Grand", system-ui, sans-serif;
       font-weight: 600;
@@ -455,10 +455,6 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       letter-spacing: -0.01em;
       word-wrap: break-word;
       color: #ffffff;
-    }
-    /* «Белые ночи 18+» на месте подзаголовка выставки */
-    .brand-title.brand-title--event {
-      margin-bottom: 36px;
     }
     .hero-qr {
       flex: 0 0 auto;

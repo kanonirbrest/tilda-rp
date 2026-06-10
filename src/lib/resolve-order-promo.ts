@@ -14,6 +14,7 @@ import {
   PromoApplyError,
 } from "@/lib/promo-code";
 import { prisma } from "@/lib/prisma";
+import { BELYE_NOCHI_18_SLOT_KIND } from "@/lib/slot-kind";
 
 export type ResolvedPromoQuote =
   | {
@@ -40,6 +41,14 @@ export async function resolvePromoForQuote(
 ): Promise<ResolvedPromoQuote | null> {
   const norm = normalizePromoCode(promoRaw);
   if (!norm) return null;
+
+  if (slot.kind === BELYE_NOCHI_18_SLOT_KIND) {
+    return {
+      applied: false,
+      error: "PROMO_WRONG_CHANNEL",
+      hint: "Промокоды не действуют для этого мероприятия",
+    };
+  }
 
   if (isDeiClubNrPromoAttempt(norm)) {
     const club = previewDeiClubPromo(norm, subtotalCents);
@@ -121,6 +130,13 @@ export async function applyPromoAtCheckout(
       clubPromoCode: null,
       clubPromoTelegramUserId: null,
     };
+  }
+
+  if (params.slot.kind === BELYE_NOCHI_18_SLOT_KIND) {
+    throw new PromoApplyError(
+      "Промокоды не действуют для этого мероприятия",
+      "PROMO_WRONG_CHANNEL",
+    );
   }
 
   if (isDeiClubNrPromoAttempt(norm)) {
