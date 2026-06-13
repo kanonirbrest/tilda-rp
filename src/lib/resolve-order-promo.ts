@@ -131,6 +131,10 @@ export async function applyPromoAtCheckout(
         : redeemed.error === "campaign_expired" || redeemed.error === "invalid_format" ?
           "PROMO_INACTIVE"
         : redeemed.error === "not_found" ? "INVALID_PROMO"
+        : redeemed.error === "unauthorized" || redeemed.error === "forbidden" ?
+          "PROMO_UNAVAILABLE"
+        : redeemed.error === "invalid_json" || redeemed.error === "bad_response" ?
+          "PROMO_UNAVAILABLE"
         : redeemed.status >= 500 ? "PROMO_UNAVAILABLE"
         : "INVALID_PROMO";
       const httpStatus =

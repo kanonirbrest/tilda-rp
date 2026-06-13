@@ -68,14 +68,35 @@ function promoApiConfigured(): boolean {
   return Boolean(url && secret);
 }
 
+/** Базовый URL rp_bot без хвостового / и без лишнего /api. */
+export function normalizePromoApiBase(raw: string): string {
+  let base = raw.trim().replace(/\/+$/, "");
+  if (base.endsWith("/api")) {
+    base = base.slice(0, -4);
+  }
+  return base;
+}
+
+function inferRedeemErrorKey(error: string, status: number): string {
+  const normalized = error.trim().toLowerCase();
+  if (normalized) return normalized;
+  if (status === 401 || status === 403) return "unauthorized";
+  if (status === 404) return "not_found";
+  if (status === 409) return "already_used";
+  if (status === 410) return "campaign_expired";
+  if (status >= 500) return "internal_error";
+  return "redeem_failed";
+}
+
 function hintForRedeemError(error: string, status: number): string {
   switch (error) {
     case "invalid_format":
       return "Неверный формат промокода";
     case "invalid_json":
-      return "Не удалось применить промокод клуба DEI";
+      return "Сервис промокодов вернул некорректный ответ. Проверьте PROMO_API_URL на сервере.";
     case "unauthorized":
-      return "Промокоды клуба временно недоступны";
+    case "forbidden":
+      return "Промокоды клуба временно недоступны (ошибка авторизации сервиса)";
     case "not_found":
       return "Промокод не найден";
     case "already_used":
@@ -83,9 +104,25 @@ function hintForRedeemError(error: string, status: number): string {
     case "campaign_expired":
       return "Срок действия акции истёк";
     case "internal_error":
+    case "service_unavailable":
+    case "network":
       return "Не удалось применить промокод. Попробуйте позже.";
+    case "bad_response":
+      return "Сервис промокодов вернул неполный ответ. Обратитесь в поддержку.";
+    case "redeem_failed":
+      if (status === 401 || status === 403) {
+        return "Промокоды клуба временно недоступны (ошибка авторизации сервиса)";
+      }
+      if (status === 404) {
+        return "Промокод не найден или сервис промокодов настроен неверно";
+      }
+      if (status >= 500) return "Не удалось применить промокод. Попробуйте позже.";
+      return "Не удалось применить промокод клуба DEI";
     default:
-      if (status === 401) return "Промокоды клуба временно недоступны";
+      if (status === 401 || status === 403) {
+        return "Промокоды клуба временно недоступны (ошибка авторизации сервиса)";
+      }
+      if (status === 404) return "Промокод не найден";
       if (status >= 500) return "Не удалось применить промокод. Попробуйте позже.";
       return "Не удалось применить промокод клуба DEI";
   }
@@ -126,11 +163,12 @@ export async function redeemDeiClubPromoCode(raw: string): Promise<DeiClubRedeem
     };
   }
 
-  const base = process.env.PROMO_API_URL!.trim().replace(/\/$/, "");
+  const base = normalizePromoApiBase(process.env.PROMO_API_URL!);
   const timeoutMs = 10_000;
+  const redeemUrl = `${base}/api/promo/redeem`;
 
   try {
-    const res = await fetch(`${base}/api/promo/redeem`, {
+    const res = await fetch(redeemUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.PROMO_API_SECRET!.trim()}`,
@@ -144,23 +182,37 @@ export async function redeemDeiClubPromoCode(raw: string): Promise<DeiClubRedeem
       ok?: boolean;
       code?: string;
       discount_percent?: number;
-      user_id?: number;
+      user_id?: number | string;
       error?: string;
     } = {};
-    try {
-      body = (await res.json()) as typeof body;
-    } catch {
-      body = {};
+    const rawText = await res.text();
+    if (rawText.trim()) {
+      try {
+        body = JSON.parse(rawText) as typeof body;
+      } catch {
+        console.error("[dei-club-promo] redeem non-JSON", {
+          code,
+          status: res.status,
+          url: redeemUrl,
+          head: rawText.slice(0, 200),
+        });
+        return {
+          ok: false,
+          error: "invalid_json",
+          hint: hintForRedeemError("invalid_json", res.status),
+          status: res.status >= 400 && res.status < 600 ? res.status : 502,
+        };
+      }
     }
 
     if (res.ok && body.ok) {
       const userId = Number(body.user_id);
       if (!Number.isFinite(userId)) {
-        console.error("[dei-club-promo] redeem ok без user_id", { code });
+        console.error("[dei-club-promo] redeem ok без user_id", { code, url: redeemUrl, body });
         return {
           ok: false,
           error: "bad_response",
-          hint: "Не удалось применить промокод клуба DEI",
+          hint: hintForRedeemError("bad_response", res.status),
           status: 502,
         };
       }
@@ -172,7 +224,16 @@ export async function redeemDeiClubPromoCode(raw: string): Promise<DeiClubRedeem
       };
     }
 
-    const errKey = String(body.error || "").trim() || "redeem_failed";
+    const errKey = inferRedeemErrorKey(String(body.error || ""), res.status);
+    if (!res.ok) {
+      console.error("[dei-club-promo] redeem failed", {
+        code,
+        status: res.status,
+        url: redeemUrl,
+        error: errKey,
+        body,
+      });
+    }
     return {
       ok: false,
       error: errKey,
