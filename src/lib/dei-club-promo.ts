@@ -299,6 +299,6 @@ export function previewDeiClubPromo(
     applied: true,
     discountCents,
     amountCents,
-    hint: `Скидка клуба DEI ${pct}%. Промокод будет применён при оплате.`,
+    hint: `Скидка клуба DEI ${pct}%. Промокод будет погашён после успешной оплаты.`,
   };
 }

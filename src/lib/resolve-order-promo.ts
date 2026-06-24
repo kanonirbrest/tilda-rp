@@ -1,10 +1,10 @@
 import type { Slot } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import {
-  computeDeiClubPromoAmounts,
   isDeiClubNrPromoAttempt,
   previewDeiClubPromo,
   redeemDeiClubPromoCode,
+  computeDeiClubPromoAmounts,
 } from "@/lib/dei-club-promo";
 import {
   computePromoAmounts,
@@ -99,9 +99,22 @@ export async function resolvePromoForQuote(
   return { applied: true, discountCents, amountCents };
 }
 
+function throwFromDeiClubPreview(club: { applied: false; error: string; hint: string }): never {
+  const code =
+    club.error === "PROMO_EXHAUSTED" ? "PROMO_EXHAUSTED"
+    : club.error === "PROMO_INACTIVE" ? "PROMO_INACTIVE"
+    : club.error === "PROMO_UNAVAILABLE" ? "PROMO_UNAVAILABLE"
+    : club.error === "PROMO_ZERO_PAYMENT" ? "PROMO_ZERO_PAYMENT"
+    : club.error === "INVALID_PROMO" ? "INVALID_PROMO"
+    : "INVALID_PROMO";
+  const httpStatus = club.error === "PROMO_UNAVAILABLE" ? 503 : 400;
+  throw new PromoApplyError(club.hint, code, httpStatus);
+}
+
 /**
  * Применение промо при создании заказа.
- * NR-*: redeem через API бота (одноразово). Остальные — локальная таблица PromoCode.
+ * NR-*: превью скидки и резерв в заказе; redeem — после оплаты (finalizeDeiClubPromoRedemption).
+ * Остальные — локальная таблица PromoCode.
  */
 export async function applyPromoAtCheckout(
   tx: Prisma.TransactionClient,
@@ -124,49 +137,37 @@ export async function applyPromoAtCheckout(
   }
 
   if (isDeiClubNrPromoAttempt(norm)) {
-    const redeemed = await redeemDeiClubPromoCode(norm);
-    if (!redeemed.ok) {
-      const code =
-        redeemed.error === "already_used" ? "PROMO_EXHAUSTED"
-        : redeemed.error === "campaign_expired" || redeemed.error === "invalid_format" ?
-          "PROMO_INACTIVE"
-        : redeemed.error === "not_found" ? "INVALID_PROMO"
-        : redeemed.error === "unauthorized" || redeemed.error === "forbidden" ?
-          "PROMO_UNAVAILABLE"
-        : redeemed.error === "invalid_json" || redeemed.error === "bad_response" ?
-          "PROMO_UNAVAILABLE"
-        : redeemed.status >= 500 ? "PROMO_UNAVAILABLE"
-        : "INVALID_PROMO";
-      const httpStatus =
-        redeemed.status >= 500 ? 503
-        : redeemed.status === 409 ? 400
-        : 400;
-      throw new PromoApplyError(redeemed.hint, code, httpStatus);
+    const club = previewDeiClubPromo(norm, params.subtotalCents);
+    if (!club.applied) {
+      if (!(club.error === "PROMO_ZERO_PAYMENT" && params.skipPayment)) {
+        throwFromDeiClubPreview(club);
+      }
     }
 
-    const { discountCents, amountCents } = computeDeiClubPromoAmounts(
-      params.subtotalCents,
-      redeemed.discountPercent,
-    );
-    if (amountCents < 1 && !params.skipPayment) {
+    const { discountCents, amountCents } =
+      club.applied ?
+        { discountCents: club.discountCents, amountCents: club.amountCents }
+      : computeDeiClubPromoAmounts(params.subtotalCents);
+
+    const reservedClub = await tx.order.count({
+      where: {
+        clubPromoCode: norm,
+        status: { in: ["PENDING", "PAID"] },
+      },
+    });
+    if (reservedClub > 0) {
       throw new PromoApplyError(
-        "После скидки сумма слишком мала для онлайн-оплаты. Измените состав заказа или промокод.",
-        "PROMO_ZERO_PAYMENT",
+        "Этот промокод уже зарезервирован в другом заказе",
+        "PROMO_EXHAUSTED",
       );
     }
-
-    console.info("[checkout] dei-club promo redeemed", {
-      code: redeemed.code,
-      userId: redeemed.userId,
-      discountCents,
-    });
 
     return {
       discountCents,
       amountCents,
       promoCodeId: null,
-      clubPromoCode: redeemed.code,
-      clubPromoTelegramUserId: String(redeemed.userId),
+      clubPromoCode: norm,
+      clubPromoTelegramUserId: null,
     };
   }
 
@@ -218,4 +219,43 @@ export async function applyPromoAtCheckout(
     clubPromoCode: null,
     clubPromoTelegramUserId: null,
   };
+}
+
+/**
+ * Погашение NR-* в боте после подтверждения оплаты.
+ * Не бросает — билет уже выдан; ошибки только в лог.
+ */
+export async function finalizeDeiClubPromoRedemption(orderId: string): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, clubPromoCode: true, clubPromoTelegramUserId: true },
+  });
+  if (!order?.clubPromoCode?.trim() || order.clubPromoTelegramUserId) {
+    return;
+  }
+
+  const redeemed = await redeemDeiClubPromoCode(order.clubPromoCode);
+  if (redeemed.ok) {
+    await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        clubPromoCode: redeemed.code,
+        clubPromoTelegramUserId: String(redeemed.userId),
+      },
+    });
+    console.info("[fulfill] dei-club promo redeemed", {
+      orderId,
+      code: redeemed.code,
+      userId: redeemed.userId,
+    });
+    return;
+  }
+
+  console.error("[fulfill] dei-club promo redeem failed after payment", {
+    orderId,
+    code: order.clubPromoCode,
+    error: redeemed.error,
+    hint: redeemed.hint,
+    status: redeemed.status,
+  });
 }

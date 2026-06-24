@@ -1,3 +1,4 @@
+import { finalizeDeiClubPromoRedemption } from "./resolve-order-promo";
 import { prisma } from "./prisma";
 import { buildTicketPdf } from "./pdf-ticket";
 import { sendTicketEmail } from "./mail";
@@ -35,6 +36,8 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
   if (transitioned.alreadyPaid) {
     return;
   }
+
+  await finalizeDeiClubPromoRedemption(orderId);
 
   const full = await prisma.order.findUnique({
     where: { id: orderId },
