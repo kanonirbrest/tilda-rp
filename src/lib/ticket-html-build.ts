@@ -3,11 +3,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import QRCode from "qrcode";
 import { formatMinorUnits } from "@/lib/money";
-import { DEFAULT_TICKET_LEGAL_BLOCK } from "@/lib/ticket-legal-default";
-import { getExhibitionTimezone, formatWallDateLongRu, timeKeyInTz } from "@/lib/exhibition-time";
+import { DEFAULT_TICKET_LEGAL_BLOCK, GARDENS_TICKET_LEGAL_BLOCK } from "@/lib/ticket-legal-default";
+import { getExhibitionTimezone, formatWallDateLongRu, timeKeyInTz, dateKeyInTz } from "@/lib/exhibition-time";
+import { formatGardensTicketTimeLines } from "@/lib/gardens-of-dreams/schedule";
 import { parseEventSessionTimeRangeFromTitle } from "@/lib/event-session-title";
 import {
   BELYE_NOCHI_18_SLOT_KIND,
+  GARDENS_OF_DREAMS_SLOT_KIND,
   isEventSessionSlotKind,
   NEBO_REKA_SLOT_KIND,
 } from "@/lib/slot-kind";
@@ -126,6 +128,26 @@ function resolveNeboRekaTitleSvgDataUrl(): string | null {
   return fileToDataUrl(p);
 }
 
+function resolveGardensLogoDataUrl(): string | null {
+  const p = resolveFirstExisting(["assets", "tickets", "gardens-logo.png"]);
+  if (!p) return null;
+  return fileToDataUrl(p);
+}
+
+function resolveGardensBackground(): { dataUrl: string | null } {
+  const envPath = process.env.TICKET_PDF_GARDENS_ARTWORK?.trim();
+  if (envPath && existsSync(envPath)) {
+    return { dataUrl: fileToDataUrl(envPath) };
+  }
+  const p = resolveFirstExisting(["assets", "tickets", "gardens-background.png"]);
+  if (p) return { dataUrl: fileToDataUrl(p) };
+  return { dataUrl: null };
+}
+
+function formatGardensSeatLabelPdf(label: string): string {
+  return sanitizeForPdfText(label).toUpperCase();
+}
+
 function resolveRuleLineStarSvgDataUrl(side: "left" | "right"): string | null {
   const name = side === "left" ? "rule-line-star-left.svg" : "rule-line-star-right.svg";
   const p = resolveFirstExisting(["assets", "svg", name]);
@@ -211,6 +233,7 @@ function qrRasterWidthPx(): number {
 }
 
 export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
+  const isGardens = opts.slotKind === GARDENS_OF_DREAMS_SLOT_KIND;
   const qrPx = qrRasterWidthPx();
   const qrDataUrl = await QRCode.toDataURL(opts.qrUrl, {
     type: "image/png",
@@ -219,19 +242,32 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     errorCorrectionLevel: "M",
   });
 
-  const bg = resolveTicketBackground();
+  const bg = isGardens ? resolveGardensBackground() : resolveTicketBackground();
   const hasBg = Boolean(bg.dataUrl);
 
   const tz = getExhibitionTimezone();
   const eventTimeRange =
-    opts.slotKind && isEventSessionSlotKind(opts.slotKind) ?
+    opts.slotKind && isEventSessionSlotKind(opts.slotKind) && !isGardens ?
       parseEventSessionTimeRangeFromTitle(opts.title, opts.slotKind)
     : null;
   const whenDateLine = formatEventDateOnlyRuUpper(opts.startsAt, tz);
   const whenTimePart =
     eventTimeRange ? sanitizeForPdfText(eventTimeRange) : formatEventWallTime(opts.startsAt, tz);
   const whenValueHtml =
-    opts.slotKind === NEBO_REKA_SLOT_KIND ?
+    isGardens ?
+      (() => {
+        const showTime = formatEventWallTime(opts.startsAt, tz);
+        const { entryLine, showLine } = formatGardensTicketTimeLines(
+          dateKeyInTz(opts.startsAt, tz),
+          showTime,
+        );
+        return `<div class="field-value value-wide value-when-stacked">
+          <span class="when-stacked-line when-stacked-line--date">${escapeHtml(whenDateLine)}</span>
+          <span class="when-stacked-line when-stacked-line--time">${escapeHtml(sanitizeForPdfText(entryLine))}</span>
+          <span class="when-stacked-line when-stacked-line--time">${escapeHtml(sanitizeForPdfText(showLine))}</span>
+        </div>`;
+      })()
+    : opts.slotKind === NEBO_REKA_SLOT_KIND ?
       (() => {
         const whenLine = sanitizeForPdfText(`${whenDateLine}, ${whenTimePart}`);
         return `<div class="field-value value-wide">${escapeHtml(whenLine)}</div>`;
@@ -241,7 +277,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
           <span class="when-stacked-line when-stacked-line--time">${escapeHtml(whenTimePart)}</span>
         </div>`;
   const priceStr = sanitizeForPdfText(formatPriceTicket(opts.amountCents, opts.currency));
-  const legalHtml = legalToHtml(resolveLegalBlock());
+  const legalHtml = legalToHtml(isGardens ? GARDENS_TICKET_LEGAL_BLOCK : resolveLegalBlock());
 
   /* Типографский разделитель вместо средней точки «·» — в subset шрифта она иногда ломается в PDF. */
   const tierSep = " — ";
@@ -261,17 +297,43 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
 
   const typeDisplay = tierAndOrdinal.trim();
   const tierBlock =
-    typeDisplay ?
+    !isGardens && typeDisplay ?
       `<section class="field-block">
           <div class="field-label">Тип билета</div>
           <div class="field-value value-wide">${escapeHtml(typeDisplay.toUpperCase())}</div>
         </section>`
     : "";
 
+  const gardensSeatBlock = (() => {
+    if (!isGardens) return "";
+    const seatLine = formatGardensSeatLabelPdf(opts.ticketTierLabel ?? "");
+    if (!seatLine) return "";
+    return `<section class="field-block">
+        <div class="field-label">Адрес места</div>
+        <div class="field-value value-wide value-when-stacked">
+          <span class="when-stacked-line">${escapeHtml(seatLine)}</span>
+          <span class="when-stacked-line when-stacked-line--price">${escapeHtml(priceStr)}</span>
+        </div>
+      </section>`;
+  })();
+
+  const priceBlock =
+    isGardens ? ""
+    : `<section class="field-block">
+        <div class="field-label">Стоимость</div>
+        <div class="field-value value-wide">${escapeHtml(priceStr)}</div>
+      </section>`;
+
   const bgStyle = hasBg ? `background-image: url(${bg.dataUrl})` : "";
-  const sheetClass = ["sheet", hasBg ? "sheet--mesh" : ""].filter(Boolean).join(" ");
+  const sheetClass = ["sheet", hasBg ? (isGardens ? "sheet--gardens" : "sheet--mesh") : ""]
+    .filter(Boolean)
+    .join(" ");
   const compactSheetClass = " ticket-sheet--compact";
-  const bodyPageClass = hasBg ? "ticket-page--mesh" : "ticket-page--solid";
+  const bodyPageClass =
+    hasBg ?
+      isGardens ? "ticket-page--gardens"
+      : "ticket-page--mesh"
+    : "ticket-page--solid";
 
   const logoUrl = resolveRazmanLogoDataUrl();
   const razmanFooter =
@@ -289,11 +351,22 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       </div>`;
 
   const eyebrowSoftHtml =
-    opts.slotKind === BELYE_NOCHI_18_SLOT_KIND ?
+    isGardens ?
+      `<div class="eyebrow-soft">Иммерсивная танцевальная мистерия</div>`
+    : opts.slotKind === BELYE_NOCHI_18_SLOT_KIND ?
       `<div class="eyebrow-soft">${escapeHtml("Белые ночи 18+")}</div>`
     : `<div class="eyebrow-soft">На иммерсивную медиа-выставку</div>`;
 
   const heroTitleBlock = (() => {
+    if (isGardens) {
+      const gardensLogo = resolveGardensLogoDataUrl();
+      if (gardensLogo) {
+        return `<div class="brand-mark brand-mark--gardens" role="img" aria-label="Сады сновидений">
+          <img class="brand-mark__img brand-mark__img--gardens" src="${gardensLogo}" width="320" height="120" alt="" />
+        </div>`;
+      }
+      return `<h1 class="brand-title">${escapeHtml("Сады сновидений")}</h1>`;
+    }
     const neboRekaSvg = resolveNeboRekaTitleSvgDataUrl();
     if (neboRekaSvg) {
       const ariaLabel =
@@ -364,6 +437,9 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     body.ticket-page--mesh {
       background-color: #12082a;
     }
+    body.ticket-page--gardens {
+      background-color: #0a0612;
+    }
     body.ticket-page--solid {
       background-color: #2e7d32;
     }
@@ -397,6 +473,11 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       background-color: #12082a;
       background-size: cover;
       background-position: -4px -3px;
+    }
+    .sheet--gardens {
+      background-color: #0a0612;
+      background-size: cover;
+      background-position: center center;
     }
     .hero {
       display: flex;
@@ -445,6 +526,10 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       width: 411px;
       max-width: 100%;
       height: auto;
+    }
+    .brand-mark__img--gardens {
+      width: 300px;
+      max-width: 100%;
     }
     .brand-title {
       margin: 0 0 2mm;
@@ -563,6 +648,10 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     }
     .value-when-stacked .when-stacked-line--time {
       text-transform: none;
+      font-variant-numeric: tabular-nums;
+    }
+    .value-when-stacked .when-stacked-line--price {
+      text-transform: uppercase;
       font-variant-numeric: tabular-nums;
     }
     .venue-wrap {
@@ -757,11 +846,9 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
         <div class="field-label">Дата и время</div>
         ${whenValueHtml}
       </section>
+      ${gardensSeatBlock}
       ${tierBlock}
-      <section class="field-block">
-        <div class="field-label">Стоимость</div>
-        <div class="field-value value-wide">${escapeHtml(priceStr)}</div>
-      </section>
+      ${priceBlock}
       <section class="field-block">
         <div class="field-label">Номер заказа</div>
         <div class="field-value order-id">${escapeHtml(sanitizeForPdfText(opts.orderId))}</div>

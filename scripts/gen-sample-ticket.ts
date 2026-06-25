@@ -6,7 +6,11 @@ import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildTicketPdf } from "../src/lib/pdf-ticket";
-import { NEBO_REKA_SLOT_KIND, NIGHT_OF_MUSEUMS_SLOT_KIND } from "../src/lib/slot-kind";
+import {
+  GARDENS_OF_DREAMS_SLOT_KIND,
+  NEBO_REKA_SLOT_KIND,
+  NIGHT_OF_MUSEUMS_SLOT_KIND,
+} from "../src/lib/slot-kind";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, "..");
@@ -42,6 +46,21 @@ async function main() {
   });
   writeFileSync(nightPath, night);
   console.log(`Written: ${nightPath}`);
+
+  const gardensPath = join(projectRoot, "sample-ticket-gardens-example.pdf");
+  const gardens = await buildTicketPdf({
+    title: "Сады сновидений — 6 июля 2026, вход 18:30, шоу 20:00",
+    startsAt: new Date("2026-07-06T20:00:00+03:00"),
+    amountCents: 12_000,
+    currency: "BYN",
+    orderId: "order_demo_gardens_03",
+    qrUrl: "https://dei.by/tickets/demo-token-gardens",
+    ticketTierLabel: "Сектор A, ряд 1, место 1",
+    admissionCount: 1,
+    slotKind: GARDENS_OF_DREAMS_SLOT_KIND,
+  });
+  writeFileSync(gardensPath, gardens);
+  console.log(`Written: ${gardensPath}`);
 }
 
 main().catch((e) => {

@@ -54,3 +54,17 @@ export function gardensScheduleMeta(
   }
   return {};
 }
+
+/** Строки «Дата и время» на PDF-билете «Сады сновидений». */
+export function formatGardensTicketTimeLines(
+  dateKey: string,
+  showTime: string,
+): { entryLine: string; showLine: string } {
+  const meta = gardensScheduleMeta(dateKey, showTime);
+  const entry = meta.entryTime ?? GARDENS_PERFORMANCE.entryTime ?? "";
+  const duration = meta.showDurationMinutes ?? GARDENS_PERFORMANCE.showDurationMinutes ?? 60;
+  return {
+    entryLine: entry ? `${entry} — вход на выставку` : "",
+    showLine: `${showTime} — шоу (${duration} минут)`,
+  };
+}
