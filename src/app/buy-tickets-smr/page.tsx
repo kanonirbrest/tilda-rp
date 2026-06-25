@@ -1,7 +1,9 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PhoneCountryField } from "@/components/phone-country-field";
 import { PolicyConsentField } from "@/components/policy-consent-field";
+import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
 import { readResponseJson } from "@/lib/read-response-json";
 import { DEI_POLICY_CONSENT_ERROR } from "@/lib/policy-consent";
 import { normalizePromoCode } from "@/lib/promo-code";
@@ -256,7 +258,8 @@ export default function BuyTicketsSmrPage() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phoneLocal, setPhoneLocal] = useState("");
+  const [phoneCountryIso, setPhoneCountryIso] = useState("by");
   const [formError, setFormError] = useState("");
   const [policyConsent, setPolicyConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -495,6 +498,10 @@ export default function BuyTicketsSmrPage() {
       setFormError(DEI_POLICY_CONSENT_ERROR);
       return;
     }
+    if (!isPhoneComplete(phoneCountryIso, phoneLocal)) {
+      setFormError("Укажите корректный номер телефона.");
+      return;
+    }
     setFormError("");
     setBusy(true);
     try {
@@ -510,7 +517,7 @@ export default function BuyTicketsSmrPage() {
           concession,
           name: name.trim(),
           email: email.trim(),
-          phone: phone.trim(),
+          phone: toE164Phone(phoneCountryIso, phoneLocal),
           ...(promoConfirmed ? { promoCode: promoConfirmed } : {}),
         }),
       });
@@ -825,31 +832,13 @@ export default function BuyTicketsSmrPage() {
 
               <div className="t-input-group t-input-group_ph">
                 <div className="t-input-block" style={{ overflow: "visible" }}>
-                  <div className="t-input t-input-phonemask__wrap">
-                    <div className="t-input-phonemask__select" aria-hidden>
-                      <span className="t-input-phonemask__select-flag" data-phonemask-flag="by" />
-                      <span className="t-input-phonemask__select-triangle" />
-                      <span
-                        className="t-input-phonemask__select-code"
-                        style={{ fontSize: 16, fontWeight: 200 }}
-                      >
-                        +375
-                      </span>
-                    </div>
-                    <input
-                      required
-                      type="tel"
-                      name="phoneLocal"
-                      autoComplete="tel"
-                      aria-label="Телефон"
-                      placeholder="(00) 000-00-00"
-                      className="t-input t-input-phonemask"
-                      inputMode="numeric"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      disabled={busy}
-                    />
-                  </div>
+                  <PhoneCountryField
+                    countryIso={phoneCountryIso}
+                    localValue={phoneLocal}
+                    onCountryChange={setPhoneCountryIso}
+                    onLocalChange={setPhoneLocal}
+                    disabled={busy}
+                  />
                   <div className="t-input-error" aria-hidden />
                 </div>
               </div>
