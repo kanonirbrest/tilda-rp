@@ -9,26 +9,8 @@ import {
 
 const SELECTABLE_SEAT_COUNT = getSelectableGardensSeats().length;
 
-/** Базовый набор «занятых» мест для мока. */
-const BASE_MOCK_OCCUPIED = [
-  "B:1:1",
-  "B:1:2",
-  "B:1:3",
-  "B:1:12",
-  "B:1:13",
-  "B:1:25",
-  "B:1:30",
-  "B:2:5",
-  "B:2:6",
-  "B:2:7",
-  "B:2:18",
-  "B:2:19",
-  "A:1:1",
-  "A:1:4",
-  "A:2:2",
-  "A:2:3",
-  "A:3:5",
-];
+/** Базовый набор «занятых» мест для мока (пусто — все A/B свободны). */
+const BASE_MOCK_OCCUPIED: string[] = [];
 
 export function gardensMockSlotId(date: string, time: string): string {
   return `mock-gardens-${date}-${time.replace(":", "")}`;
@@ -45,14 +27,14 @@ function mockOccupiedForSession(date: string, time: string): string[] {
   return [...set];
 }
 
-/** Мок слотов включён, пока не задеплоен боевой API. ?mock=0 — принудительно API. */
+/** Мок слотов: только при NEXT_PUBLIC_GARDENS_MOCK_SLOTS=true или ?mock=1. На проде по умолчанию выключен. */
 export function isGardensMockEnabled(): boolean {
   if (typeof window !== "undefined") {
     const params = new URLSearchParams(window.location.search);
     if (params.get("mock") === "0") return false;
     if (params.get("mock") === "1") return true;
   }
-  return process.env.NEXT_PUBLIC_GARDENS_MOCK_SLOTS !== "false";
+  return process.env.NEXT_PUBLIC_GARDENS_MOCK_SLOTS === "true";
 }
 
 export type GardensMockSession = {
