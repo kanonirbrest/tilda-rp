@@ -183,62 +183,103 @@
 .god-map__stage-row {
   grid-column: 2;
   grid-row: 2;
-  display: flex;
-  justify-content: flex-end;
-  align-self: center;
   width: 100%;
   min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
+  align-self: center;
+}
+
+.god-stage-seat-row {
+  margin-bottom: 0;
+}
+
+.god-row-label--ghost,
+.god-seat--ghost {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.god-stage-groups {
+  position: relative;
+}
+
+.god-stage-spacer {
+  pointer-events: none;
+}
+
+.god-stage-pool--overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--stage-pool-left, 30%);
+  right: 0;
+  --stage-h: clamp(92px, 16vw, 184px);
+  padding: clamp(4px, 0.8vw, 12px) clamp(4px, 0.8vw, 10px);
+  background: rgba(96, 168, 220, 0.16);
+  border: 1px solid rgba(120, 190, 240, 0.22);
+  border-radius: 8px;
+  box-sizing: border-box;
+  pointer-events: none;
 }
 
 .god-stage-pool {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  margin-left: auto;
-  max-width: 100%;
-  padding: clamp(8px, 1.2vw, 20px) 0 clamp(8px, 1.2vw, 20px) clamp(10px, 2vw, 24px);
-  border-radius: 10px 0 0 10px;
-  background: rgba(96, 168, 220, 0.16);
-  border: 1px solid rgba(120, 190, 240, 0.22);
-  border-right: none;
   box-sizing: border-box;
 }
 
-.god-stage-shape {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  max-width: 100%;
+.god-stage-pool--overlay .god-stage__body,
+.god-stage-pool--overlay .god-stage__platform,
+.god-stage-pool--overlay .god-stage__ramp {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  box-sizing: border-box;
 }
 
 .god-stage__body {
+  left: var(--stage-body-left, 0%);
+  width: var(--stage-body-width, 42%);
+  height: var(--stage-h);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: clamp(108px, 26vw, 280px);
-  min-height: clamp(82px, 20vw, 210px);
-  padding: clamp(10px, 2vw, 28px);
-  background: linear-gradient(165deg, #c4c4cc 0%, #9898a6 48%, #888894 100%);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 6px 0 0 6px;
-  font-size: clamp(14px, 2.2vw, 28px);
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  color: rgba(20, 20, 28, 0.72);
-  flex-shrink: 1;
-  box-sizing: border-box;
+  padding: clamp(4px, 0.8vw, 12px);
+  background: #b8b8c2;
+  border: 1px solid #8e8e98;
+  border-radius: 0;
+  font-size: clamp(13px, 2vw, 26px);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #1a1a22;
 }
 
-.god-stage__wing {
-  width: clamp(40px, 9.5vw, 100px);
-  height: clamp(58px, 14vw, 145px);
-  flex-shrink: 0;
-  background: linear-gradient(165deg, #c4c4cc 0%, #9898a6 48%, #888894 100%);
-  border: 1px solid rgba(0, 0, 0, 0.12);
+.god-stage__platform {
+  left: var(--stage-platform-left, 42%);
+  width: var(--stage-platform-width, 55%);
+  height: calc(var(--stage-h) * 0.68);
+  background: #b8b8c2;
+  border: 1px solid #8e8e98;
   border-left: none;
-  border-radius: 0 6px 6px 0;
+  border-radius: 0;
+}
+
+.god-stage__ramp {
+  left: var(--stage-ramp-left, 97%);
+  width: var(--stage-ramp-width, 3%);
+  height: calc(var(--stage-h) * 0.44);
+  border: 1px solid #8e8e98;
+  border-left: none;
+  border-radius: 0;
+  background-color: #c4c4cc;
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.46) 0,
+    rgba(255, 255, 255, 0.46) 10px,
+    transparent 10px,
+    transparent 26px,
+    rgba(255, 255, 255, 0.36) 26px,
+    rgba(255, 255, 255, 0.36) 28px,
+    transparent 28px,
+    transparent 44px
+  );
 }
 
 .god-map__left--bottom {
@@ -264,7 +305,8 @@
 }
 
 .god-sector-vertical--bottom {
-  align-items: flex-end;
+  /* Места «1» ближе к сцене — выравниваем колонки по верху */
+  align-items: flex-start;
 }
 
 .god-sector-rows {
@@ -736,19 +778,19 @@
     overflow: visible;
   }
 
-  .god-stage-pool {
-    max-width: none;
+  .god-stage-seat-row .god-seat--ghost {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    max-width: 26px;
+    max-height: 26px;
+  }
+
+  .god-stage-shape {
+    --stage-h: 120px;
   }
 
   .god-stage__body {
-    width: 200px;
-    min-height: 152px;
-    font-size: 18px;
-    flex-shrink: 0;
-  }
-
-  .god-stage__wing {
-    width: 72px;
-    height: 104px;
+    font-size: 17px;
   }
 }

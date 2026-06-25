@@ -1,9 +1,11 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import type { GardensSeat, GardensSeatTier } from "@/lib/gardens-of-dreams/seat-map";
 import {
   B_ROW1_GROUPS,
   C_ROW1_GROUPS,
+  row1StageLayoutFractions,
 } from "@/lib/gardens-of-dreams/seat-map";
 
 type GardensSeatMapProps = {
@@ -165,12 +167,43 @@ function renderVerticalColumn(
   );
 }
 
-function StageBlock() {
+function renderAlignedStageRow() {
+  const stage = row1StageLayoutFractions();
+  const poolWidth = 1 - stage.poolLeft;
+  const rel = (v: number) => `${(v / poolWidth) * 100}%`;
+  const pct = (v: number) => `${v * 100}%`;
+
   return (
-    <div className="god-stage-pool">
-      <div className="god-stage-shape">
-        <div className="god-stage__body">СЦЕНА</div>
-        <div className="god-stage__wing" aria-hidden="true" />
+    <div className="god-seat-row god-stage-seat-row">
+      <span className="god-row-label god-row-label--ghost" aria-hidden="true">
+        ·
+      </span>
+      <div className="god-seat-groups god-stage-groups">
+        {B_ROW1_GROUPS.map((group, gi) => (
+          <div key={gi} className="god-seat-group god-stage-spacer" aria-hidden="true">
+            {group.map((num) => (
+              <span key={num} className="god-seat god-seat--ghost" />
+            ))}
+          </div>
+        ))}
+        <div
+          className="god-stage-pool god-stage-pool--overlay"
+          style={
+            {
+              "--stage-pool-left": pct(stage.poolLeft),
+              "--stage-body-left": rel(stage.bodyLeft - stage.poolLeft),
+              "--stage-body-width": rel(stage.bodyWidth),
+              "--stage-platform-left": rel(stage.platformLeft - stage.poolLeft),
+              "--stage-platform-width": rel(stage.platformWidth),
+              "--stage-ramp-left": rel(stage.rampLeft - stage.poolLeft),
+              "--stage-ramp-width": rel(stage.rampWidth),
+            } as CSSProperties
+          }
+        >
+          <div className="god-stage__body">СЦЕНА</div>
+          <div className="god-stage__platform" aria-hidden="true" />
+          <div className="god-stage__ramp" aria-hidden="true" />
+        </div>
       </div>
     </div>
   );
@@ -219,9 +252,7 @@ export function GardensSeatMap({
           </div>
         </div>
 
-        <div className="god-map__stage-row">
-          <StageBlock />
-        </div>
+        <div className="god-map__stage-row">{renderAlignedStageRow()}</div>
 
         <div className="god-map__left god-map__left--bottom god-map__block--sold">
           <p className="god-sector-title">Сектор «D» — продано</p>

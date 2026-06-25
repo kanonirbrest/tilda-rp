@@ -145,3 +145,56 @@ export const B_ROW1_GROUPS: number[][] = [
 ];
 
 export const C_ROW1_GROUPS = B_ROW1_GROUPS;
+
+const ROW1_GROUP_COUNT = B_ROW1_GROUPS.length;
+
+/** Доля ширины ряда 1 слева от места (группы B/C с разной шириной блоков). */
+export function row1SeatStartFraction(seat: number): number {
+  for (let gi = 0; gi < B_ROW1_GROUPS.length; gi++) {
+    const group = B_ROW1_GROUPS[gi]!;
+    const first = group[0]!;
+    const last = group[group.length - 1]!;
+    if (seat >= first && seat <= last) {
+      const groupStart = gi / ROW1_GROUP_COUNT;
+      const seatWidth = 1 / ROW1_GROUP_COUNT / group.length;
+      return groupStart + group.indexOf(seat) * seatWidth;
+    }
+  }
+  return 0;
+}
+
+export function row1SeatEndFraction(seat: number): number {
+  for (let gi = 0; gi < B_ROW1_GROUPS.length; gi++) {
+    const group = B_ROW1_GROUPS[gi]!;
+    const first = group[0]!;
+    const last = group[group.length - 1]!;
+    if (seat >= first && seat <= last) {
+      const groupStart = gi / ROW1_GROUP_COUNT;
+      const seatWidth = 1 / ROW1_GROUP_COUNT / group.length;
+      return groupStart + (group.indexOf(seat) + 1) * seatWidth;
+    }
+  }
+  return 1;
+}
+
+export function row1SeatMidFraction(seat: number): number {
+  return (row1SeatStartFraction(seat) + row1SeatEndFraction(seat)) / 2;
+}
+
+/** Горизонтальные границы секций сцены относительно ширины ряда 1. */
+export function row1StageLayoutFractions() {
+  const poolLeft = row1SeatStartFraction(11);
+  const bodyLeft = poolLeft;
+  const bodyRight = row1SeatMidFraction(23);
+  const platformLeft = bodyRight;
+  const rampLeft = row1SeatStartFraction(32);
+  return {
+    poolLeft,
+    bodyLeft,
+    bodyWidth: bodyRight - bodyLeft,
+    platformLeft,
+    platformWidth: rampLeft - platformLeft,
+    rampLeft,
+    rampWidth: 1 - rampLeft,
+  };
+}
