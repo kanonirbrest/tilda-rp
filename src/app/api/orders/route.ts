@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createOrderCheckout } from "@/lib/create-order-checkout";
+import { createSeatOrderCheckout } from "@/lib/create-seat-order-checkout";
 import { prisma } from "@/lib/prisma";
 import { jsonOrdersResponse, publicOrdersCorsHeaders } from "@/lib/public-orders-cors";
 import { getRequestOrigin } from "@/lib/request-origin";
@@ -36,6 +37,8 @@ const bodySchema = z
       .max(40, "телефон слишком длинный"),
     lines: z.array(lineSchema).optional(),
     promoCode: z.string().trim().max(64).optional(),
+    /** Ключи мест для GARDENS_OF_DREAMS, например B:1:15 */
+    seats: z.array(z.string().trim().min(1).max(40)).max(24).optional(),
   })
   .refine(
     (d) =>
@@ -102,6 +105,92 @@ export async function POST(req: Request) {
     );
   }
 
+  const seatKeys = (d.seats ?? []).filter(Boolean);
+  const promoRaw = d.promoCode?.trim() ? d.promoCode : undefined;
+
+  if (seatKeys.length > 0) {
+    const seatResult = await createSeatOrderCheckout(
+      {
+        slotId: resolved.slot.id,
+        name,
+        email,
+        phone,
+        seatKeys,
+        promoCode: promoRaw,
+      },
+      getRequestOrigin(req),
+    );
+    if (!seatResult.ok) {
+      if (seatResult.status === 404) {
+        return jsonOrdersResponse(req, { error: "SLOT_NOT_FOUND" }, 404);
+      }
+      if (seatResult.status === 400) {
+        const errKey =
+          seatResult.error === "INVALID_PROMO" ||
+          seatResult.error === "PROMO_INACTIVE" ||
+          seatResult.error === "PROMO_EXHAUSTED" ||
+          seatResult.error === "PROMO_ZERO_PAYMENT" ||
+          seatResult.error === "PROMO_WRONG_CHANNEL" ||
+          seatResult.error === "PROMO_UNAVAILABLE" ?
+            seatResult.error
+          : "INVALID_SEATS";
+        return jsonOrdersResponse(
+          req,
+          { error: errKey, hint: seatResult.message },
+          400,
+        );
+      }
+      if (seatResult.status === 409) {
+        return jsonOrdersResponse(
+          req,
+          { error: "SEAT_UNAVAILABLE", hint: seatResult.hint ?? seatResult.message },
+          409,
+        );
+      }
+      if (seatResult.status === 503) {
+        return jsonOrdersResponse(
+          req,
+          { error: "PAYMENT_NOT_CONFIGURED", hint: seatResult.hint ?? seatResult.message },
+          503,
+        );
+      }
+      if (seatResult.status === 502) {
+        return jsonOrdersResponse(req, { error: "PAYMENT_CREATE_FAILED" }, 502);
+      }
+      return jsonOrdersResponse(
+        req,
+        {
+          error: "SERVER_ERROR",
+          hint: process.env.NODE_ENV === "development" ? seatResult.message : undefined,
+        },
+        500,
+      );
+    }
+
+    let ticketToken: string | undefined;
+    let ticketTokens: string[] | undefined;
+    if (process.env.DEV_SKIP_PAYMENT === "true") {
+      const rows = await prisma.ticket.findMany({
+        where: { orderId: seatResult.orderId },
+        select: { publicToken: true },
+        orderBy: { createdAt: "asc" },
+      });
+      ticketTokens = rows.map((r) => r.publicToken);
+      ticketToken = ticketTokens[0];
+    }
+
+    return jsonOrdersResponse(
+      req,
+      {
+        orderId: seatResult.orderId,
+        ticketToken,
+        ticketTokens,
+        redirectUrl: absoluteRedirectUrl(req, seatResult.redirectUrl),
+      },
+      200,
+    );
+  }
+
   let lines: LineInput[];
   if (lineItems.length > 0) {
     lines = lineItems;
@@ -126,8 +215,6 @@ export async function POST(req: Request) {
     const { adult: a, child: c, concession: co } = countsNorm.counts;
     lines = buildLinesFromCounts(resolved.slot, { adult: a, child: c, concession: co });
   }
-
-  const promoRaw = d.promoCode?.trim() ? d.promoCode : undefined;
 
   const result = await createOrderCheckout(
     {

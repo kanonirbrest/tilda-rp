@@ -71,9 +71,10 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
       orderId: full.id,
       qrUrl,
       ticketTierLabel:
-        full.slot.kind === BELYE_NOCHI_18_SLOT_KIND ?
+        t.seatLabel ??
+        (full.slot.kind === BELYE_NOCHI_18_SLOT_KIND ?
           undefined
-        : t.tier ? tierTicketSingularRu(t.tier) : undefined,
+        : t.tier ? tierTicketSingularRu(t.tier) : undefined),
       admissionCount: multiPdf ? 1 : t.admissionCount,
       ticketOrdinal: multiPdf
         ? { index: i + 1, total: tickets.length }

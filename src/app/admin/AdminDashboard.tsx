@@ -9,6 +9,7 @@ import {
 } from "@/lib/money";
 import {
   BELYE_NOCHI_18_SLOT_KIND,
+  GARDENS_OF_DREAMS_SLOT_KIND,
   NEBO_REKA_SLOT_KIND,
   NIGHT_OF_MUSEUMS_SLOT_KIND,
   SLOT_KIND_OPTIONS,
@@ -165,6 +166,7 @@ const ADMIN_TICKET_STOREFRONTS = [
   { href: "/belye-nochi-18", label: "Белые ночи 18+" },
   { href: "/buy-tickets-summer", label: "Лето (Tilda)" },
   { href: "/buy-tickets-smr", label: "Лето v2" },
+  { href: "/sady-snovideniy", label: "Сады сновидений" },
 ] as const;
 
 type ScheduleKindFilter = "all" | (typeof SLOT_KIND_CHOICES)[number];
@@ -174,6 +176,7 @@ function slotSalesChannelLabel(kind: string): string {
   if (kind === NEBO_REKA_SLOT_KIND) return "Небо.Река";
   if (kind === NIGHT_OF_MUSEUMS_SLOT_KIND) return "Ночь музеев";
   if (kind === BELYE_NOCHI_18_SLOT_KIND) return "Белые ночи 18+";
+  if (kind === GARDENS_OF_DREAMS_SLOT_KIND) return "Сады сновидений";
   return kind;
 }
 
@@ -1919,6 +1922,14 @@ export default function AdminDashboard() {
               >
                 + Группа на день
               </button>
+              <a
+                href="/sady-snovideniy"
+                className="btn btn-secondary"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Сады сновидений
+              </a>
               <details className="admin-summer-menu">
                 <summary className="btn btn-secondary">Купить билет - лето ▾</summary>
                 <div className="admin-summer-menu__panel">

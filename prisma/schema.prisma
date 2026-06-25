@@ -25,6 +25,7 @@ model Slot {
   active     Boolean  @default(true)
   createdAt  DateTime @default(now())
   orders     Order[]
+  seatReservations SeatReservation[]
 }
 
 enum TicketTier {
@@ -104,8 +105,25 @@ model Order {
   clubPromoTelegramUserId  String?
   tickets      Ticket[]
   lines        OrderLine[]
+  seatReservations SeatReservation[]
 
   @@index([promoCodeId])
+}
+
+model SeatReservation {
+  id         String   @id @default(cuid())
+  slotId     String
+  slot       Slot     @relation(fields: [slotId], references: [id])
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// Ключ места, например B:1:15
+  seatKey    String
+  seatLabel  String
+  priceCents Int
+  createdAt  DateTime @default(now())
+
+  @@unique([slotId, seatKey])
+  @@index([orderId])
 }
 
 model OrderLine {
@@ -127,6 +145,9 @@ model Ticket {
   tier        TicketTier?
   /// Сколько человек по этому QR (вся группа за раз)
   admissionCount Int    @default(1)
+  /// Посадочное место (Сады сновидений и др.)
+  seatKey     String?
+  seatLabel   String?
   usedAt      DateTime?
   usedById    String?
   usedBy      StaffUser? @relation(fields: [usedById], references: [id])

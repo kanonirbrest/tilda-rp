@@ -32,6 +32,8 @@ const nextConfig: NextConfig = {
       { source: "/tickets", destination: "/buy-tickets", permanent: true },
       { source: "/summer-v2", destination: "/buy-tickets-smr", permanent: true },
       { source: "/summer-v2/:path*", destination: "/buy-tickets-smr/:path*", permanent: true },
+      { source: "/gardens", destination: "/sady-snovideniy", permanent: true },
+      { source: "/sady", destination: "/sady-snovideniy", permanent: true },
     ];
   },
   /**

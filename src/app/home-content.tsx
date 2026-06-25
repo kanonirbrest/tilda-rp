@@ -41,6 +41,12 @@ export function HomeContent() {
           Белые ночи 18+
         </Link>
         <Link
+          href="/sady-snovideniy"
+          className="rounded-xl border border-violet-700/40 bg-violet-50 px-6 py-3 text-sm font-medium text-violet-900 hover:bg-violet-100"
+        >
+          Сады сновидений
+        </Link>
+        <Link
           href="/staff/login"
           className="rounded-xl border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-800"
         >

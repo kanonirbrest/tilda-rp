@@ -29,6 +29,15 @@ export async function readResponseJson<T>(res: Response): Promise<T> {
   try {
     return JSON.parse(text) as T;
   } catch {
+    const trimmed = text.trimStart();
+    if (trimmed.startsWith("<!") || trimmed.startsWith("<html")) {
+      if (res.status === 404) {
+        throw new Error(
+          "API не найден (404). Локально: USE_LOCAL_PUBLIC_API=true и БД; превью схемы: ?demo=1. На проде: задеплойте ветку с «Сады сновидений».",
+        );
+      }
+      throw new Error(`Сервер вернул HTML вместо JSON (${res.status})`);
+    }
     throw new Error("Некорректный ответ сервера");
   }
 }

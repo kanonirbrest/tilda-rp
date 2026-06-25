@@ -52,9 +52,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
       orderId: ticket.order.id,
       qrUrl,
       ticketTierLabel:
-        ticket.order.slot.kind === BELYE_NOCHI_18_SLOT_KIND ?
+        ticket.seatLabel ??
+        (ticket.order.slot.kind === BELYE_NOCHI_18_SLOT_KIND ?
           undefined
-        : ticket.tier ? tierTicketSingularRu(ticket.tier) : undefined,
+        : ticket.tier ? tierTicketSingularRu(ticket.tier) : undefined),
       admissionCount: multiPdf ? 1 : ticket.admissionCount,
       ticketOrdinal:
         multiPdf && idx >= 0

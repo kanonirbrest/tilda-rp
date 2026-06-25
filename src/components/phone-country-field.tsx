@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   PHONE_COUNTRIES,
   formatLocalPhone,
@@ -14,6 +14,8 @@ type PhoneCountryFieldProps = {
   onCountryChange: (iso: string) => void;
   onLocalChange: (value: string) => void;
   disabled?: boolean;
+  /** Ограничить список стран, например ["by", "ru"]. */
+  countryIsos?: readonly string[];
 };
 
 export function PhoneCountryField({
@@ -22,11 +24,30 @@ export function PhoneCountryField({
   onCountryChange,
   onLocalChange,
   disabled = false,
+  countryIsos,
 }: PhoneCountryFieldProps) {
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const country = getPhoneCountry(countryIso);
+
+  const countries = useMemo(() => {
+    if (!countryIsos?.length) return PHONE_COUNTRIES;
+    const allowed = new Set(countryIsos.map((iso) => iso.toLowerCase()));
+    return PHONE_COUNTRIES.filter((item) => allowed.has(item.iso));
+  }, [countryIsos]);
+
+  const country = useMemo(() => {
+    const match = countries.find((item) => item.iso === countryIso.toLowerCase());
+    return match ?? getPhoneCountry(countryIso);
+  }, [countries, countryIso]);
+
+  useEffect(() => {
+    if (!countryIsos?.length) return;
+    const allowed = new Set(countryIsos.map((iso) => iso.toLowerCase()));
+    if (!allowed.has(countryIso.toLowerCase()) && countries[0]) {
+      onCountryChange(countries[0].iso);
+    }
+  }, [countries, countryIso, countryIsos, onCountryChange]);
 
   useEffect(() => {
     if (!open) return;
@@ -91,7 +112,7 @@ export function PhoneCountryField({
         aria-label="Выбор кода страны"
         className={`t-input-phonemask__options-wrap${open ? " t-input-phonemask__options-wrap_open" : ""}`}
       >
-        {PHONE_COUNTRIES.map((item) => {
+        {countries.map((item) => {
           const chosen = item.iso === country.iso;
           return (
             <button
