@@ -120,6 +120,29 @@ export function getGardensSeat(key: string): GardensSeat | undefined {
   return SEAT_BY_KEY.get(key);
 }
 
+/** Человекочитаемое название места по ключу (A:2:2 → «Сектор A, ряд 2, место 2»). */
+export function formatGardensSeatKeyLabel(key: string): string {
+  const seat = getGardensSeat(key);
+  if (seat) return seat.label;
+  const [sector, row, seatNum] = key.split(":");
+  if (sector && row && seatNum) {
+    return `Сектор ${sector}, ряд ${row}, место ${seatNum}`;
+  }
+  return key;
+}
+
+/** Сообщение о занятых местах для пользователя. */
+export function formatGardensOccupiedSeatsMessage(seatKeys: string[]): string {
+  const labels = [...new Set(seatKeys.map(formatGardensSeatKeyLabel))];
+  if (labels.length === 0) {
+    return "Выбранные места уже заняты. Обновите схему и выберите другие.";
+  }
+  if (labels.length === 1) {
+    return `Место «${labels[0]}» уже занято. Обновите схему и выберите другое.`;
+  }
+  return `Места уже заняты: ${labels.map((label) => `«${label}»`).join(", ")}. Обновите схему и выберите другие.`;
+}
+
 export function getSelectableGardensSeats(): GardensSeat[] {
   return SEAT_MAP.filter((s) => s.selectable);
 }

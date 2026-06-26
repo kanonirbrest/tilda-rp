@@ -5,7 +5,7 @@ import { createBepaidPayment } from "@/lib/bepaid";
 import { fulfillPaidOrder } from "@/lib/fulfill-order";
 import { applyPromoAtCheckout } from "@/lib/resolve-order-promo";
 import { PromoApplyError } from "@/lib/promo-code";
-import { getGardensSeat } from "@/lib/gardens-of-dreams/seat-map";
+import { getGardensSeat, formatGardensOccupiedSeatsMessage } from "@/lib/gardens-of-dreams/seat-map";
 import { ensureGardensSlots } from "@/lib/gardens-of-dreams/ensure-slots";
 import { ensureDream5Promo } from "@/lib/gardens-of-dreams/ensure-promo";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
@@ -207,7 +207,7 @@ export async function createSeatOrderCheckout(
         ok: false,
         status: 409,
         message: "Одно или несколько мест уже заняты",
-        hint: e.seatKeys.join(", "),
+        hint: formatGardensOccupiedSeatsMessage(e.seatKeys),
       };
     }
     if (e instanceof PromoApplyError) {

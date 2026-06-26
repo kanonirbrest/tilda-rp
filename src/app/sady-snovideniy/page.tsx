@@ -78,6 +78,41 @@ function formatMoney(cents: number, currency: string): string {
   }
 }
 
+function formatGardensCheckoutError(
+  body: { error?: string; hint?: string },
+  status: number,
+): string {
+  if (body.hint?.trim()) return body.hint.trim();
+  switch (body.error) {
+    case "SEAT_UNAVAILABLE":
+      return "Выбранные места уже заняты. Обновите схему и выберите другие.";
+    case "INVALID_PROMO":
+      return "Промокод не найден";
+    case "PROMO_INACTIVE":
+      return "Промокод недействителен или срок действия истёк";
+    case "PROMO_EXHAUSTED":
+      return "Лимит использований этого промокода исчерпан";
+    case "PROMO_WRONG_CHANNEL":
+      return "Промокод не действует для «Сады сновидений»";
+    case "PROMO_ZERO_PAYMENT":
+      return "После скидки сумма слишком мала для онлайн-оплаты";
+    case "PROMO_UNAVAILABLE":
+      return "Не удалось проверить промокод. Попробуйте позже.";
+    case "INVALID_SEATS":
+      return "Некорректный выбор мест";
+    case "SLOT_NOT_FOUND":
+      return "Сеанс не найден";
+    case "PAYMENT_NOT_CONFIGURED":
+      return "Оплата временно недоступна";
+    case "PAYMENT_CREATE_FAILED":
+      return "Не удалось создать платёж. Попробуйте ещё раз.";
+    case "SERVER_ERROR":
+      return "Ошибка сервера. Попробуйте позже.";
+    default:
+      return body.error ? `Ошибка: ${body.error}` : `Ошибка оформления (${status})`;
+  }
+}
+
 function applySessionToState(
   s: GardensSession,
   setters: {
@@ -371,7 +406,7 @@ export default function SadySnovideniyPage() {
         error?: string;
       }>(r);
       if (!r.ok || !body.redirectUrl) {
-        setFormError(body.hint || body.error || `Ошибка (${r.status})`);
+        setFormError(formatGardensCheckoutError(body, r.status));
         if (r.status === 409 && session) {
           await loadSeatMap(session);
           setSelectedKeys([]);
