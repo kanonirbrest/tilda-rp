@@ -7,6 +7,7 @@ import { applyPromoAtCheckout } from "@/lib/resolve-order-promo";
 import { PromoApplyError } from "@/lib/promo-code";
 import { getGardensSeat } from "@/lib/gardens-of-dreams/seat-map";
 import { ensureGardensSlots } from "@/lib/gardens-of-dreams/ensure-slots";
+import { ensureDream5Promo } from "@/lib/gardens-of-dreams/ensure-promo";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
 import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
 import type { CreateOrderCheckoutErr, CreateOrderCheckoutOk } from "@/lib/create-order-checkout";
@@ -67,6 +68,7 @@ export async function createSeatOrderCheckout(
   try {
     await expireStalePendingOrders();
     await ensureGardensSlots();
+    await ensureDream5Promo();
 
     const slot = await prisma.slot.findFirst({
       where: { id: input.slotId, active: true, kind: GARDENS_OF_DREAMS_SLOT_KIND },

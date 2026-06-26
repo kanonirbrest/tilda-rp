@@ -492,6 +492,70 @@
   font-weight: 500;
 }
 
+.god-discount {
+  margin: 12px 0 0;
+  font-size: 15px;
+  font-weight: 300;
+  color: #9fd89f;
+}
+
+.god-promo-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.god-promo-input {
+  flex: 1 1 160px;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--god-border);
+  background: transparent;
+  color: var(--god-text);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 300;
+}
+
+.god-promo-input::placeholder {
+  color: var(--god-muted);
+}
+
+.god-promo-apply {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--god-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--god-text);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.god-promo-apply:hover:not(:disabled) {
+  background: rgba(232, 145, 58, 0.22);
+}
+
+.god-promo-apply:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.god-promo-hint {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--god-muted);
+}
+
 .god-form {
   display: flex;
   flex-direction: column;

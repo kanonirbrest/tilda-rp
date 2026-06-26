@@ -14,6 +14,7 @@ import {
 import { formatGardensPerformanceDateLabel } from "@/lib/gardens-of-dreams/schedule";
 import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
 import { DEI_POLICY_CONSENT_ERROR } from "@/lib/policy-consent";
+import { normalizePromoCode } from "@/lib/promo-code";
 import { readResponseJson } from "@/lib/read-response-json";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
 
@@ -43,6 +44,23 @@ type SeatMapResponse = {
   currency: string;
   seats: GardensSeat[];
   occupied: string[];
+  error?: string;
+  hint?: string;
+};
+
+type SeatQuoteResponse = {
+  subtotalCents: number;
+  totalCents: number;
+  currency: string;
+  formattedTotal: string;
+  promo?: {
+    applied: boolean;
+    discountCents?: number;
+    amountCents?: number;
+    formattedAmount?: string;
+    hint?: string;
+    error?: string;
+  };
   error?: string;
   hint?: string;
 };
@@ -102,6 +120,14 @@ export default function SadySnovideniyPage() {
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const [promoInput, setPromoInput] = useState("");
+  const [promoForQuote, setPromoForQuote] = useState("");
+  const [promoConfirmed, setPromoConfirmed] = useState("");
+  const [promoHint, setPromoHint] = useState("");
+  const [quotePending, setQuotePending] = useState(false);
+  const [quoteTotalCents, setQuoteTotalCents] = useState<number | null>(null);
+  const [quoteDiscountCents, setQuoteDiscountCents] = useState(0);
+
   const occupied = useMemo(() => new Set(occupiedKeys), [occupiedKeys]);
   const selected = useMemo(() => new Set(selectedKeys), [selectedKeys]);
 
@@ -114,6 +140,8 @@ export default function SadySnovideniyPage() {
     () => selectedSeats.reduce((sum, s) => sum + s.priceCents, 0),
     [selectedSeats],
   );
+
+  const payableCents = promoConfirmed && quoteTotalCents != null ? quoteTotalCents : totalCents;
 
   const sessionSetters = useMemo(
     () => ({
@@ -205,6 +233,99 @@ export default function SadySnovideniyPage() {
     };
   }, [applyMockSession, loadSeatMap]);
 
+  useEffect(() => {
+    if (isMock || !slotId || selectedKeys.length === 0) {
+      setQuotePending(false);
+      setQuoteTotalCents(null);
+      setQuoteDiscountCents(0);
+      if (!promoForQuote) {
+        setPromoConfirmed("");
+        setPromoHint("");
+      }
+      return;
+    }
+
+    let cancelled = false;
+    const promoQ = promoForQuote.trim();
+
+    (async () => {
+      setQuotePending(true);
+      try {
+        const seats = selectedKeys.join(",");
+        const url =
+          `/api/public/seat-order-quote?slotId=${encodeURIComponent(slotId)}` +
+          `&seats=${encodeURIComponent(seats)}` +
+          (promoQ ? `&promoCode=${encodeURIComponent(promoQ)}` : "");
+        const r = await fetch(url);
+        const body = await readResponseJson<SeatQuoteResponse>(r);
+        if (cancelled) return;
+
+        if (!r.ok) {
+          setQuoteTotalCents(totalCents);
+          setQuoteDiscountCents(0);
+          if (promoQ) {
+            setPromoHint(body.hint || body.error || "Промокод не применён");
+            setPromoConfirmed("");
+          }
+          return;
+        }
+
+        setQuoteTotalCents(body.totalCents);
+
+        if (body.promo?.applied === false && promoQ) {
+          setPromoHint(body.promo.hint || "Промокод не применён");
+          setPromoConfirmed("");
+          setQuoteDiscountCents(0);
+        } else if (body.promo?.applied === true) {
+          setPromoHint(body.promo.hint || "Промокод применён");
+          setPromoConfirmed(promoQ);
+          setQuoteDiscountCents(body.promo.discountCents ?? 0);
+        } else {
+          setQuoteDiscountCents(0);
+          if (!promoQ) {
+            setPromoConfirmed("");
+            setPromoHint("");
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setQuoteTotalCents(totalCents);
+          setQuoteDiscountCents(0);
+        }
+      } finally {
+        if (!cancelled) setQuotePending(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isMock, slotId, selectedKeys, promoForQuote, totalCents]);
+
+  function applyPromo() {
+    const code = promoInput.trim();
+    if (!code) {
+      setPromoForQuote("");
+      setPromoConfirmed("");
+      setPromoHint("");
+      return;
+    }
+    setPromoForQuote(code);
+    setPromoConfirmed("");
+    setPromoHint("");
+  }
+
+  function onPromoInputChange(value: string) {
+    setPromoInput(value);
+    const forQuote = promoForQuote.trim();
+    if (!forQuote) return;
+    if (normalizePromoCode(value) !== normalizePromoCode(forQuote)) {
+      setPromoForQuote("");
+      setPromoConfirmed("");
+      setPromoHint("");
+    }
+  }
+
   function toggleSeat(key: string) {
     setSelectedKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
     setFormError("");
@@ -241,6 +362,7 @@ export default function SadySnovideniyPage() {
           name: name.trim(),
           email: email.trim(),
           phone: toE164Phone(phoneCountryIso, phoneLocal),
+          ...(promoConfirmed ? { promoCode: promoConfirmed } : {}),
         }),
       });
       const body = await readResponseJson<{
@@ -324,9 +446,44 @@ export default function SadySnovideniyPage() {
                   ))}
                 </ul>
               )}
-              <p className="god-total">
-                Итого: {selectedSeats.length ? formatMoney(totalCents, currency) : "—"}
+              {quoteDiscountCents > 0 ? (
+                <p className="god-discount">
+                  Скидка: −{formatMoney(quoteDiscountCents, currency)}
+                </p>
+              ) : null}
+              <p className="god-total" aria-busy={quotePending}>
+                Итого:{" "}
+                {selectedSeats.length ?
+                  quotePending ?
+                    "…"
+                  : formatMoney(payableCents, currency)
+                : "—"}
               </p>
+            </section>
+
+            <section className="god-panel" aria-labelledby="god-promo-label">
+              <h2 id="god-promo-label">Промокод</h2>
+              <div className="god-promo-row">
+                <input
+                  type="text"
+                  className="god-promo-input"
+                  placeholder="Промокод"
+                  maxLength={64}
+                  autoComplete="off"
+                  value={promoInput}
+                  onChange={(e) => onPromoInputChange(e.target.value)}
+                  disabled={busy || selectedSeats.length === 0}
+                />
+                <button
+                  type="button"
+                  className="god-promo-apply"
+                  disabled={busy || !promoInput.trim() || selectedSeats.length === 0}
+                  onClick={applyPromo}
+                >
+                  Применить
+                </button>
+              </div>
+              {promoHint ? <p className="god-promo-hint">{promoHint}</p> : null}
             </section>
 
             <section className="god-panel">
