@@ -200,6 +200,7 @@
 
 .god-stage-groups {
   position: relative;
+  min-height: var(--stage-h, clamp(92px, 16vw, 184px));
 }
 
 .god-stage-spacer {
@@ -712,23 +713,43 @@
   font-weight: 300;
 }
 
-/* Мобильный: схема с фиксированным размером мест, горизонтальный скролл */
+/* Мобильный: фиксированный viewport + схема шире экрана */
 @media (max-width: 767px) {
-  .god-map-scroll {
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    margin: 0 -12px;
-    padding: 0 12px 12px;
-    scrollbar-width: thin;
+  .god-page {
+    overflow-x: hidden;
+    touch-action: pan-y;
   }
 
-  .god-map {
+  .god-map-scroll {
+    overflow: hidden;
+    margin: 0 -12px;
+    padding: 0 12px 12px;
+  }
+
+  .god-scheme-panzoom {
+    overflow: hidden;
+    overscroll-behavior: none;
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    touch-action: none;
+    height: clamp(160px, calc(58vh - 160px), 360px);
+  }
+
+  .god-scheme-panzoom__content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+
+  .god-scheme-panzoom .god-map {
     width: max-content;
     min-width: 100%;
   }
 
-  .god-map__board {
+  .god-scheme-panzoom .god-map__board {
     width: max-content;
     min-width: 720px;
   }
@@ -775,7 +796,20 @@
   }
 
   .god-map__stage-row {
+    --stage-h: 112px;
+    --stage-pool-pad-y: 10px;
     overflow: visible;
+    min-width: 0;
+    padding: 12px 0;
+    margin: 4px 0;
+  }
+
+  .god-stage-groups {
+    min-height: calc(var(--stage-h) + var(--stage-pool-pad-y) * 2);
+  }
+
+  .god-stage-pool--overlay {
+    padding: var(--stage-pool-pad-y) clamp(4px, 0.8vw, 10px);
   }
 
   .god-stage-seat-row .god-seat--ghost {
@@ -786,11 +820,8 @@
     max-height: 26px;
   }
 
-  .god-stage-shape {
-    --stage-h: 120px;
-  }
-
   .god-stage__body {
-    font-size: 17px;
+    font-size: 16px;
+    padding: 6px 10px;
   }
 }

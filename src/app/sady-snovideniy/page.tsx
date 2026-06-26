@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { GardensSchemePanzoom } from "@/components/gardens-scheme-panzoom";
 import { GardensSeatMap } from "@/components/gardens-seat-map";
 import { PhoneCountryField } from "@/components/phone-country-field";
 import { PolicyConsentField } from "@/components/policy-consent-field";
@@ -297,13 +298,15 @@ export default function SadySnovideniyPage() {
           ) : null}
 
           <div className="god-map-scroll">
-            <GardensSeatMap
-              seats={seats}
-              occupied={occupied}
-              selected={selected}
-              onToggle={toggleSeat}
-              disabled={busy}
-            />
+            <GardensSchemePanzoom>
+              <GardensSeatMap
+                seats={seats}
+                occupied={occupied}
+                selected={selected}
+                onToggle={toggleSeat}
+                disabled={busy}
+              />
+            </GardensSchemePanzoom>
           </div>
 
           <div className="god-checkout">
