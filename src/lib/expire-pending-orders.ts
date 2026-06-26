@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 
-const DEFAULT_TTL_MINUTES = 30;
+const DEFAULT_TTL_MINUTES = 15;
 
 /** Сколько минут PENDING держит место; дальше — CANCELLED при следующем подходящем запросе (без крона). */
 export function pendingOrderTtlMinutes(): number {
