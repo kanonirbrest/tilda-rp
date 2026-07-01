@@ -6,7 +6,7 @@ import { fulfillPaidOrder } from "@/lib/fulfill-order";
 import { applyPromoAtCheckout } from "@/lib/resolve-order-promo";
 import { getGardensSeat } from "@/lib/gardens-of-dreams/seat-map";
 import { ensureGardensSlots } from "@/lib/gardens-of-dreams/ensure-slots";
-import { ensureDream5Promo } from "@/lib/gardens-of-dreams/ensure-promo";
+import { ensureGardensPromos } from "@/lib/gardens-of-dreams/ensure-promo";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
 import {
   expireStalePendingOrdersAndReleaseSeats,
@@ -104,7 +104,7 @@ export async function createSeatOrderCheckout(
   try {
     await expireStalePendingOrdersAndReleaseSeats();
     await ensureGardensSlots();
-    await ensureDream5Promo();
+    await ensureGardensPromos();
 
     const slot = await prisma.slot.findFirst({
       where: { id: input.slotId, active: true, kind: GARDENS_OF_DREAMS_SLOT_KIND },
@@ -171,7 +171,7 @@ export async function createSeatOrderCheckout(
       return order.id;
     });
 
-    if (skipPayment) {
+    if (skipPayment || chargedAmountCents === 0) {
       await fulfillPaidOrder(orderId);
       return {
         ok: true,

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureDream5Promo } from "@/lib/gardens-of-dreams/ensure-promo";
+import { ensureGardensPromos } from "@/lib/gardens-of-dreams/ensure-promo";
 import { ensureGardensSlots } from "@/lib/gardens-of-dreams/ensure-slots";
 import { getGardensSeat } from "@/lib/gardens-of-dreams/seat-map";
 import { jsonPublicApiError } from "@/lib/public-api-error";
@@ -53,7 +53,7 @@ export async function GET(req: Request) {
 
   try {
     await ensureGardensSlots();
-    await ensureDream5Promo();
+    await ensureGardensPromos();
     await expireStalePendingOrdersAndReleaseSeats();
 
     const slot = await prisma.slot.findFirst({
