@@ -9,9 +9,9 @@ export async function lockSeatKeysInTransaction(
   seatKeys: string[],
 ): Promise<void> {
   for (const seatKey of [...seatKeys].sort()) {
-    await tx.$executeRaw(
-      Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${`${slotId}\0${seatKey}`}))`,
-    );
+    // Разделитель без \0 — PostgreSQL text не допускает NUL в UTF-8.
+    const lockKey = `${slotId}#${seatKey}`;
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
   }
 }
 
