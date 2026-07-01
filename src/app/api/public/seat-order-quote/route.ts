@@ -5,6 +5,7 @@ import { getGardensSeat } from "@/lib/gardens-of-dreams/seat-map";
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
 import { resolvePromoForQuote } from "@/lib/resolve-order-promo";
+import { expireStalePendingOrdersAndReleaseSeats } from "@/lib/expire-pending-orders";
 import { prisma } from "@/lib/prisma";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
 
@@ -53,6 +54,7 @@ export async function GET(req: Request) {
   try {
     await ensureGardensSlots();
     await ensureDream5Promo();
+    await expireStalePendingOrdersAndReleaseSeats();
 
     const slot = await prisma.slot.findFirst({
       where: { id: slotId, active: true, kind: GARDENS_OF_DREAMS_SLOT_KIND },

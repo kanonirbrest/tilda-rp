@@ -9,7 +9,7 @@ import { getGardensSeat, formatGardensOccupiedSeatsMessage } from "@/lib/gardens
 import { ensureGardensSlots } from "@/lib/gardens-of-dreams/ensure-slots";
 import { ensureDream5Promo } from "@/lib/gardens-of-dreams/ensure-promo";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
-import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
+import { expireStalePendingOrdersAndReleaseSeats } from "@/lib/expire-pending-orders";
 import type { CreateOrderCheckoutErr, CreateOrderCheckoutOk } from "@/lib/create-order-checkout";
 
 export class SeatUnavailableError extends Error {
@@ -66,7 +66,7 @@ export async function createSeatOrderCheckout(
   const skipPayment = process.env.DEV_SKIP_PAYMENT === "true";
 
   try {
-    await expireStalePendingOrders();
+    await expireStalePendingOrdersAndReleaseSeats();
     await ensureGardensSlots();
     await ensureDream5Promo();
 
@@ -216,6 +216,14 @@ export async function createSeatOrderCheckout(
         status: e.httpStatus,
         message: e.message,
         error: e.code,
+      };
+    }
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return {
+        ok: false,
+        status: 409,
+        message: "Одно или несколько мест уже заняты",
+        hint: "Выбранные места уже заняты. Обновите схему и выберите другие.",
       };
     }
     console.error("createSeatOrderCheckout", e);

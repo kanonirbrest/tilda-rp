@@ -12,6 +12,7 @@ import {
   GARDENS_STANDARD_CENTS,
 } from "@/lib/gardens-of-dreams/seat-map";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
+import { expireStalePendingOrdersAndReleaseSeats } from "@/lib/expire-pending-orders";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
 
 export async function OPTIONS(req: Request) {
@@ -30,6 +31,7 @@ export async function GET(req: Request) {
 
   try {
     await ensureGardensSlots();
+    await expireStalePendingOrdersAndReleaseSeats();
 
     const resolved = await resolveCheckoutSlot({
       slotId: slotId || null,
