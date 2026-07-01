@@ -15,6 +15,7 @@ import { formatGardensPerformanceDateLabel } from "@/lib/gardens-of-dreams/sched
 import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
 import { DEI_POLICY_CONSENT_ERROR } from "@/lib/policy-consent";
 import { normalizePromoCode } from "@/lib/promo-code";
+import { formatGardensCheckoutError } from "@/lib/seat-checkout-errors";
 import { readResponseJson } from "@/lib/read-response-json";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
 
@@ -75,41 +76,6 @@ function formatMoney(cents: number, currency: string): string {
     }).format(cents / 100);
   } catch {
     return `${(cents / 100).toFixed(0)} ${currency}`;
-  }
-}
-
-function formatGardensCheckoutError(
-  body: { error?: string; hint?: string },
-  status: number,
-): string {
-  if (body.hint?.trim()) return body.hint.trim();
-  switch (body.error) {
-    case "SEAT_UNAVAILABLE":
-      return "Выбранные места уже заняты. Обновите схему и выберите другие.";
-    case "INVALID_PROMO":
-      return "Промокод не найден";
-    case "PROMO_INACTIVE":
-      return "Промокод недействителен или срок действия истёк";
-    case "PROMO_EXHAUSTED":
-      return "Лимит использований этого промокода исчерпан";
-    case "PROMO_WRONG_CHANNEL":
-      return "Промокод не действует для «Сады сновидений»";
-    case "PROMO_ZERO_PAYMENT":
-      return "После скидки сумма слишком мала для онлайн-оплаты";
-    case "PROMO_UNAVAILABLE":
-      return "Не удалось проверить промокод. Попробуйте позже.";
-    case "INVALID_SEATS":
-      return "Некорректный выбор мест";
-    case "SLOT_NOT_FOUND":
-      return "Сеанс не найден";
-    case "PAYMENT_NOT_CONFIGURED":
-      return "Оплата временно недоступна";
-    case "PAYMENT_CREATE_FAILED":
-      return "Не удалось создать платёж. Попробуйте ещё раз.";
-    case "SERVER_ERROR":
-      return "Ошибка сервера. Попробуйте позже.";
-    default:
-      return body.error ? `Ошибка: ${body.error}` : `Ошибка оформления (${status})`;
   }
 }
 
@@ -403,6 +369,7 @@ export default function SadySnovideniyPage() {
       const body = await readResponseJson<{
         redirectUrl?: string;
         hint?: string;
+        message?: string;
         error?: string;
       }>(r);
       if (!r.ok || !body.redirectUrl) {

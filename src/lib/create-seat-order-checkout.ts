@@ -4,23 +4,18 @@ import { createPublicTicketToken } from "@/lib/ticket-token";
 import { createBepaidPayment } from "@/lib/bepaid";
 import { fulfillPaidOrder } from "@/lib/fulfill-order";
 import { applyPromoAtCheckout } from "@/lib/resolve-order-promo";
-import { PromoApplyError } from "@/lib/promo-code";
-import { getGardensSeat, formatGardensOccupiedSeatsMessage } from "@/lib/gardens-of-dreams/seat-map";
+import { getGardensSeat } from "@/lib/gardens-of-dreams/seat-map";
 import { ensureGardensSlots } from "@/lib/gardens-of-dreams/ensure-slots";
 import { ensureDream5Promo } from "@/lib/gardens-of-dreams/ensure-promo";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
 import { expireStalePendingOrdersAndReleaseSeats } from "@/lib/expire-pending-orders";
+import {
+  mapSeatCheckoutException,
+  SeatUnavailableError,
+} from "@/lib/seat-checkout-errors";
 import type { CreateOrderCheckoutErr, CreateOrderCheckoutOk } from "@/lib/create-order-checkout";
 
-export class SeatUnavailableError extends Error {
-  readonly seatKeys: string[];
-
-  constructor(seatKeys: string[]) {
-    super("SEAT_UNAVAILABLE");
-    this.name = "SeatUnavailableError";
-    this.seatKeys = seatKeys;
-  }
-}
+export { SeatUnavailableError };
 
 export type CreateSeatOrderCheckoutInput = {
   slotId: string;
@@ -199,38 +194,9 @@ export async function createSeatOrderCheckout(
           hint: "Укажите BEPAID_SHOP_ID и BEPAID_SECRET_KEY или DEV_SKIP_PAYMENT=true",
         };
       }
-      return { ok: false, status: 502, message: "Не удалось создать платёж" };
+      return { ok: false, status: 502, message: "Не удалось создать платёж", hint: "Не удалось перейти к оплате. Попробуйте ещё раз через минуту.", error: "PAYMENT_CREATE_FAILED" };
     }
   } catch (e) {
-    if (e instanceof SeatUnavailableError) {
-      return {
-        ok: false,
-        status: 409,
-        message: "Одно или несколько мест уже заняты",
-        hint: formatGardensOccupiedSeatsMessage(e.seatKeys),
-      };
-    }
-    if (e instanceof PromoApplyError) {
-      return {
-        ok: false,
-        status: e.httpStatus,
-        message: e.message,
-        error: e.code,
-      };
-    }
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      return {
-        ok: false,
-        status: 409,
-        message: "Одно или несколько мест уже заняты",
-        hint: "Выбранные места уже заняты. Обновите схему и выберите другие.",
-      };
-    }
-    console.error("createSeatOrderCheckout", e);
-    return {
-      ok: false,
-      status: 500,
-      message: "Ошибка сервера при создании заказа",
-    };
+    return mapSeatCheckoutException(e);
   }
 }

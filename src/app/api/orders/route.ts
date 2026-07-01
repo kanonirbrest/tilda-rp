@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createOrderCheckout } from "@/lib/create-order-checkout";
 import { createSeatOrderCheckout } from "@/lib/create-seat-order-checkout";
+import { checkoutResponseHint } from "@/lib/seat-checkout-errors";
 import { prisma } from "@/lib/prisma";
 import { jsonOrdersResponse, publicOrdersCorsHeaders } from "@/lib/public-orders-cors";
 import { getRequestOrigin } from "@/lib/request-origin";
@@ -121,8 +122,9 @@ export async function POST(req: Request) {
       getRequestOrigin(req),
     );
     if (!seatResult.ok) {
+      const hint = checkoutResponseHint(seatResult);
       if (seatResult.status === 404) {
-        return jsonOrdersResponse(req, { error: "SLOT_NOT_FOUND" }, 404);
+        return jsonOrdersResponse(req, { error: "SLOT_NOT_FOUND", hint }, 404);
       }
       if (seatResult.status === 400) {
         const errKey =
@@ -134,36 +136,33 @@ export async function POST(req: Request) {
           seatResult.error === "PROMO_UNAVAILABLE" ?
             seatResult.error
           : "INVALID_SEATS";
-        return jsonOrdersResponse(
-          req,
-          { error: errKey, hint: seatResult.message },
-          400,
-        );
+        return jsonOrdersResponse(req, { error: errKey, hint }, 400);
       }
       if (seatResult.status === 409) {
         return jsonOrdersResponse(
           req,
-          { error: "SEAT_UNAVAILABLE", hint: seatResult.hint ?? seatResult.message },
+          { error: seatResult.error ?? "SEAT_UNAVAILABLE", hint },
           409,
         );
       }
       if (seatResult.status === 503) {
         return jsonOrdersResponse(
           req,
-          { error: "PAYMENT_NOT_CONFIGURED", hint: seatResult.hint ?? seatResult.message },
+          { error: seatResult.error ?? "PAYMENT_NOT_CONFIGURED", hint },
           503,
         );
       }
       if (seatResult.status === 502) {
-        return jsonOrdersResponse(req, { error: "PAYMENT_CREATE_FAILED" }, 502);
+        return jsonOrdersResponse(
+          req,
+          { error: seatResult.error ?? "PAYMENT_CREATE_FAILED", hint },
+          502,
+        );
       }
       return jsonOrdersResponse(
         req,
-        {
-          error: "SERVER_ERROR",
-          hint: process.env.NODE_ENV === "development" ? seatResult.message : undefined,
-        },
-        500,
+        { error: seatResult.error ?? "SERVER_ERROR", hint },
+        seatResult.status,
       );
     }
 
