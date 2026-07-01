@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const DEFAULT_TTL_MINUTES = 15;
@@ -50,4 +51,41 @@ export async function expireStalePendingOrders(): Promise<number> {
 export async function expireStalePendingOrdersAndReleaseSeats(): Promise<void> {
   await expireStalePendingOrders();
   await releaseInactiveSeatReservations();
+}
+
+/**
+ * Внутри checkout-транзакции: снять просроченные PENDING и «мёртвые» брони по выбранным местам.
+ * Иначе unique (slotId, seatKey) падает с P2002, хотя место на схеме выглядит свободным.
+ */
+export async function releaseSeatLocksInTransaction(
+  tx: Prisma.TransactionClient,
+  slotId: string,
+  seatKeys: string[],
+): Promise<void> {
+  const cutoff = new Date(Date.now() - pendingOrderTtlMinutes() * 60 * 1000);
+
+  const stalePending = await tx.order.findMany({
+    where: {
+      slotId,
+      status: "PENDING",
+      createdAt: { lt: cutoff },
+    },
+    select: { id: true },
+  });
+  if (stalePending.length > 0) {
+    const ids = stalePending.map((o) => o.id);
+    await tx.seatReservation.deleteMany({ where: { orderId: { in: ids } } });
+    await tx.order.updateMany({
+      where: { id: { in: ids } },
+      data: { status: "CANCELLED" },
+    });
+  }
+
+  await tx.seatReservation.deleteMany({
+    where: {
+      slotId,
+      seatKey: { in: seatKeys },
+      order: { status: { in: ["CANCELLED", "FAILED", "REFUNDED"] } },
+    },
+  });
 }

@@ -8,7 +8,10 @@ import { getGardensSeat } from "@/lib/gardens-of-dreams/seat-map";
 import { ensureGardensSlots } from "@/lib/gardens-of-dreams/ensure-slots";
 import { ensureDream5Promo } from "@/lib/gardens-of-dreams/ensure-promo";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
-import { expireStalePendingOrdersAndReleaseSeats } from "@/lib/expire-pending-orders";
+import {
+  expireStalePendingOrdersAndReleaseSeats,
+  releaseSeatLocksInTransaction,
+} from "@/lib/expire-pending-orders";
 import {
   mapSeatCheckoutException,
   SeatUnavailableError,
@@ -26,15 +29,20 @@ export type CreateSeatOrderCheckoutInput = {
   promoCode?: string | null;
 };
 
-async function findOccupiedSeatKeys(slotId: string): Promise<Set<string>> {
-  const rows = await prisma.seatReservation.findMany({
+async function findOccupiedSeatKeysForCheckout(
+  tx: Prisma.TransactionClient,
+  slotId: string,
+  seatKeys: string[],
+): Promise<string[]> {
+  const rows = await tx.seatReservation.findMany({
     where: {
       slotId,
+      seatKey: { in: seatKeys },
       order: { status: { in: ["PENDING", "PAID"] } },
     },
     select: { seatKey: true },
   });
-  return new Set(rows.map((r) => r.seatKey));
+  return rows.map((r) => r.seatKey);
 }
 
 export async function createSeatOrderCheckout(
@@ -77,16 +85,11 @@ export async function createSeatOrderCheckout(
     const orderId = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.sql`SELECT id FROM "Slot" WHERE id = ${slot.id} FOR UPDATE`);
 
-      const occupied = await tx.seatReservation.findMany({
-        where: {
-          slotId: slot.id,
-          seatKey: { in: uniqueKeys },
-          order: { status: { in: ["PENDING", "PAID"] } },
-        },
-        select: { seatKey: true },
-      });
+      await releaseSeatLocksInTransaction(tx, slot.id, uniqueKeys);
+
+      const occupied = await findOccupiedSeatKeysForCheckout(tx, slot.id, uniqueKeys);
       if (occupied.length > 0) {
-        throw new SeatUnavailableError(occupied.map((o) => o.seatKey));
+        throw new SeatUnavailableError(occupied);
       }
 
       const rawPromo = input.promoCode?.trim();

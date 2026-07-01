@@ -47,6 +47,10 @@ export function mapSeatCheckoutException(e: unknown): CreateOrderCheckoutErr {
 
   if (e instanceof Prisma.PrismaClientKnownRequestError) {
     if (e.code === "P2002") {
+      const target = e.meta?.target;
+      if (Array.isArray(target) && target.includes("seatKey")) {
+        console.warn("seatCheckout P2002 seat reservation conflict", { target });
+      }
       return {
         ok: false,
         status: 409,
