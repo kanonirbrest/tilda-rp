@@ -13,6 +13,13 @@ export class SeatUnavailableError extends Error {
   }
 }
 
+/** instanceof ломается в бандле Next.js — проверяем по полю code. */
+function prismaErrorCode(e: unknown): string | undefined {
+  if (typeof e !== "object" || e === null || !("code" in e)) return undefined;
+  const code = (e as { code: unknown }).code;
+  return typeof code === "string" ? code : undefined;
+}
+
 /** Текст ошибки checkout для ответа API (без технических деталей). */
 export function checkoutResponseHint(result: {
   message: string;
@@ -45,9 +52,13 @@ export function mapSeatCheckoutException(e: unknown): CreateOrderCheckoutErr {
     };
   }
 
-  if (e instanceof Prisma.PrismaClientKnownRequestError) {
-    if (e.code === "P2002") {
-      const target = e.meta?.target;
+  const prismaCode = prismaErrorCode(e);
+  if (prismaCode) {
+    if (prismaCode === "P2002") {
+      const target =
+        typeof e === "object" && e !== null && "meta" in e ?
+          (e as { meta?: { target?: unknown } }).meta?.target
+        : undefined;
       if (Array.isArray(target) && target.includes("seatKey")) {
         console.warn("seatCheckout P2002 seat reservation conflict", { target });
       }
@@ -59,7 +70,7 @@ export function mapSeatCheckoutException(e: unknown): CreateOrderCheckoutErr {
         error: "SEAT_UNAVAILABLE",
       };
     }
-    if (e.code === "P2025") {
+    if (prismaCode === "P2025") {
       return {
         ok: false,
         status: 404,
@@ -68,7 +79,7 @@ export function mapSeatCheckoutException(e: unknown): CreateOrderCheckoutErr {
         error: "SLOT_NOT_FOUND",
       };
     }
-    console.error("seatCheckout prisma", e.code, e.message);
+    console.error("seatCheckout prisma", prismaCode, e);
     return {
       ok: false,
       status: 500,

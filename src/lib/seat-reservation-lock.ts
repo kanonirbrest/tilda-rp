@@ -25,25 +25,30 @@ export async function purgeInactiveSeatReservationsInTransaction(
 
   const cutoff = new Date(Date.now() - pendingOrderTtlMinutes() * 60 * 1000);
 
-  await tx.$executeRaw`
-    DELETE FROM "SeatReservation" sr
-    USING "Order" o
-    WHERE sr."orderId" = o.id
-      AND sr."slotId" = ${slotId}
-      AND sr."seatKey" IN (${Prisma.join(seatKeys)})
-      AND (
-        o.status IN ('CANCELLED', 'FAILED', 'REFUNDED')
-        OR (o.status = 'PENDING' AND o."createdAt" < ${cutoff})
-      )
-  `;
+  const stalePending = await tx.order.findMany({
+    where: {
+      slotId,
+      status: "PENDING",
+      createdAt: { lt: cutoff },
+    },
+    select: { id: true },
+  });
+  if (stalePending.length > 0) {
+    const ids = stalePending.map((o) => o.id);
+    await tx.seatReservation.deleteMany({ where: { orderId: { in: ids } } });
+    await tx.order.updateMany({
+      where: { id: { in: ids } },
+      data: { status: "CANCELLED" },
+    });
+  }
 
-  await tx.$executeRaw`
-    UPDATE "Order" o
-    SET status = 'CANCELLED'
-    WHERE o."slotId" = ${slotId}
-      AND o.status = 'PENDING'
-      AND o."createdAt" < ${cutoff}
-  `;
+  await tx.seatReservation.deleteMany({
+    where: {
+      slotId,
+      seatKey: { in: seatKeys },
+      order: { status: { in: ["CANCELLED", "FAILED", "REFUNDED"] } },
+    },
+  });
 }
 
 /**
@@ -74,7 +79,7 @@ export async function cancelOtherPendingOrdersForCustomerInTransaction(
   });
 }
 
-/** Занятые места с блокировкой существующих строк брони. */
+/** Занятые места (активные PENDING/PAID). */
 export async function findOccupiedSeatKeysForCheckout(
   tx: PrismaTypes.TransactionClient,
   slotId: string,
@@ -82,14 +87,13 @@ export async function findOccupiedSeatKeysForCheckout(
 ): Promise<string[]> {
   if (seatKeys.length === 0) return [];
 
-  const rows = await tx.$queryRaw<{ seatKey: string }[]>`
-    SELECT sr."seatKey"
-    FROM "SeatReservation" sr
-    INNER JOIN "Order" o ON o.id = sr."orderId"
-    WHERE sr."slotId" = ${slotId}
-      AND sr."seatKey" IN (${Prisma.join(seatKeys)})
-      AND o.status IN ('PENDING', 'PAID')
-    FOR UPDATE OF sr
-  `;
+  const rows = await tx.seatReservation.findMany({
+    where: {
+      slotId,
+      seatKey: { in: seatKeys },
+      order: { status: { in: ["PENDING", "PAID"] } },
+    },
+    select: { seatKey: true },
+  });
   return rows.map((r) => r.seatKey);
 }

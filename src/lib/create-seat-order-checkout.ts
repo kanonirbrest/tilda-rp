@@ -60,7 +60,7 @@ async function createSeatReservations(
         },
       });
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      if (typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "P2002") {
         throw new SeatUnavailableError([seat.key]);
       }
       throw e;
