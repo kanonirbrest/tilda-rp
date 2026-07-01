@@ -10,8 +10,13 @@ import { ensureDream5Promo } from "@/lib/gardens-of-dreams/ensure-promo";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
 import {
   expireStalePendingOrdersAndReleaseSeats,
-  releaseSeatLocksInTransaction,
 } from "@/lib/expire-pending-orders";
+import {
+  cancelOtherPendingOrdersForCustomerInTransaction,
+  findOccupiedSeatKeysForCheckout,
+  lockSeatKeysInTransaction,
+  purgeInactiveSeatReservationsInTransaction,
+} from "@/lib/seat-reservation-lock";
 import {
   mapSeatCheckoutException,
   SeatUnavailableError,
@@ -29,20 +34,48 @@ export type CreateSeatOrderCheckoutInput = {
   promoCode?: string | null;
 };
 
-async function findOccupiedSeatKeysForCheckout(
+async function createSeatReservations(
   tx: Prisma.TransactionClient,
   slotId: string,
-  seatKeys: string[],
-): Promise<string[]> {
-  const rows = await tx.seatReservation.findMany({
-    where: {
-      slotId,
-      seatKey: { in: seatKeys },
-      order: { status: { in: ["PENDING", "PAID"] } },
-    },
-    select: { seatKey: true },
-  });
-  return rows.map((r) => r.seatKey);
+  orderId: string,
+  resolvedSeats: { key: string; label: string; priceCents: number }[],
+): Promise<void> {
+  for (const seat of resolvedSeats) {
+    await tx.orderLine.create({
+      data: {
+        orderId,
+        tier: "ADULT",
+        quantity: 1,
+        unitPriceCents: seat.priceCents,
+      },
+    });
+    try {
+      await tx.seatReservation.create({
+        data: {
+          slotId,
+          orderId,
+          seatKey: seat.key,
+          seatLabel: seat.label,
+          priceCents: seat.priceCents,
+        },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        throw new SeatUnavailableError([seat.key]);
+      }
+      throw e;
+    }
+    await tx.ticket.create({
+      data: {
+        orderId,
+        publicToken: createPublicTicketToken(),
+        tier: "ADULT",
+        admissionCount: 1,
+        seatKey: seat.key,
+        seatLabel: seat.label,
+      },
+    });
+  }
 }
 
 export async function createSeatOrderCheckout(
@@ -85,7 +118,9 @@ export async function createSeatOrderCheckout(
     const orderId = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.sql`SELECT id FROM "Slot" WHERE id = ${slot.id} FOR UPDATE`);
 
-      await releaseSeatLocksInTransaction(tx, slot.id, uniqueKeys);
+      await lockSeatKeysInTransaction(tx, slot.id, uniqueKeys);
+      await purgeInactiveSeatReservationsInTransaction(tx, slot.id, uniqueKeys);
+      await cancelOtherPendingOrdersForCustomerInTransaction(tx, slot.id, email);
 
       const occupied = await findOccupiedSeatKeysForCheckout(tx, slot.id, uniqueKeys);
       if (occupied.length > 0) {
@@ -131,35 +166,7 @@ export async function createSeatOrderCheckout(
         },
       });
 
-      for (const seat of resolvedSeats) {
-        await tx.orderLine.create({
-          data: {
-            orderId: order.id,
-            tier: "ADULT",
-            quantity: 1,
-            unitPriceCents: seat.priceCents,
-          },
-        });
-        await tx.seatReservation.create({
-          data: {
-            slotId: slot.id,
-            orderId: order.id,
-            seatKey: seat.key,
-            seatLabel: seat.label,
-            priceCents: seat.priceCents,
-          },
-        });
-        await tx.ticket.create({
-          data: {
-            orderId: order.id,
-            publicToken: createPublicTicketToken(),
-            tier: "ADULT",
-            admissionCount: 1,
-            seatKey: seat.key,
-            seatLabel: seat.label,
-          },
-        });
-      }
+      await createSeatReservations(tx, slot.id, order.id, resolvedSeats);
 
       return order.id;
     });

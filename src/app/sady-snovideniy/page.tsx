@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GardensSchemePanzoom } from "@/components/gardens-scheme-panzoom";
 import { GardensSeatMap } from "@/components/gardens-seat-map";
 import { PhoneCountryField } from "@/components/phone-country-field";
@@ -120,6 +120,7 @@ export default function SadySnovideniyPage() {
   const [policyConsent, setPolicyConsent] = useState(false);
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
+  const submittingRef = useRef(false);
 
   const [promoInput, setPromoInput] = useState("");
   const [promoForQuote, setPromoForQuote] = useState("");
@@ -334,6 +335,7 @@ export default function SadySnovideniyPage() {
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (submittingRef.current) return;
     if (isMock) {
       setFormError("Тестовый режим: оплата временно отключена.");
       return;
@@ -351,6 +353,7 @@ export default function SadySnovideniyPage() {
       return;
     }
     setFormError("");
+    submittingRef.current = true;
     setBusy(true);
     try {
       const r = await fetch("/api/orders", {
@@ -384,6 +387,7 @@ export default function SadySnovideniyPage() {
     } catch {
       setFormError("Ошибка сети. Попробуйте ещё раз.");
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   }
