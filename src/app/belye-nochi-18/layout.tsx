@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "../nightofmuseums/nightofmuseums.css";
 import "../buy-tickets-smr/buy-tickets-smr.css";
-import "./belye-nochi-18.css";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -13,13 +12,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Белые ночи 18+ — билеты",
-  description:
-    "11 июля — вечеринка «Белые ночи» R&B 2000-х на «Небо.Река». DJ Kira Miller & Bazhen, dress code white only. Билеты 60 BYN.",
-  openGraph: {
-    title: "Белые ночи 18+ — билеты",
-    description: "R&B 2000-х, 11 июля, 22:00–03:00. Dress code: white only.",
-    images: [{ url: "/belye-nochi-18/poster.png", width: 720, height: 1018, alt: "Белые ночи" }],
-  },
+  description: "Оформление билетов на мероприятие «Белые ночи 18+»",
 };
 
 export default function BelyeNochi18Layout({

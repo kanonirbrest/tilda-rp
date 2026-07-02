@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { BelyeNochiAnnouncement } from "@/components/belye-nochi-announcement";
 import { PhoneCountryField } from "@/components/phone-country-field";
 import { PolicyConsentField } from "@/components/policy-consent-field";
 import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
@@ -241,8 +240,6 @@ export default function BelyeNochi18Page() {
         <header className="nom-head">
           <h1 className="sv2-head__title">Белые ночи 18+</h1>
         </header>
-
-        <BelyeNochiAnnouncement />
 
         {loading ? <p className="nom-plain-msg nom-plain-msg--muted">Загрузка…</p> : null}
         {!loading && error ? <p className="nom-plain-msg">{error}</p> : null}
