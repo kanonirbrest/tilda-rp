@@ -15,6 +15,7 @@ import { formatGardensPerformanceDateLabel } from "@/lib/gardens-of-dreams/sched
 import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
 import { DEI_POLICY_CONSENT_ERROR } from "@/lib/policy-consent";
 import { normalizePromoCode } from "@/lib/promo-code";
+import { isPromoCampaignExpired } from "@/lib/promo-campaign";
 import { formatGardensCheckoutError } from "@/lib/seat-checkout-errors";
 import { readResponseJson } from "@/lib/read-response-json";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
@@ -35,6 +36,7 @@ type GardensSession = {
 type GardensSessionsResponse = {
   timezone: string;
   sessions: GardensSession[];
+  promoCampaignActive?: boolean;
   error?: string;
   hint?: string;
 };
@@ -126,6 +128,7 @@ export default function SadySnovideniyPage() {
   const [promoForQuote, setPromoForQuote] = useState("");
   const [promoConfirmed, setPromoConfirmed] = useState("");
   const [promoHint, setPromoHint] = useState("");
+  const [promoCampaignActive, setPromoCampaignActive] = useState(true);
   const [quotePending, setQuotePending] = useState(false);
   const [quoteTotalCents, setQuoteTotalCents] = useState<number | null>(null);
   const [quoteDiscountCents, setQuoteDiscountCents] = useState(0);
@@ -203,6 +206,7 @@ export default function SadySnovideniyPage() {
 
       if (mock) {
         if (!cancelled) {
+          setPromoCampaignActive(!isPromoCampaignExpired());
           applyMockSession(GARDENS_MOCK_SESSION);
           setLoading(false);
         }
@@ -220,6 +224,7 @@ export default function SadySnovideniyPage() {
         }
 
         if (!cancelled) {
+          setPromoCampaignActive(body.promoCampaignActive !== false);
           await loadSeatMap(show);
         }
       } catch (e) {
@@ -234,6 +239,15 @@ export default function SadySnovideniyPage() {
       cancelled = true;
     };
   }, [applyMockSession, loadSeatMap]);
+
+  useEffect(() => {
+    if (promoCampaignActive) return;
+    setPromoInput("");
+    setPromoForQuote("");
+    setPromoConfirmed("");
+    setPromoHint("");
+    setQuoteDiscountCents(0);
+  }, [promoCampaignActive]);
 
   useEffect(() => {
     if (isMock || !slotId || selectedKeys.length === 0) {
@@ -467,30 +481,32 @@ export default function SadySnovideniyPage() {
               </p>
             </section>
 
-            <section className="god-panel" aria-labelledby="god-promo-label">
-              <h2 id="god-promo-label">Промокод</h2>
-              <div className="god-promo-row">
-                <input
-                  type="text"
-                  className="god-promo-input"
-                  placeholder="Промокод"
-                  maxLength={64}
-                  autoComplete="off"
-                  value={promoInput}
-                  onChange={(e) => onPromoInputChange(e.target.value)}
-                  disabled={busy || selectedSeats.length === 0}
-                />
-                <button
-                  type="button"
-                  className="god-promo-apply"
-                  disabled={busy || !promoInput.trim() || selectedSeats.length === 0}
-                  onClick={applyPromo}
-                >
-                  Применить
-                </button>
-              </div>
-              {promoHint ? <p className="god-promo-hint">{promoHint}</p> : null}
-            </section>
+            {promoCampaignActive ? (
+              <section className="god-panel" aria-labelledby="god-promo-label">
+                <h2 id="god-promo-label">Промокод</h2>
+                <div className="god-promo-row">
+                  <input
+                    type="text"
+                    className="god-promo-input"
+                    placeholder="Промокод"
+                    maxLength={64}
+                    autoComplete="off"
+                    value={promoInput}
+                    onChange={(e) => onPromoInputChange(e.target.value)}
+                    disabled={busy || selectedSeats.length === 0}
+                  />
+                  <button
+                    type="button"
+                    className="god-promo-apply"
+                    disabled={busy || !promoInput.trim() || selectedSeats.length === 0}
+                    onClick={applyPromo}
+                  >
+                    Применить
+                  </button>
+                </div>
+                {promoHint ? <p className="god-promo-hint">{promoHint}</p> : null}
+              </section>
+            ) : null}
 
             <section className="god-panel">
               <h2>Контакты и оплата</h2>

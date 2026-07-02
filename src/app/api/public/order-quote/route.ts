@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
+import { isPromoCampaignExpired } from "@/lib/promo-campaign";
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
 import { resolvePromoForQuote } from "@/lib/resolve-order-promo";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
@@ -105,6 +106,7 @@ export async function GET(req: Request) {
         kind: slotKind,
         formattedTotal,
         promo,
+        promoCampaignActive: !isPromoCampaignExpired(),
       },
       200,
     );
