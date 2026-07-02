@@ -11,7 +11,14 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Сады сновидений — билеты",
-  description: "Иммерсивная танцевальная мистерия «Сады сновидений». Выбор мест на схеме зала.",
+  description:
+    "6 июля — премьера иммерсивной танцевальной мистерии «Сады сновидений» на выставке «Небо.Река». Билеты от 90 BYN, выбор мест на схеме.",
+  openGraph: {
+    title: "Сады сновидений — билеты",
+    description:
+      "6 июля — иммерсивная танцевальная мистерия на «Небо.Река». Вход на выставку 18:30, шоу в 20:00.",
+    images: [{ url: "/sady-snovideniy/poster.png", width: 720, height: 1018, alt: "Сады сновидений" }],
+  },
 };
 
 export default function SadySnovideniyLayout({

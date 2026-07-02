@@ -109,6 +109,86 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
+.god-about {
+  display: grid;
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+  gap: clamp(20px, 4vw, 36px);
+  align-items: start;
+  margin-bottom: 36px;
+  padding: clamp(16px, 3vw, 24px);
+  border-radius: 16px;
+  border: 1px solid rgba(232, 145, 58, 0.25);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.god-about__poster {
+  margin: 0 auto;
+  max-width: 280px;
+}
+
+.god-about__poster-img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  display: block;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.god-about__title {
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.god-about__text {
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.god-about__text p {
+  margin: 0 0 14px;
+}
+
+.god-about__text p:last-child {
+  margin-bottom: 0;
+}
+
+.god-about__lead {
+  font-size: 16px;
+  color: var(--god-text);
+}
+
+.god-about__meta {
+  padding-top: 4px;
+  border-top: 1px solid var(--god-border);
+}
+
+.god-about__promo {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(232, 145, 58, 0.1);
+  border: 1px solid rgba(232, 145, 58, 0.3);
+}
+
+.god-about__promo-code {
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--god-premium);
+}
+
+@media (max-width: 767px) {
+  .god-about {
+    grid-template-columns: 1fr;
+  }
+
+  .god-about__poster {
+    max-width: min(240px, 70vw);
+  }
+}
+
 .god-msg {
   text-align: center;
   padding: 12px 16px;
