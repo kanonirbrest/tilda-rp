@@ -1,5 +1,3 @@
-import { DateTime } from "luxon";
-import { EXHIBITION_TIMEZONE_DEFAULT, getExhibitionTimezone } from "@/lib/exhibition-time";
 import { normalizePromoCode } from "@/lib/promo-code";
 
 const NR_PROMO_RE = /^NR-[A-Z0-9]{8}$/;
@@ -35,23 +33,6 @@ export function getDeiClubPromoDiscountPercent(): number {
   return n;
 }
 
-/** Конец акции включительно (Europe/Minsk), по умолчанию 01.07.2026. */
-export function isDeiClubCampaignExpired(now = new Date()): boolean {
-  const raw = process.env.PROMO_CAMPAIGN_VALID_UNTIL?.trim() || "01.07.2026";
-  const m = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  if (!m) return false;
-  const day = Number(m[1]);
-  const month = Number(m[2]);
-  const year = Number(m[3]);
-  const tz = getExhibitionTimezone() || EXHIBITION_TIMEZONE_DEFAULT;
-  const end = DateTime.fromObject(
-    { year, month, day, hour: 23, minute: 59, second: 59, millisecond: 999 },
-    { zone: tz },
-  );
-  if (!end.isValid) return false;
-  return DateTime.fromJSDate(now, { zone: tz }) > end;
-}
-
 export function computeDeiClubPromoAmounts(
   subtotalCents: number,
   percent = getDeiClubPromoDiscountPercent(),
@@ -83,7 +64,7 @@ function inferRedeemErrorKey(error: string, status: number): string {
   if (status === 401 || status === 403) return "unauthorized";
   if (status === 404) return "not_found";
   if (status === 409) return "already_used";
-  if (status === 410) return "campaign_expired";
+  if (status === 410) return "expired";
   if (status >= 500) return "internal_error";
   return "redeem_failed";
 }
@@ -101,8 +82,9 @@ function hintForRedeemError(error: string, status: number): string {
       return "Промокод не найден";
     case "already_used":
       return "Промокод уже использован";
+    case "expired":
     case "campaign_expired":
-      return "Срок действия акции истёк";
+      return "Срок действия промокода истёк";
     case "internal_error":
     case "service_unavailable":
     case "network":
@@ -141,15 +123,6 @@ export async function redeemDeiClubPromoCode(raw: string): Promise<DeiClubRedeem
       error: "invalid_format",
       hint: hintForRedeemError("invalid_format", 400),
       status: 400,
-    };
-  }
-
-  if (isDeiClubCampaignExpired()) {
-    return {
-      ok: false,
-      error: "campaign_expired",
-      hint: hintForRedeemError("campaign_expired", 410),
-      status: 410,
     };
   }
 
@@ -266,14 +239,6 @@ export function previewDeiClubPromo(
       applied: false,
       error: "INVALID_PROMO",
       hint: "Неверный формат промокода клуба DEI (NR-XXXXXXXX)",
-    };
-  }
-
-  if (isDeiClubCampaignExpired()) {
-    return {
-      applied: false,
-      error: "PROMO_INACTIVE",
-      hint: "Срок действия акции истёк",
     };
   }
 

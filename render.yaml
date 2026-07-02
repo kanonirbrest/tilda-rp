@@ -35,8 +35,6 @@ services:
         sync: false
       - key: PROMO_DISCOUNT_PERCENT
         value: "10"
-      - key: PROMO_CAMPAIGN_VALID_UNTIL
-        value: "01.07.2026"
       # Необязательно: если задать — перекроет автоматический URL *.onrender.com в ссылках/QR.
       - key: APP_BASE_URL
         sync: false
