@@ -7,7 +7,6 @@ import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
 import { readResponseJson } from "@/lib/read-response-json";
 import { DEI_POLICY_CONSENT_ERROR } from "@/lib/policy-consent";
 import { normalizePromoCode } from "@/lib/promo-code";
-import { isPromoCampaignExpired } from "@/lib/promo-campaign";
 import { NEBO_REKA_SLOT_KIND } from "@/lib/slot-kind";
 
 type CalendarResponse = {
@@ -36,7 +35,6 @@ type QuoteResponse = {
     amountCents?: number;
     formattedAmount?: string;
   };
-  promoCampaignActive?: boolean;
   error?: string;
   hint?: string;
 };
@@ -257,7 +255,6 @@ export default function BuyTicketsSmrPage() {
   /** Промокод, подтверждённый ответом quote (applied === true). */
   const [promoConfirmed, setPromoConfirmed] = useState("");
   const [promoHint, setPromoHint] = useState("");
-  const [promoCampaignActive, setPromoCampaignActive] = useState(() => !isPromoCampaignExpired());
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -369,14 +366,6 @@ export default function BuyTicketsSmrPage() {
   }, [date, timesLoading]);
 
   useEffect(() => {
-    if (promoCampaignActive) return;
-    setPromoInput("");
-    setPromoForQuote("");
-    setPromoConfirmed("");
-    setPromoHint("");
-  }, [promoCampaignActive]);
-
-  useEffect(() => {
     let cancelled = false;
     if (!date || !time) return;
 
@@ -425,9 +414,6 @@ export default function BuyTicketsSmrPage() {
         setQuoteTotalLabel(qt.body.formattedTotal);
         setQuoteTotalCents(qt.body.totalCents);
         setQuoteCurrency(qt.body.currency || "BYN");
-        if (typeof qt.body.promoCampaignActive === "boolean") {
-          setPromoCampaignActive(qt.body.promoCampaignActive);
-        }
         if (qt.body.promo?.applied === false && promoQ) {
           setPromoHint(qt.body.promo.hint || "Промокод не применён");
           setPromoForQuote("");
@@ -772,7 +758,7 @@ export default function BuyTicketsSmrPage() {
               </section>
             ) : null}
 
-            {date && time && promoCampaignActive ? (
+            {date && time ? (
               <section className="nom-block" aria-label="Промокод">
                 <p className="nom-block-label">Промокод</p>
                 <div className="sv2-promo-row">

@@ -1,4 +1,5 @@
-import { isPromoCampaignExpired } from "@/lib/promo-campaign";
+import { DateTime } from "luxon";
+import { EXHIBITION_TIMEZONE_DEFAULT, getExhibitionTimezone } from "@/lib/exhibition-time";
 import { normalizePromoCode } from "@/lib/promo-code";
 
 const NR_PROMO_RE = /^NR-[A-Z0-9]{8}$/;
@@ -34,9 +35,21 @@ export function getDeiClubPromoDiscountPercent(): number {
   return n;
 }
 
-/** @deprecated используйте isPromoCampaignExpired из @/lib/promo-campaign */
+/** Конец акции включительно (Europe/Minsk), по умолчанию 01.07.2026. */
 export function isDeiClubCampaignExpired(now = new Date()): boolean {
-  return isPromoCampaignExpired(now);
+  const raw = process.env.PROMO_CAMPAIGN_VALID_UNTIL?.trim() || "01.07.2026";
+  const m = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (!m) return false;
+  const day = Number(m[1]);
+  const month = Number(m[2]);
+  const year = Number(m[3]);
+  const tz = getExhibitionTimezone() || EXHIBITION_TIMEZONE_DEFAULT;
+  const end = DateTime.fromObject(
+    { year, month, day, hour: 23, minute: 59, second: 59, millisecond: 999 },
+    { zone: tz },
+  );
+  if (!end.isValid) return false;
+  return DateTime.fromJSDate(now, { zone: tz }) > end;
 }
 
 export function computeDeiClubPromoAmounts(

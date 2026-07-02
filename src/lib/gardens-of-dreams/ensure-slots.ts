@@ -7,7 +7,6 @@ import {
   wallDateAndTimeToUtc,
 } from "@/lib/exhibition-time";
 import { GARDENS_PREMIUM_CENTS, getSelectableGardensSeats } from "@/lib/gardens-of-dreams/seat-map";
-import { isDream5PromoCampaignActive } from "@/lib/gardens-of-dreams/ensure-promo";
 import {
   GARDENS_PERFORMANCE_SCHEDULE,
   formatGardensPerformanceTitle,
@@ -111,7 +110,7 @@ export type GardensSessionPublic = {
 
 export async function listGardensSessionsPublic(options?: {
   hidePast?: boolean;
-}): Promise<{ timezone: string; sessions: GardensSessionPublic[]; promoCampaignActive: boolean }> {
+}): Promise<{ timezone: string; sessions: GardensSessionPublic[] }> {
   const hidePast = options?.hidePast !== false;
   const tz = getExhibitionTimezone();
   const now = new Date();
@@ -137,7 +136,7 @@ export async function listGardensSessionsPublic(options?: {
     });
   }
 
-  return { timezone: tz, sessions, promoCampaignActive: isDream5PromoCampaignActive() };
+  return { timezone: tz, sessions };
 }
 
 export async function findGardensOccupiedSeatKeys(slotId: string): Promise<string[]> {

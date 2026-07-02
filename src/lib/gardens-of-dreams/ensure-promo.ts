@@ -1,15 +1,21 @@
 import { prisma } from "@/lib/prisma";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
 import { normalizePromoCode } from "@/lib/promo-code";
-import { isPromoCampaignExpired, promoCampaignValidUntilDate } from "@/lib/promo-campaign";
 
 export const GARDENS_DREAM5_PROMO_CODE = "DREAM5";
 
 /** 100% скидка на «Сады сновидений» — только этот код допускает оплату 0 BYN. */
 export const GARDENS_COMPLIMENTARY_PROMO_CODE = "SNVID100";
 
-export function isDream5PromoCampaignActive(now = new Date()): boolean {
-  return !isPromoCampaignExpired(now);
+const MINSK_OFFSET = "+03:00";
+
+/** Границы текущих суток по Europe/Minsk (UTC+3). */
+function minskDayBounds(now = new Date()): { validFrom: Date; validUntil: Date } {
+  const day = now.toLocaleDateString("en-CA", { timeZone: "Europe/Minsk" });
+  return {
+    validFrom: new Date(`${day}T00:00:00.000${MINSK_OFFSET}`),
+    validUntil: new Date(`${day}T23:59:59.999${MINSK_OFFSET}`),
+  };
 }
 
 export function isGardensComplimentaryPromoCode(raw: string): boolean {
@@ -21,20 +27,9 @@ export function promoAllowsZeroPayment(raw: string): boolean {
   return isGardensComplimentaryPromoCode(raw);
 }
 
-/**
- * −5% на «Сады сновидений» до PROMO_CAMPAIGN_VALID_UNTIL (по умолчанию 01.07.2026 включительно).
- * После окончания акции — active: false в БД.
- */
+/** −5% на корзину «Сады сновидений», действует в текущие сутки (Минск), без лимита использований. */
 export async function ensureDream5Promo(): Promise<void> {
-  if (!isDream5PromoCampaignActive()) {
-    await prisma.promoCode.updateMany({
-      where: { code: GARDENS_DREAM5_PROMO_CODE },
-      data: { active: false },
-    });
-    return;
-  }
-
-  const validUntil = promoCampaignValidUntilDate();
+  const { validFrom, validUntil } = minskDayBounds();
   await prisma.promoCode.upsert({
     where: { code: GARDENS_DREAM5_PROMO_CODE },
     create: {
@@ -44,7 +39,7 @@ export async function ensureDream5Promo(): Promise<void> {
       discountKind: "PERCENT",
       discountValue: 5,
       maxUses: null,
-      validFrom: null,
+      validFrom,
       validUntil,
     },
     update: {
@@ -53,7 +48,7 @@ export async function ensureDream5Promo(): Promise<void> {
       discountKind: "PERCENT",
       discountValue: 5,
       maxUses: null,
-      validFrom: null,
+      validFrom,
       validUntil,
     },
   });
