@@ -1,4 +1,4 @@
-import { promoCampaignValidUntilRaw } from "@/lib/promo-campaign";
+import { isPromoCampaignExpired } from "@/lib/promo-campaign";
 import { normalizePromoCode } from "@/lib/promo-code";
 
 const NR_PROMO_RE = /^NR-[A-Z0-9]{8}$/;
@@ -34,18 +34,9 @@ export function getDeiClubPromoDiscountPercent(): number {
   return n;
 }
 
-/** Текст как в Telegram-боте при окончании акции персональных NR-кодов. */
-export function personalNrPromoCampaignExpiredHint(): string {
-  const until = promoCampaignValidUntilRaw();
-  return (
-    `Срок действия персональных промокодов на выставку «Небо.Река» истёк ` +
-    `(акция была до ${until}).`
-  );
-}
-
-/** @deprecated проверка срока NR-кодов — только в rp_bot (redeem), не на сайте */
-export function isDeiClubCampaignExpired(): boolean {
-  return false;
+/** @deprecated используйте isPromoCampaignExpired из @/lib/promo-campaign */
+export function isDeiClubCampaignExpired(now = new Date()): boolean {
+  return isPromoCampaignExpired(now);
 }
 
 export function computeDeiClubPromoAmounts(
@@ -97,10 +88,8 @@ function hintForRedeemError(error: string, status: number): string {
       return "Промокод не найден";
     case "already_used":
       return "Промокод уже использован";
-    case "expired":
-      return "Срок действия этого персонального промокода istёk";
     case "campaign_expired":
-      return personalNrPromoCampaignExpiredHint();
+      return "Срок действия акции истёк";
     case "internal_error":
     case "service_unavailable":
     case "network":
@@ -139,6 +128,15 @@ export async function redeemDeiClubPromoCode(raw: string): Promise<DeiClubRedeem
       error: "invalid_format",
       hint: hintForRedeemError("invalid_format", 400),
       status: 400,
+    };
+  }
+
+  if (isDeiClubCampaignExpired()) {
+    return {
+      ok: false,
+      error: "campaign_expired",
+      hint: hintForRedeemError("campaign_expired", 410),
+      status: 410,
     };
   }
 
@@ -255,6 +253,14 @@ export function previewDeiClubPromo(
       applied: false,
       error: "INVALID_PROMO",
       hint: "Неверный формат промокода клуба DEI (NR-XXXXXXXX)",
+    };
+  }
+
+  if (isDeiClubCampaignExpired()) {
+    return {
+      applied: false,
+      error: "PROMO_INACTIVE",
+      hint: "Срок действия акции истёк",
     };
   }
 
