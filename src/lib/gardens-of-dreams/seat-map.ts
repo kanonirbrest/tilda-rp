@@ -11,7 +11,7 @@ export type GardensSeat = {
   seat: number;
   priceCents: number;
   tier: GardensSeatTier;
-  /** false — сектор C/D (продано) */
+  /** false — место не в продаже (сектор D или неактивные C) */
   selectable: boolean;
   label: string;
 };
@@ -24,11 +24,48 @@ function seatLabel(sector: GardensSeat["sector"], row: number, seat: number): st
   return `Сектор ${sector}, ряд ${row}, место ${seat}`;
 }
 
+function seatRange(from: number, to: number): number[] {
+  return Array.from({ length: to - from + 1 }, (_, i) => from + i);
+}
+
+/** Места сектора C в продаже (остальные на схеме — «продано»). */
+export const C_ROW1_ON_SALE = new Set([
+  ...seatRange(3, 10),
+  14,
+  15,
+  ...seatRange(19, 26),
+]);
+export const C_ROW2_ON_SALE = new Set([
+  ...seatRange(3, 8),
+  13,
+  14,
+  ...seatRange(25, 32),
+]);
+
+function isGardensSeatOnSale(sector: GardensSeat["sector"], row: number, seat: number): boolean {
+  if (sector === "A" || sector === "B") return true;
+  if (sector === "C" && row === 1) return C_ROW1_ON_SALE.has(seat);
+  if (sector === "C" && row === 2) return C_ROW2_ON_SALE.has(seat);
+  return false;
+}
+
 function priceForActiveSeat(
-  sector: "A" | "B",
+  sector: "A" | "B" | "C",
   row: number,
   seat: number,
 ): { priceCents: number; tier: GardensSeatTier } | null {
+  if (sector === "C") {
+    if (row === 1 && C_ROW1_ON_SALE.has(seat)) {
+      if (seat === 14 || seat === 15) {
+        return { priceCents: GARDENS_STANDARD_CENTS, tier: "standard" };
+      }
+      return { priceCents: GARDENS_PREMIUM_CENTS, tier: "premium" };
+    }
+    if (row === 2 && C_ROW2_ON_SALE.has(seat)) {
+      return { priceCents: GARDENS_STANDARD_CENTS, tier: "standard" };
+    }
+    return null;
+  }
   if (sector === "B" && row === 1 && seat >= 1 && seat <= 26) {
     return { priceCents: GARDENS_PREMIUM_CENTS, tier: "premium" };
   }
@@ -55,10 +92,11 @@ function addSectorRow(
   sector: GardensSeat["sector"],
   row: number,
   seatNumbers: number[],
-  selectable: boolean,
+  sectorOpen: boolean,
 ) {
   for (const seat of seatNumbers) {
-    if (selectable && (sector === "A" || sector === "B")) {
+    const selectable = sectorOpen && isGardensSeatOnSale(sector, row, seat);
+    if (selectable && (sector === "A" || sector === "B" || sector === "C")) {
       const priced = priceForActiveSeat(sector, row, seat);
       if (!priced) continue;
       out.push({
@@ -105,8 +143,8 @@ export function buildGardensSeatMap(): GardensSeat[] {
   addSectorRow(out, "A", 1, A_ROW1, true);
   addSectorRow(out, "A", 2, A_ROW2, true);
   addSectorRow(out, "A", 3, A_ROW3, true);
-  addSectorRow(out, "C", 1, C_ROW1, false);
-  addSectorRow(out, "C", 2, C_ROW2, false);
+  addSectorRow(out, "C", 1, C_ROW1, true);
+  addSectorRow(out, "C", 2, C_ROW2, true);
   addSectorRow(out, "D", 1, D_ROW1, false);
   addSectorRow(out, "D", 2, D_ROW2, false);
   addSectorRow(out, "D", 3, D_ROW3, false);

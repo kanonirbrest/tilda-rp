@@ -263,11 +263,11 @@ export function GardensSeatMap({
           </div>
         </div>
 
-        <div className="god-map__center god-map__center--bottom god-map__block--sold">
-          <p className="god-sector-title">Сектор «C» — продано</p>
+        <div className="god-map__center god-map__center--bottom">
+          <p className="god-sector-title">Сектор «C»</p>
           <div className="god-sector-rows">
-            {renderGroupedRow(seats, occupied, selected, onToggle, C_ROW1_GROUPS, "C", 1, true)}
-            {renderFlatRow(seats, occupied, selected, onToggle, "C", 2, 37, true)}
+            {renderGroupedRow(seats, occupied, selected, onToggle, C_ROW1_GROUPS, "C", 1, disabled)}
+            {renderFlatRow(seats, occupied, selected, onToggle, "C", 2, 37, disabled)}
           </div>
         </div>
       </div>
