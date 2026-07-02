@@ -1,5 +1,6 @@
 import {
   buildGardensSeatMap,
+  getGardensSeat,
   getSelectableGardensSeats,
 } from "@/lib/gardens-of-dreams/seat-map";
 import {
@@ -24,7 +25,7 @@ function mockOccupiedForSession(date: string, time: string): string[] {
   const set = new Set(BASE_MOCK_OCCUPIED);
   for (const key of extra) set.add(key);
   for (const key of drop) set.delete(key);
-  return [...set];
+  return [...set].filter((key) => getGardensSeat(key)?.selectable);
 }
 
 /** Мок слотов: только при NEXT_PUBLIC_GARDENS_MOCK_SLOTS=true или ?mock=1. На проде по умолчанию выключен. */
