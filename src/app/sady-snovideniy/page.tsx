@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GardensAnnouncement } from "@/components/gardens-announcement";
 import { GardensSchemePanzoom } from "@/components/gardens-scheme-panzoom";
 import { GardensSeatMap } from "@/components/gardens-seat-map";
 import { PhoneCountryField } from "@/components/phone-country-field";
@@ -413,8 +412,6 @@ export default function SadySnovideniyPage() {
           </>
         ) : null}
       </header>
-
-      <GardensAnnouncement />
 
       {loading ? <p className="god-msg">Загрузка…</p> : null}
       {!loading && loadError ? <p className="god-msg god-msg--error">{loadError}</p> : null}
