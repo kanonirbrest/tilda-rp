@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
-import { ensureGardensSlots, findGardensOccupiedSeatKeys } from "@/lib/gardens-of-dreams/ensure-slots";
+import { ensureGardensSlots, findGardensOccupiedSeatKeys, gardensSeatMapVariantForSlot } from "@/lib/gardens-of-dreams/ensure-slots";
 import {
   buildGardensSeatMap,
   formatGardensPrice,
@@ -58,7 +58,8 @@ export async function GET(req: Request) {
     }
 
     const occupied = [...(await findGardensOccupiedSeatKeys(slot.id))];
-    const seats = buildGardensSeatMap();
+    const variant = gardensSeatMapVariantForSlot(slot);
+    const seats = buildGardensSeatMap(variant);
 
     return jsonPublicReadResponse(
       req,

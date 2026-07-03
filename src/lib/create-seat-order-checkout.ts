@@ -5,7 +5,7 @@ import { createBepaidPayment } from "@/lib/bepaid";
 import { fulfillPaidOrder } from "@/lib/fulfill-order";
 import { applyPromoAtCheckout } from "@/lib/resolve-order-promo";
 import { getGardensSeat } from "@/lib/gardens-of-dreams/seat-map";
-import { ensureGardensSlots } from "@/lib/gardens-of-dreams/ensure-slots";
+import { ensureGardensSlots, gardensSeatMapVariantForSlot } from "@/lib/gardens-of-dreams/ensure-slots";
 import { ensureGardensPromos } from "@/lib/gardens-of-dreams/ensure-promo";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
 import {
@@ -87,18 +87,7 @@ export async function createSeatOrderCheckout(
     return { ok: false, status: 400, message: "Выберите хотя бы одно место" };
   }
 
-  const seats = uniqueKeys.map((key) => {
-    const seat = getGardensSeat(key);
-    if (!seat?.selectable) return null;
-    return seat;
-  });
-  if (seats.some((s) => s == null)) {
-    return { ok: false, status: 400, message: "Некорректный выбор мест" };
-  }
-  const resolvedSeats = seats as NonNullable<(typeof seats)[number]>[];
-
   const { name, email, phone } = input;
-  const subtotalCents = resolvedSeats.reduce((sum, s) => sum + s.priceCents, 0);
   const skipPayment = process.env.DEV_SKIP_PAYMENT === "true";
 
   try {
@@ -112,6 +101,18 @@ export async function createSeatOrderCheckout(
     if (!slot) {
       return { ok: false, status: 404, message: "Сеанс не найден" };
     }
+
+    const seatMapVariant = gardensSeatMapVariantForSlot(slot);
+    const seats = uniqueKeys.map((key) => {
+      const seat = getGardensSeat(key, seatMapVariant);
+      if (!seat?.selectable) return null;
+      return seat;
+    });
+    if (seats.some((s) => s == null)) {
+      return { ok: false, status: 400, message: "Некорректный выбор мест" };
+    }
+    const resolvedSeats = seats as NonNullable<(typeof seats)[number]>[];
+    const subtotalCents = resolvedSeats.reduce((sum, s) => sum + s.priceCents, 0);
 
     let chargedAmountCents = subtotalCents;
 

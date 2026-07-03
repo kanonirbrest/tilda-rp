@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureGardensPromos } from "@/lib/gardens-of-dreams/ensure-promo";
-import { ensureGardensSlots } from "@/lib/gardens-of-dreams/ensure-slots";
+import { ensureGardensSlots, gardensSeatMapVariantForSlot } from "@/lib/gardens-of-dreams/ensure-slots";
 import { getGardensSeat } from "@/lib/gardens-of-dreams/seat-map";
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
@@ -63,7 +63,8 @@ export async function GET(req: Request) {
       return jsonPublicReadResponse(req, { error: "SLOT_NOT_FOUND", hint: "Сеанс не найден" }, 404);
     }
 
-    const seats = seatKeys.map((key) => getGardensSeat(key));
+    const variant = gardensSeatMapVariantForSlot(slot);
+    const seats = seatKeys.map((key) => getGardensSeat(key, variant));
     if (seats.some((s) => !s?.selectable)) {
       return jsonPublicReadResponse(
         req,

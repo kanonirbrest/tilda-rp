@@ -6,17 +6,22 @@ import {
   timeKeyInTz,
   wallDateAndTimeToUtc,
 } from "@/lib/exhibition-time";
-import { GARDENS_PREMIUM_CENTS, getSelectableGardensSeats } from "@/lib/gardens-of-dreams/seat-map";
+import {
+  countGardensSelectableSeats,
+  GARDENS_PREMIUM_CENTS,
+  type GardensSeatMapVariant,
+} from "@/lib/gardens-of-dreams/seat-map";
 import {
   GARDENS_PERFORMANCE_SCHEDULE,
   formatGardensPerformanceTitle,
   gardensScheduleMeta,
+  getGardensSeatMapVariantForSchedule,
 } from "@/lib/gardens-of-dreams/schedule";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
 
 const MATCH_WINDOW_MS = 90_000;
 
-export const GARDENS_SELECTABLE_SEAT_COUNT = getSelectableGardensSeats().length;
+export const GARDENS_SELECTABLE_SEAT_COUNT = countGardensSelectableSeats("default");
 
 async function findGardensSlotByStartsAt(startsAt: Date): Promise<Slot | null> {
   const t = startsAt.getTime();
@@ -79,6 +84,13 @@ export async function ensureGardensSlots(): Promise<Slot[]> {
   return out.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
 }
 
+export function gardensSeatMapVariantForSlot(slot: Pick<Slot, "startsAt">): GardensSeatMapVariant {
+  const tz = getExhibitionTimezone();
+  const date = dateKeyInTz(slot.startsAt, tz);
+  const time = timeKeyInTz(slot.startsAt, tz);
+  return getGardensSeatMapVariantForSchedule(date, time);
+}
+
 export async function countGardensOccupiedSeats(slotId: string): Promise<number> {
   return prisma.seatReservation.count({
     where: {
@@ -88,13 +100,17 @@ export async function countGardensOccupiedSeats(slotId: string): Promise<number>
   });
 }
 
-export async function countGardensFreeSeats(slotId: string): Promise<number> {
+export async function countGardensFreeSeats(
+  slotId: string,
+  variant: GardensSeatMapVariant,
+): Promise<number> {
   const occupied = await countGardensOccupiedSeats(slotId);
-  return Math.max(0, GARDENS_SELECTABLE_SEAT_COUNT - occupied);
+  return Math.max(0, countGardensSelectableSeats(variant) - occupied);
 }
 
-export async function isGardensSlotBookable(slotId: string): Promise<boolean> {
-  return (await countGardensFreeSeats(slotId)) > 0;
+export async function isGardensSlotBookable(slot: Pick<Slot, "id" | "startsAt">): Promise<boolean> {
+  const variant = gardensSeatMapVariantForSlot(slot);
+  return (await countGardensFreeSeats(slot.id, variant)) > 0;
 }
 
 export type GardensSessionPublic = {
@@ -110,8 +126,11 @@ export type GardensSessionPublic = {
 
 export async function listGardensSessionsPublic(options?: {
   hidePast?: boolean;
+  /** YYYY-MM-DD — только сеанс на эту дату (для отдельных витрин). */
+  date?: string;
 }): Promise<{ timezone: string; sessions: GardensSessionPublic[] }> {
   const hidePast = options?.hidePast !== false;
+  const filterDate = options?.date?.trim();
   const tz = getExhibitionTimezone();
   const now = new Date();
   const slots = await ensureGardensSlots();
@@ -120,9 +139,11 @@ export async function listGardensSessionsPublic(options?: {
   for (const slot of slots) {
     const date = dateKeyInTz(slot.startsAt, tz);
     const time = timeKeyInTz(slot.startsAt, tz);
+    if (filterDate && date !== filterDate) continue;
     if (hidePast && slot.startsAt < now) continue;
 
-    const freeSeats = await countGardensFreeSeats(slot.id);
+    const variant = getGardensSeatMapVariantForSchedule(date, time);
+    const freeSeats = await countGardensFreeSeats(slot.id, variant);
     const meta = gardensScheduleMeta(date, time);
     sessions.push({
       slotId: slot.id,

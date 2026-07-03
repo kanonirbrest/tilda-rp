@@ -2,6 +2,9 @@ export const GARDENS_PREMIUM_CENTS = 15_000;
 export const GARDENS_STANDARD_CENTS = 12_000;
 export const GARDENS_ECONOMY_CENTS = 9_000;
 
+/** default — A+B+часть C в продаже; ab-only — только A и B (сектор C «продано»). */
+export type GardensSeatMapVariant = "default" | "ab-only";
+
 export type GardensSeatTier = "premium" | "standard" | "economy" | "sold";
 
 export type GardensSeat = {
@@ -136,31 +139,45 @@ const D_ROW2 = A_ROW2;
 const D_ROW3 = A_ROW3;
 
 /** Полная схема зала «Сады сновидений». */
-export function buildGardensSeatMap(): GardensSeat[] {
+export function buildGardensSeatMap(variant: GardensSeatMapVariant = "default"): GardensSeat[] {
+  const sectorCOpen = variant === "default";
   const out: GardensSeat[] = [];
   addSectorRow(out, "B", 1, B_ROW1, true);
   addSectorRow(out, "B", 2, B_ROW2, true);
   addSectorRow(out, "A", 1, A_ROW1, true);
   addSectorRow(out, "A", 2, A_ROW2, true);
   addSectorRow(out, "A", 3, A_ROW3, true);
-  addSectorRow(out, "C", 1, C_ROW1, true);
-  addSectorRow(out, "C", 2, C_ROW2, true);
+  addSectorRow(out, "C", 1, C_ROW1, sectorCOpen);
+  addSectorRow(out, "C", 2, C_ROW2, sectorCOpen);
   addSectorRow(out, "D", 1, D_ROW1, false);
   addSectorRow(out, "D", 2, D_ROW2, false);
   addSectorRow(out, "D", 3, D_ROW3, false);
   return out;
 }
 
-const SEAT_MAP = buildGardensSeatMap();
-const SEAT_BY_KEY = new Map(SEAT_MAP.map((s) => [s.key, s]));
+function seatMapsByVariant(): Map<GardensSeatMapVariant, Map<string, GardensSeat>> {
+  const out = new Map<GardensSeatMapVariant, Map<string, GardensSeat>>();
+  for (const variant of ["default", "ab-only"] as const) {
+    out.set(variant, new Map(buildGardensSeatMap(variant).map((s) => [s.key, s])));
+  }
+  return out;
+}
 
-export function getGardensSeat(key: string): GardensSeat | undefined {
-  return SEAT_BY_KEY.get(key);
+const SEAT_BY_KEY_BY_VARIANT = seatMapsByVariant();
+
+export function getGardensSeat(
+  key: string,
+  variant: GardensSeatMapVariant = "default",
+): GardensSeat | undefined {
+  return SEAT_BY_KEY_BY_VARIANT.get(variant)?.get(key);
 }
 
 /** Человекочитаемое название места по ключу (A:2:2 → «Сектор A, ряд 2, место 2»). */
-export function formatGardensSeatKeyLabel(key: string): string {
-  const seat = getGardensSeat(key);
+export function formatGardensSeatKeyLabel(
+  key: string,
+  variant: GardensSeatMapVariant = "default",
+): string {
+  const seat = getGardensSeat(key, variant);
   if (seat) return seat.label;
   const [sector, row, seatNum] = key.split(":");
   if (sector && row && seatNum) {
@@ -171,7 +188,7 @@ export function formatGardensSeatKeyLabel(key: string): string {
 
 /** Сообщение о занятых местах для пользователя. */
 export function formatGardensOccupiedSeatsMessage(seatKeys: string[]): string {
-  const labels = [...new Set(seatKeys.map(formatGardensSeatKeyLabel))];
+  const labels = [...new Set(seatKeys.map((key) => formatGardensSeatKeyLabel(key)))];
   if (labels.length === 0) {
     return "Выбранные места уже заняты. Обновите схему и выберите другие.";
   }
@@ -181,8 +198,13 @@ export function formatGardensOccupiedSeatsMessage(seatKeys: string[]): string {
   return `Места уже заняты: ${labels.map((label) => `«${label}»`).join(", ")}. Обновите схему и выберите другие.`;
 }
 
-export function getSelectableGardensSeats(): GardensSeat[] {
-  return SEAT_MAP.filter((s) => s.selectable);
+export function getSelectableGardensSeats(variant: GardensSeatMapVariant = "default"): GardensSeat[] {
+  return buildGardensSeatMap(variant).filter((s) => s.selectable);
+}
+
+/** Число мест в продаже для варианта схемы (без учёта занятости). */
+export function countGardensSelectableSeats(variant: GardensSeatMapVariant = "default"): number {
+  return getSelectableGardensSeats(variant).length;
 }
 
 export function formatGardensPrice(cents: number): string {

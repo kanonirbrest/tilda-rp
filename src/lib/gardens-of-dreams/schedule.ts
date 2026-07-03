@@ -1,7 +1,14 @@
+import {
+  dateKeyInTz,
+  getExhibitionTimezone,
+  timeKeyInTz,
+} from "@/lib/exhibition-time";
+import type { GardensSeatMapVariant } from "@/lib/gardens-of-dreams/seat-map";
+
 /**
- * Единственный показ «Сады сновидений».
- * Схема зала и цены — в seat-map.ts.
- * Слот в БД создаётся автоматически при первом запросе витрины.
+ * Показы «Сады сновидений».
+ * Схема зала и цены — в seat-map.ts (вариант `seatMapVariant`).
+ * Слоты в БД создаются автоматически при первом запросе витрины.
  */
 export type GardensScheduleEntry = {
   date: string;
@@ -11,17 +18,60 @@ export type GardensScheduleEntry = {
   entryTime?: string;
   showDurationMinutes?: number;
   title?: string;
+  /** default — A+B+часть C; ab-only — только сектора A и B (как на первом ивенте). */
+  seatMapVariant?: GardensSeatMapVariant;
 };
 
-export const GARDENS_PERFORMANCE: GardensScheduleEntry = {
+export const GARDENS_PERFORMANCE_JULY_6: GardensScheduleEntry = {
   date: "2026-07-06",
   time: "20:00",
   entryTime: "18:30",
   showDurationMinutes: 60,
+  seatMapVariant: "default",
 };
 
-/** Для ensure-slots — всегда один элемент. */
-export const GARDENS_PERFORMANCE_SCHEDULE: GardensScheduleEntry[] = [GARDENS_PERFORMANCE];
+export const GARDENS_PERFORMANCE_JULY_21: GardensScheduleEntry = {
+  date: "2026-07-21",
+  time: "20:00",
+  entryTime: "18:30",
+  showDurationMinutes: 60,
+  seatMapVariant: "ab-only",
+};
+
+/** Первый показ (6 июля) — для обратной совместимости. */
+export const GARDENS_PERFORMANCE = GARDENS_PERFORMANCE_JULY_6;
+
+export const GARDENS_PERFORMANCE_SCHEDULE: GardensScheduleEntry[] = [
+  GARDENS_PERFORMANCE_JULY_6,
+  GARDENS_PERFORMANCE_JULY_21,
+];
+
+export function findGardensScheduleEntry(
+  date: string,
+  time: string,
+): GardensScheduleEntry | undefined {
+  return GARDENS_PERFORMANCE_SCHEDULE.find((e) => e.date === date && e.time === time);
+}
+
+export function findGardensScheduleEntryByDate(date: string): GardensScheduleEntry | undefined {
+  return GARDENS_PERFORMANCE_SCHEDULE.find((e) => e.date === date);
+}
+
+export function getGardensSeatMapVariantForSchedule(
+  date: string,
+  time: string,
+): GardensSeatMapVariant {
+  return findGardensScheduleEntry(date, time)?.seatMapVariant ?? "default";
+}
+
+export function getGardensSeatMapVariantForSlot(
+  startsAt: Date,
+  tz = getExhibitionTimezone(),
+): GardensSeatMapVariant {
+  const date = dateKeyInTz(startsAt, tz);
+  const time = timeKeyInTz(startsAt, tz);
+  return getGardensSeatMapVariantForSchedule(date, time);
+}
 
 export function formatGardensPerformanceTitle(entry: GardensScheduleEntry): string {
   const [y, m, d] = entry.date.split("-").map(Number);
@@ -46,13 +96,12 @@ export function gardensScheduleMeta(
   date: string,
   time: string,
 ): Pick<GardensScheduleEntry, "entryTime" | "showDurationMinutes"> {
-  if (GARDENS_PERFORMANCE.date === date && GARDENS_PERFORMANCE.time === time) {
-    return {
-      entryTime: GARDENS_PERFORMANCE.entryTime,
-      showDurationMinutes: GARDENS_PERFORMANCE.showDurationMinutes,
-    };
-  }
-  return {};
+  const entry = findGardensScheduleEntry(date, time);
+  if (!entry) return {};
+  return {
+    entryTime: entry.entryTime,
+    showDurationMinutes: entry.showDurationMinutes,
+  };
 }
 
 /** Строки «Дата и время» на PDF-билете «Сады сновидений». */

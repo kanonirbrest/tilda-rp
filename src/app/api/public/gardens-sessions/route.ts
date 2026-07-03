@@ -16,8 +16,9 @@ export async function GET(req: Request) {
     const hidePast =
       searchParams.get("hidePast") !== "0" &&
       searchParams.get("hidePast")?.toLowerCase() !== "false";
+    const date = searchParams.get("date")?.trim() || undefined;
 
-    const data = await listGardensSessionsPublic({ hidePast });
+    const data = await listGardensSessionsPublic({ hidePast, date });
     return jsonPublicReadResponse(req, data, 200);
   } catch (err) {
     return jsonPublicApiError(req, err);
