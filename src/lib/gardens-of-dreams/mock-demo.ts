@@ -8,7 +8,7 @@ import {
   findGardensScheduleEntryByDate,
   formatGardensPerformanceTitle,
   GARDENS_PERFORMANCE_JULY_6,
-  GARDENS_PERFORMANCE_JULY_21,
+  GARDENS_PERFORMANCE_JULY_20,
 } from "@/lib/gardens-of-dreams/schedule";
 
 /** Базовый набор «занятых» мест для мока (пусто — все A/B свободны). */
@@ -101,7 +101,7 @@ export function getGardensMockSeatMapResponse(session: {
 }
 
 export function findGardensMockSession(slotId: string): GardensMockSession | undefined {
-  for (const date of [GARDENS_PERFORMANCE_JULY_6.date, GARDENS_PERFORMANCE_JULY_21.date]) {
+  for (const date of [GARDENS_PERFORMANCE_JULY_6.date, GARDENS_PERFORMANCE_JULY_20.date]) {
     const session = buildMockSession(date);
     if (session.slotId === slotId) return session;
   }

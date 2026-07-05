@@ -10,12 +10,12 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Сады сновидений — 21 июля — билеты",
+  title: "Сады сновидений — 20 июля — билеты",
   description:
-    "Иммерсивная танцевальная мистерия «Сады сновидений», 21 июля 2026. Выбор мест на схеме зала.",
+    "Иммерсивная танцевальная мистерия «Сады сновидений», 20 июля 2026. Выбор мест на схеме зала.",
 };
 
-export default function SadySnovideniy2107Layout({
+export default function SadySnovideniy2007Layout({
   children,
 }: Readonly<{
   children: React.ReactNode;

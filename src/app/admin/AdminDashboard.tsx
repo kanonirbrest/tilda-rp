@@ -169,7 +169,7 @@ const ADMIN_TICKET_STOREFRONTS = [
   { href: "/buy-tickets-summer", label: "Лето (Tilda)" },
   { href: "/buy-tickets-smr", label: "Лето v2" },
   { href: "/sady-snovideniy", label: "Сады сновидений (6 июл)" },
-  { href: "/sady-snovideniy-21-07", label: "Сады сновидений (21 июл)" },
+  { href: "/sady-snovideniy-20-07", label: "Сады сновидений (20 июл)" },
 ] as const;
 
 type ScheduleKindFilter = "all" | (typeof SLOT_KIND_CHOICES)[number];
@@ -1977,12 +1977,12 @@ export default function AdminDashboard() {
                 Сады (6 июл)
               </a>
               <a
-                href="/sady-snovideniy-21-07"
+                href="/sady-snovideniy-20-07"
                 className="btn btn-secondary"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Сады (21 июл)
+                Сады (20 июл)
               </a>
               <details className="admin-summer-menu">
                 <summary className="btn btn-secondary">Купить билет - лето ▾</summary>

@@ -47,10 +47,10 @@ export function HomeContent() {
           Сады сновидений (6 июл)
         </Link>
         <Link
-          href="/sady-snovideniy-21-07"
+          href="/sady-snovideniy-20-07"
           className="rounded-xl border border-violet-700/40 bg-violet-50 px-6 py-3 text-sm font-medium text-violet-900 hover:bg-violet-100"
         >
-          Сады сновидений (21 июл)
+          Сады сновидений (20 июл)
         </Link>
         <Link
           href="/staff/login"

@@ -30,20 +30,23 @@ export const GARDENS_PERFORMANCE_JULY_6: GardensScheduleEntry = {
   seatMapVariant: "default",
 };
 
-export const GARDENS_PERFORMANCE_JULY_21: GardensScheduleEntry = {
-  date: "2026-07-21",
+export const GARDENS_PERFORMANCE_JULY_20: GardensScheduleEntry = {
+  date: "2026-07-20",
   time: "20:00",
   entryTime: "18:30",
   showDurationMinutes: 60,
   seatMapVariant: "ab-only",
 };
 
+/** Бывшая дата второго показа — для переноса слота в БД при деплое. */
+export const GARDENS_LEGACY_JULY_21_DATE = "2026-07-21";
+
 /** Первый показ (6 июля) — для обратной совместимости. */
 export const GARDENS_PERFORMANCE = GARDENS_PERFORMANCE_JULY_6;
 
 export const GARDENS_PERFORMANCE_SCHEDULE: GardensScheduleEntry[] = [
   GARDENS_PERFORMANCE_JULY_6,
-  GARDENS_PERFORMANCE_JULY_21,
+  GARDENS_PERFORMANCE_JULY_20,
 ];
 
 export function findGardensScheduleEntry(

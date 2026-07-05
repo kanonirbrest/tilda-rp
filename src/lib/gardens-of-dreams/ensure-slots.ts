@@ -12,6 +12,8 @@ import {
   type GardensSeatMapVariant,
 } from "@/lib/gardens-of-dreams/seat-map";
 import {
+  GARDENS_LEGACY_JULY_21_DATE,
+  GARDENS_PERFORMANCE_JULY_20,
   GARDENS_PERFORMANCE_SCHEDULE,
   formatGardensPerformanceTitle,
   gardensScheduleMeta,
@@ -43,6 +45,34 @@ async function findGardensSlotByStartsAt(startsAt: Date): Promise<Slot | null> {
   return null;
 }
 
+/**
+ * Перенос второго показа с 21.07 на 20.07: тот же slotId, заказы и билеты сохраняются.
+ * Срабатывает один раз, если слот на новую дату ещё не создан.
+ */
+async function migrateGardensJuly21SlotToJuly20(
+  tz: string,
+  newStartsAt: Date,
+  newTitle: string,
+): Promise<Slot | null> {
+  const existingAtNew = await findGardensSlotByStartsAt(newStartsAt);
+  if (existingAtNew) return null;
+
+  const legacyStartsAt = wallDateAndTimeToUtc(
+    GARDENS_LEGACY_JULY_21_DATE,
+    GARDENS_PERFORMANCE_JULY_20.time,
+    tz,
+  );
+  if (!legacyStartsAt) return null;
+
+  const legacy = await findGardensSlotByStartsAt(legacyStartsAt);
+  if (!legacy) return null;
+
+  return prisma.slot.update({
+    where: { id: legacy.id },
+    data: { startsAt: newStartsAt, title: newTitle },
+  });
+}
+
 /** Создаёт в БД слоты по GARDENS_PERFORMANCE_SCHEDULE, если их ещё нет. */
 export async function ensureGardensSlots(): Promise<Slot[]> {
   const tz = getExhibitionTimezone();
@@ -52,8 +82,17 @@ export async function ensureGardensSlots(): Promise<Slot[]> {
     const startsAt = wallDateAndTimeToUtc(entry.date, entry.time, tz);
     if (!startsAt) continue;
 
-    const existing = await findGardensSlotByStartsAt(startsAt);
     const title = formatGardensPerformanceTitle(entry);
+
+    if (entry.date === GARDENS_PERFORMANCE_JULY_20.date) {
+      const migrated = await migrateGardensJuly21SlotToJuly20(tz, startsAt, title);
+      if (migrated) {
+        out.push(migrated);
+        continue;
+      }
+    }
+
+    const existing = await findGardensSlotByStartsAt(startsAt);
     if (existing) {
       if (existing.title !== title) {
         const updated = await prisma.slot.update({
