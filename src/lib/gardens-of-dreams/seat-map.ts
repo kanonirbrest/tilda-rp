@@ -34,7 +34,7 @@ function seatRange(from: number, to: number): number[] {
 /** Места сектора C в продаже (остальные на схеме — «продано»). */
 export const C_ROW1_ON_SALE = new Set([
   ...seatRange(1, 2),
-  ...seatRange(12, 13),
+  ...seatRange(12, 15),
   ...seatRange(27, 32),
 ]);
 export const C_ROW2_ON_SALE = new Set([
@@ -57,6 +57,9 @@ function priceForActiveSeat(
   if (sector === "C") {
     if (row === 1 && C_ROW1_ON_SALE.has(seat)) {
       if (seat >= 27 && seat <= 32) {
+        return { priceCents: GARDENS_STANDARD_CENTS, tier: "standard" };
+      }
+      if (seat === 14 || seat === 15) {
         return { priceCents: GARDENS_STANDARD_CENTS, tier: "standard" };
       }
       return { priceCents: GARDENS_PREMIUM_CENTS, tier: "premium" };
