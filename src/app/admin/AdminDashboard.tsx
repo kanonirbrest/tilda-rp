@@ -67,6 +67,8 @@ type OrderRow = {
     publicToken: string;
     tier: TicketTier | null;
     admissionCount: number;
+    seatKey: string | null;
+    seatLabel: string | null;
     usedAt: string | null;
     refundedAt: string | null;
   }[];
@@ -353,6 +355,22 @@ function truncateText(s: string, max: number): string {
   const t = s.trim();
   if (t.length <= max) return t;
   return `${t.slice(0, Math.max(0, max - 1))}…`;
+}
+
+function ticketSeatDisplay(t: Pick<OrderRow["tickets"][0], "seatLabel" | "seatKey">): string | null {
+  const label = t.seatLabel?.trim();
+  if (label) return label;
+  const key = t.seatKey?.trim();
+  if (!key) return null;
+  const [sector, row, seat] = key.split(":");
+  if (sector && row && seat) return `Сектор ${sector}, ряд ${row}, место ${seat}`;
+  return key;
+}
+
+function orderSeatLabels(o: OrderRow): string[] {
+  return o.tickets
+    .map((t) => ticketSeatDisplay(t))
+    .filter((label): label is string => Boolean(label));
 }
 
 /** Сохранённый секрет входа в админку (только клиент; при XSS доступен скриптам). */
@@ -649,6 +667,7 @@ function OrderModalBody({
     : st === "refunded" ? "refunded"
     : "cancelled";
   const visitP = visitPillForOrder(o.visitState);
+  const seatLabels = orderSeatLabels(o);
 
   return (
     <div className="admin-detail">
@@ -699,21 +718,47 @@ function OrderModalBody({
           <span className="admin-muted-text">доступен после оплаты (PAID)</span>
         </div>
       )}
+      {seatLabels.length > 0 ? (
+        <div className="admin-detail__row admin-detail__row--block">
+          <span className="admin-detail__k">Места</span>
+          <ul className="admin-detail-lines">
+            {o.tickets.map((t, i) => {
+              const seat = ticketSeatDisplay(t);
+              if (!seat) return null;
+              const prefix = o.tickets.length > 1 ? `#${i + 1} · ` : "";
+              return (
+                <li key={`seat-${t.id}`}>
+                  <span className="mono">
+                    {prefix}
+                    {seat}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
       {(o.status.toUpperCase() === "PAID" || o.status.toUpperCase() === "REFUNDED") && o.tickets.length > 0 ? (
         <div className="admin-detail__row admin-detail__row--block">
           <span className="admin-detail__k">Билеты</span>
           <ul className="admin-detail-lines">
             {o.tickets.map((t, i) => {
               const prefix = o.tickets.length > 1 ? `#${i + 1} · ` : "";
-              const tierPart = t.tier ? `${tierTicketSingularRu(t.tier)} · ` : "тип не указан · ";
+              const seat = ticketSeatDisplay(t);
+              const seatPart = seat ? `${seat} · ` : "";
+              const tierPart =
+                seat ? ""
+                : t.tier ? `${tierTicketSingularRu(t.tier)} · `
+                : "тип не указан · ";
               const scanPart = t.refundedAt ? `возврат ${formatDisplayDateTime(t.refundedAt)}`
               : t.usedAt ? `отмечен ${formatDisplayDateTime(t.usedAt)}`
               : "не отмечен";
               const cntPart = t.admissionCount > 1 ? ` · входов ×${t.admissionCount}` : "";
               return (
                 <li key={t.id}>
-                  <span className={`mono${t.tier ? "" : " admin-muted-text"}`}>
+                  <span className={`mono${t.tier || seat ? "" : " admin-muted-text"}`}>
                     {prefix}
+                    {seatPart}
                     {tierPart}
                     {scanPart}
                     {cntPart}
