@@ -42,8 +42,21 @@ export const C_ROW2_ON_SALE = new Set([
   ...seatRange(33, 36),
 ]);
 
-function isGardensSeatOnSale(sector: GardensSeat["sector"], row: number, seat: number): boolean {
-  if (sector === "A" || sector === "B") return true;
+/** Места сектора A ряд 1 в продаже на первом показе (6 июля, default). */
+export const A_ROW1_ON_SALE = new Set([
+  ...seatRange(1, 4),
+  ...seatRange(5, 6),
+]);
+
+function isGardensSeatOnSale(
+  sector: GardensSeat["sector"],
+  row: number,
+  seat: number,
+  variant: GardensSeatMapVariant,
+): boolean {
+  if (sector === "B") return true;
+  if (sector === "A" && row === 1 && variant === "default") return A_ROW1_ON_SALE.has(seat);
+  if (sector === "A") return true;
   if (sector === "C" && row === 1) return C_ROW1_ON_SALE.has(seat);
   if (sector === "C" && row === 2) return C_ROW2_ON_SALE.has(seat);
   return false;
@@ -96,9 +109,10 @@ function addSectorRow(
   row: number,
   seatNumbers: number[],
   sectorOpen: boolean,
+  variant: GardensSeatMapVariant,
 ) {
   for (const seat of seatNumbers) {
-    const selectable = sectorOpen && isGardensSeatOnSale(sector, row, seat);
+    const selectable = sectorOpen && isGardensSeatOnSale(sector, row, seat, variant);
     if (selectable && (sector === "A" || sector === "B" || sector === "C")) {
       const priced = priceForActiveSeat(sector, row, seat);
       if (!priced) continue;
@@ -142,16 +156,16 @@ const D_ROW3 = A_ROW3;
 export function buildGardensSeatMap(variant: GardensSeatMapVariant = "default"): GardensSeat[] {
   const sectorCOpen = variant === "default";
   const out: GardensSeat[] = [];
-  addSectorRow(out, "B", 1, B_ROW1, true);
-  addSectorRow(out, "B", 2, B_ROW2, true);
-  addSectorRow(out, "A", 1, A_ROW1, true);
-  addSectorRow(out, "A", 2, A_ROW2, true);
-  addSectorRow(out, "A", 3, A_ROW3, true);
-  addSectorRow(out, "C", 1, C_ROW1, sectorCOpen);
-  addSectorRow(out, "C", 2, C_ROW2, sectorCOpen);
-  addSectorRow(out, "D", 1, D_ROW1, false);
-  addSectorRow(out, "D", 2, D_ROW2, false);
-  addSectorRow(out, "D", 3, D_ROW3, false);
+  addSectorRow(out, "B", 1, B_ROW1, true, variant);
+  addSectorRow(out, "B", 2, B_ROW2, true, variant);
+  addSectorRow(out, "A", 1, A_ROW1, true, variant);
+  addSectorRow(out, "A", 2, A_ROW2, true, variant);
+  addSectorRow(out, "A", 3, A_ROW3, true, variant);
+  addSectorRow(out, "C", 1, C_ROW1, sectorCOpen, variant);
+  addSectorRow(out, "C", 2, C_ROW2, sectorCOpen, variant);
+  addSectorRow(out, "D", 1, D_ROW1, false, variant);
+  addSectorRow(out, "D", 2, D_ROW2, false, variant);
+  addSectorRow(out, "D", 3, D_ROW3, false, variant);
   return out;
 }
 
