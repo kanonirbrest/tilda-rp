@@ -79,7 +79,16 @@ export async function cancelOtherPendingOrdersForCustomerInTransaction(
   });
 }
 
-/** Занятые места (активные PENDING/PAID). */
+function seatReservationStillHoldsSeat(row: {
+  seatKey: string;
+  order: { tickets: { seatKey: string | null; refundedAt: Date | null }[] };
+}): boolean {
+  const ticket = row.order.tickets.find((t) => t.seatKey === row.seatKey);
+  if (!ticket) return true;
+  return ticket.refundedAt == null;
+}
+
+/** Занятые места (активные PENDING/PAID, без возвращённых билетов). */
 export async function findOccupiedSeatKeysForCheckout(
   tx: PrismaTypes.TransactionClient,
   slotId: string,
@@ -93,7 +102,14 @@ export async function findOccupiedSeatKeysForCheckout(
       seatKey: { in: seatKeys },
       order: { status: { in: ["PENDING", "PAID"] } },
     },
-    select: { seatKey: true },
+    select: {
+      seatKey: true,
+      order: {
+        select: {
+          tickets: { select: { seatKey: true, refundedAt: true } },
+        },
+      },
+    },
   });
-  return rows.map((r) => r.seatKey);
+  return rows.filter(seatReservationStillHoldsSeat).map((r) => r.seatKey);
 }

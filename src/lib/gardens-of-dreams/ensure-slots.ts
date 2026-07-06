@@ -205,7 +205,20 @@ export async function findGardensOccupiedSeatKeys(slotId: string): Promise<strin
       slotId,
       order: { status: { in: ["PENDING", "PAID"] } },
     },
-    select: { seatKey: true },
+    select: {
+      seatKey: true,
+      order: {
+        select: {
+          tickets: { select: { seatKey: true, refundedAt: true } },
+        },
+      },
+    },
   });
-  return rows.map((r) => r.seatKey);
+  return rows
+    .filter((row) => {
+      const ticket = row.order.tickets.find((t) => t.seatKey === row.seatKey);
+      if (!ticket) return true;
+      return ticket.refundedAt == null;
+    })
+    .map((r) => r.seatKey);
 }

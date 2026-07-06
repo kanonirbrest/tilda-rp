@@ -118,6 +118,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ orderId: strin
       where: { orderId: order.id, refundedAt: null },
       data: { refundedAt: new Date() },
     });
+    await tx.seatReservation.deleteMany({ where: { orderId: order.id } });
     return { race: false as const };
   });
 

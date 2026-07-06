@@ -65,7 +65,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ orderId: strin
       lines: { orderBy: { id: "asc" } },
       tickets: {
         orderBy: { createdAt: "asc" },
-        select: { id: true, refundedAt: true, usedAt: true },
+        select: { id: true, refundedAt: true, usedAt: true, seatKey: true },
       },
     },
   });
@@ -188,6 +188,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ orderId: strin
       await tx.ticket.updateMany({
         where: { orderId: order.id, refundedAt: null },
         data: { refundedAt: new Date() },
+      });
+      await tx.seatReservation.deleteMany({ where: { orderId: order.id } });
+    } else if (ticket.seatKey?.trim()) {
+      await tx.seatReservation.deleteMany({
+        where: { orderId: order.id, seatKey: ticket.seatKey.trim() },
       });
     }
 
