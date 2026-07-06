@@ -108,6 +108,47 @@ export async function expireStalePendingOrdersAndReleaseSeats(): Promise<void> {
   await releaseOrphanSeatReservations();
 }
 
+/** Отмена неоплаченной заявки и снятие брони мест. */
+export async function cancelPendingOrder(orderId: string): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: { status: true },
+    });
+    if (!order || order.status !== "PENDING") return false;
+    await tx.seatReservation.deleteMany({ where: { orderId } });
+    await tx.order.update({
+      where: { id: orderId },
+      data: { status: "CANCELLED" },
+    });
+    return true;
+  });
+}
+
+/** Отмена PENDING-заявок, держащих указанные места. */
+export async function cancelPendingOrdersForSeatKeys(seatKeys: string[]): Promise<string[]> {
+  if (seatKeys.length === 0) return [];
+
+  return prisma.$transaction(async (tx) => {
+    const reservations = await tx.seatReservation.findMany({
+      where: {
+        seatKey: { in: seatKeys },
+        order: { status: "PENDING" },
+      },
+      select: { orderId: true },
+    });
+    const orderIds = [...new Set(reservations.map((r) => r.orderId))];
+    if (orderIds.length === 0) return [];
+
+    await tx.seatReservation.deleteMany({ where: { orderId: { in: orderIds } } });
+    await tx.order.updateMany({
+      where: { id: { in: orderIds }, status: "PENDING" },
+      data: { status: "CANCELLED" },
+    });
+    return orderIds;
+  });
+}
+
 /**
  * Внутри checkout-транзакции: снять просроченные PENDING и «мёртвые» брони по выбранным местам.
  * Иначе unique (slotId, seatKey) падает с P2002, хотя место на схеме выглядит свободным.

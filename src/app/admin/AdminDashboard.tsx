@@ -482,6 +482,63 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return json as T;
 }
 
+function OrderCancelPendingPanel({
+  order,
+  onDone,
+}: {
+  order: OrderRow;
+  onDone: () => void | Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  if (order.status.toUpperCase() !== "PENDING") return null;
+
+  async function onCancel() {
+    const seats = orderSeatLabels(order);
+    const seatsHint = seats.length > 0 ? `\nМеста: ${seats.join(", ")}.` : "";
+    if (!window.confirm(`Снять неоплаченную бронь и отменить заявку?${seatsHint}`)) return;
+    setErr("");
+    setBusy(true);
+    try {
+      await apiFetch<{ ok?: boolean }>(
+        `/api/admin/orders/${encodeURIComponent(order.id)}/cancel-pending`,
+        { method: "POST", body: "{}" },
+      );
+      await onDone();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="admin-detail__row admin-detail__row--block">
+      <span className="admin-detail__k">Неоплаченная бронь</span>
+      <div className="admin-detail__block">
+        <p className="admin-hint admin-hint--tight">
+          Заявка в PENDING держит места на схеме. Можно снять бронь вручную — статус станет CANCELLED.
+        </p>
+        {err ? (
+          <p className="admin-alert admin-alert--err admin-hint--tight" style={{ marginTop: "0.5rem" }}>
+            {err}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          className={`btn btn-secondary ${busy ? "is-loading" : ""}`}
+          style={{ marginTop: "0.75rem" }}
+          disabled={busy}
+          onClick={() => void onCancel()}
+        >
+          Снять бронь
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function OrderBepaidRefundPanel({
   order,
   bepaidRefundAvailable,
@@ -659,11 +716,13 @@ function OrderModalBody({
   bepaidRefundAvailable,
   onFullRefundDone,
   onTicketRefunded,
+  onPendingCancelled,
 }: {
   o: OrderRow;
   bepaidRefundAvailable: boolean;
   onFullRefundDone: (kind: "ok" | "duplicate") => void;
   onTicketRefunded: () => void | Promise<void>;
+  onPendingCancelled: () => void | Promise<void>;
 }) {
   const [manualParent, setManualParent] = useState("");
   const st = o.status.toLowerCase();
@@ -840,6 +899,7 @@ function OrderModalBody({
           <span className="mono">{formatDisplayDateTime(o.refundedAt)}</span>
         </div>
       ) : null}
+      <OrderCancelPendingPanel order={o} onDone={onPendingCancelled} />
       <OrderBepaidRefundPanel
         order={o}
         bepaidRefundAvailable={bepaidRefundAvailable}
@@ -2426,6 +2486,11 @@ export default function AdminDashboard() {
                 setErrMsg(e instanceof Error ? e.message : String(e));
                 void loadOrders();
               }
+            }}
+            onPendingCancelled={async () => {
+              setInfoMsg("Неоплаченная бронь снята, места снова свободны.");
+              setModal({ type: "none" });
+              void loadOrders();
             }}
           />
           <div className="admin-modal-actions">
