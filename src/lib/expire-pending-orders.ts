@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { seatReservationStillHoldsSeat } from "@/lib/seat-reservation-lock";
 
 const DEFAULT_TTL_MINUTES = 15;
 
@@ -23,8 +24,33 @@ export async function releaseInactiveSeatReservations(): Promise<number> {
 }
 
 /**
- * Снимает бронь по местам, билеты на которые уже возвращены (частичный возврат, заказ ещё PAID).
+ * Снимает брони без действующего билета на это место (битые строки в SeatReservation).
  */
+export async function releaseOrphanSeatReservations(): Promise<number> {
+  const rows = await prisma.seatReservation.findMany({
+    where: { order: { status: { in: ["PENDING", "PAID"] } } },
+    select: {
+      id: true,
+      seatKey: true,
+      order: {
+        select: {
+          tickets: { select: { seatKey: true, refundedAt: true } },
+        },
+      },
+    },
+  });
+
+  const ids = rows
+    .filter((row) => !seatReservationStillHoldsSeat(row))
+    .map((row) => row.id);
+
+  if (ids.length === 0) return 0;
+
+  const res = await prisma.seatReservation.deleteMany({ where: { id: { in: ids } } });
+  return res.count;
+}
+
+/** Снимает бронь по местам, билеты на которые уже возвращены (частичный возврат, заказ ещё PAID). */
 export async function releaseRefundedTicketSeatReservations(): Promise<number> {
   const rows = await prisma.seatReservation.findMany({
     where: { order: { status: "PAID" } },
@@ -40,10 +66,7 @@ export async function releaseRefundedTicketSeatReservations(): Promise<number> {
   });
 
   const ids = rows
-    .filter((row) => {
-      const ticket = row.order.tickets.find((t) => t.seatKey === row.seatKey);
-      return ticket?.refundedAt != null;
-    })
+    .filter((row) => !seatReservationStillHoldsSeat(row))
     .map((row) => row.id);
 
   if (ids.length === 0) return 0;
@@ -82,6 +105,7 @@ export async function expireStalePendingOrdersAndReleaseSeats(): Promise<void> {
   await expireStalePendingOrders();
   await releaseInactiveSeatReservations();
   await releaseRefundedTicketSeatReservations();
+  await releaseOrphanSeatReservations();
 }
 
 /**

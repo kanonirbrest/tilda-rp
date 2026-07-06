@@ -8,9 +8,11 @@ import {
 } from "@/lib/exhibition-time";
 import {
   countGardensSelectableSeats,
+  getSelectableGardensSeats,
   GARDENS_PREMIUM_CENTS,
   type GardensSeatMapVariant,
 } from "@/lib/gardens-of-dreams/seat-map";
+import { seatReservationStillHoldsSeat } from "@/lib/seat-reservation-lock";
 import {
   GARDENS_LEGACY_JULY_21_DATE,
   GARDENS_PERFORMANCE_JULY_20,
@@ -130,20 +132,18 @@ export function gardensSeatMapVariantForSlot(slot: Pick<Slot, "startsAt">): Gard
   return getGardensSeatMapVariantForSchedule(date, time);
 }
 
-export async function countGardensOccupiedSeats(slotId: string): Promise<number> {
-  return prisma.seatReservation.count({
-    where: {
-      slotId,
-      order: { status: { in: ["PENDING", "PAID"] } },
-    },
-  });
+export async function countGardensOccupiedSeats(
+  slotId: string,
+  variant: GardensSeatMapVariant,
+): Promise<number> {
+  return (await findGardensOccupiedSeatKeys(slotId, variant)).length;
 }
 
 export async function countGardensFreeSeats(
   slotId: string,
   variant: GardensSeatMapVariant,
 ): Promise<number> {
-  const occupied = await countGardensOccupiedSeats(slotId);
+  const occupied = await countGardensOccupiedSeats(slotId, variant);
   return Math.max(0, countGardensSelectableSeats(variant) - occupied);
 }
 
@@ -199,7 +199,10 @@ export async function listGardensSessionsPublic(options?: {
   return { timezone: tz, sessions };
 }
 
-export async function findGardensOccupiedSeatKeys(slotId: string): Promise<string[]> {
+export async function findGardensOccupiedSeatKeys(
+  slotId: string,
+  variant?: GardensSeatMapVariant,
+): Promise<string[]> {
   const rows = await prisma.seatReservation.findMany({
     where: {
       slotId,
@@ -214,11 +217,10 @@ export async function findGardensOccupiedSeatKeys(slotId: string): Promise<strin
       },
     },
   });
-  return rows
-    .filter((row) => {
-      const ticket = row.order.tickets.find((t) => t.seatKey === row.seatKey);
-      if (!ticket) return true;
-      return ticket.refundedAt == null;
-    })
-    .map((r) => r.seatKey);
+  let keys = rows.filter(seatReservationStillHoldsSeat).map((r) => r.seatKey);
+  if (variant != null) {
+    const selectable = new Set(getSelectableGardensSeats(variant).map((s) => s.key));
+    keys = keys.filter((k) => selectable.has(k));
+  }
+  return keys;
 }

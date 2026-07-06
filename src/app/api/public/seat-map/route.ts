@@ -57,8 +57,8 @@ export async function GET(req: Request) {
       return jsonPublicReadResponse(req, { error: "WRONG_SLOT_KIND" }, 400);
     }
 
-    const occupied = [...(await findGardensOccupiedSeatKeys(slot.id))];
     const variant = gardensSeatMapVariantForSlot(slot);
+    const occupied = [...(await findGardensOccupiedSeatKeys(slot.id, variant))];
     const seats = buildGardensSeatMap(variant);
 
     return jsonPublicReadResponse(

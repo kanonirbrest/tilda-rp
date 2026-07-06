@@ -79,13 +79,20 @@ export async function cancelOtherPendingOrdersForCustomerInTransaction(
   });
 }
 
-function seatReservationStillHoldsSeat(row: {
+/** Бронь держит место, только если есть не возвращённый билет на это место. */
+export function seatReservationStillHoldsSeat(row: {
   seatKey: string;
   order: { tickets: { seatKey: string | null; refundedAt: Date | null }[] };
 }): boolean {
-  const ticket = row.order.tickets.find((t) => t.seatKey === row.seatKey);
-  if (!ticket) return true;
-  return ticket.refundedAt == null;
+  const activeTickets = row.order.tickets.filter((t) => t.refundedAt == null);
+  if (activeTickets.length === 0) return false;
+
+  if (activeTickets.some((t) => t.seatKey === row.seatKey)) return true;
+
+  // Старые записи: один билет без seatKey — бронь по заказу считаем действующей.
+  if (activeTickets.length === 1 && activeTickets[0]!.seatKey == null) return true;
+
+  return false;
 }
 
 /** Занятые места (активные PENDING/PAID, без возвращённых билетов). */
