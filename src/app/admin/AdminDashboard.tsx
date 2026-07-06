@@ -373,6 +373,13 @@ function orderSeatLabels(o: OrderRow): string[] {
     .filter((label): label is string => Boolean(label));
 }
 
+/** Краткая строка мест для списка заявок (только если есть посадка). */
+function orderSeatListLine(o: OrderRow): string | null {
+  const labels = orderSeatLabels(o);
+  if (labels.length === 0) return null;
+  return labels.join(" · ");
+}
+
 /** Сохранённый секрет входа в админку (только клиент; при XSS доступен скриптам). */
 const ADMIN_UI_SECRET_STORAGE_KEY = "dei_admin_ui_secret";
 
@@ -1840,6 +1847,7 @@ export default function AdminDashboard() {
                   : "cancelled";
                 const visitPill = visitPillForOrder(o.visitState);
                 const createdShort = formatDisplayDateTime(o.createdAt);
+                const seatLine = orderSeatListLine(o);
                 return (
                   <button
                     key={o.id}
@@ -1865,6 +1873,11 @@ export default function AdminDashboard() {
                       <span className="admin-order-row__slot-time mono">
                         {formatDisplayDateTime(o.slot.startsAt)}
                       </span>
+                      {seatLine ? (
+                        <span className="admin-order-row__seats mono" title={seatLine}>
+                          {truncateText(seatLine, 56)}
+                        </span>
+                      ) : null}
                     </div>
                     <span className="admin-order-row__chev" aria-hidden>
                       →

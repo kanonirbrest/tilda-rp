@@ -216,6 +216,8 @@ export function GardensSeatMap({
   onToggle,
   disabled,
 }: GardensSeatMapProps) {
+  const sectorDHasSale = seats.some((s) => s.sector === "D" && s.selectable);
+
   return (
     <div className="god-map">
       <div className="god-map__legend" aria-label="Цены">
@@ -254,12 +256,16 @@ export function GardensSeatMap({
 
         <div className="god-map__stage-row">{renderAlignedStageRow()}</div>
 
-        <div className="god-map__left god-map__left--bottom god-map__block--sold">
-          <p className="god-sector-title">Сектор «D» — продано</p>
+        <div
+          className={`god-map__left god-map__left--bottom${sectorDHasSale ? "" : " god-map__block--sold"}`}
+        >
+          <p className="god-sector-title">
+            {sectorDHasSale ? "Сектор «D»" : "Сектор «D» — продано"}
+          </p>
           <div className="god-sector-vertical god-sector-vertical--bottom">
-            {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 3, 7, "top", true)}
-            {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 2, 6, "top", true)}
-            {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 1, 6, "top", true)}
+            {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 3, 7, "top", disabled)}
+            {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 2, 6, "top", disabled)}
+            {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 1, 6, "top", disabled)}
           </div>
         </div>
 

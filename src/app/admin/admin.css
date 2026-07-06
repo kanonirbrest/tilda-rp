@@ -702,6 +702,14 @@
   color: var(--admin-muted);
 }
 
+.admin-root .admin-order-row__seats {
+  font-size: 0.68rem;
+  color: var(--admin-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .admin-root .admin-order-row__chev {
   color: var(--admin-muted);
   font-size: 0.85rem;

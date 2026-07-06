@@ -14,7 +14,7 @@ export type GardensSeat = {
   seat: number;
   priceCents: number;
   tier: GardensSeatTier;
-  /** false — место не в продаже (сектор D или неактивные C) */
+  /** false — место не в продаже (неактивные C/D и т.п.) */
   selectable: boolean;
   label: string;
 };
@@ -48,6 +48,9 @@ export const A_ROW1_ON_SALE = new Set([
   ...seatRange(5, 6),
 ]);
 
+/** Места сектора D ряд 1 в продаже (6 июля, default). */
+export const D_ROW1_ON_SALE = new Set(seatRange(1, 4));
+
 function isGardensSeatOnSale(
   sector: GardensSeat["sector"],
   row: number,
@@ -59,11 +62,12 @@ function isGardensSeatOnSale(
   if (sector === "A") return true;
   if (sector === "C" && row === 1) return C_ROW1_ON_SALE.has(seat);
   if (sector === "C" && row === 2) return C_ROW2_ON_SALE.has(seat);
+  if (sector === "D" && row === 1 && variant === "default") return D_ROW1_ON_SALE.has(seat);
   return false;
 }
 
 function priceForActiveSeat(
-  sector: "A" | "B" | "C",
+  sector: "A" | "B" | "C" | "D",
   row: number,
   seat: number,
 ): { priceCents: number; tier: GardensSeatTier } | null {
@@ -100,6 +104,9 @@ function priceForActiveSeat(
   if (sector === "A" && row === 3 && seat >= 1 && seat <= 7) {
     return { priceCents: GARDENS_ECONOMY_CENTS, tier: "economy" };
   }
+  if (sector === "D" && row === 1 && D_ROW1_ON_SALE.has(seat)) {
+    return { priceCents: GARDENS_STANDARD_CENTS, tier: "standard" };
+  }
   return null;
 }
 
@@ -113,7 +120,7 @@ function addSectorRow(
 ) {
   for (const seat of seatNumbers) {
     const selectable = sectorOpen && isGardensSeatOnSale(sector, row, seat, variant);
-    if (selectable && (sector === "A" || sector === "B" || sector === "C")) {
+    if (selectable && (sector === "A" || sector === "B" || sector === "C" || sector === "D")) {
       const priced = priceForActiveSeat(sector, row, seat);
       if (!priced) continue;
       out.push({
@@ -155,6 +162,7 @@ const D_ROW3 = A_ROW3;
 /** Полная схема зала «Сады сновидений». */
 export function buildGardensSeatMap(variant: GardensSeatMapVariant = "default"): GardensSeat[] {
   const sectorCOpen = variant === "default";
+  const sectorDOpen = variant === "default";
   const out: GardensSeat[] = [];
   addSectorRow(out, "B", 1, B_ROW1, true, variant);
   addSectorRow(out, "B", 2, B_ROW2, true, variant);
@@ -163,9 +171,9 @@ export function buildGardensSeatMap(variant: GardensSeatMapVariant = "default"):
   addSectorRow(out, "A", 3, A_ROW3, true, variant);
   addSectorRow(out, "C", 1, C_ROW1, sectorCOpen, variant);
   addSectorRow(out, "C", 2, C_ROW2, sectorCOpen, variant);
-  addSectorRow(out, "D", 1, D_ROW1, false, variant);
-  addSectorRow(out, "D", 2, D_ROW2, false, variant);
-  addSectorRow(out, "D", 3, D_ROW3, false, variant);
+  addSectorRow(out, "D", 1, D_ROW1, sectorDOpen, variant);
+  addSectorRow(out, "D", 2, D_ROW2, sectorDOpen, variant);
+  addSectorRow(out, "D", 3, D_ROW3, sectorDOpen, variant);
   return out;
 }
 
