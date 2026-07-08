@@ -30,6 +30,22 @@ export const GARDENS_PERFORMANCE_JULY_6: GardensScheduleEntry = {
   seatMapVariant: "default",
 };
 
+export const GARDENS_PERFORMANCE_JULY_19_1700: GardensScheduleEntry = {
+  date: "2026-07-19",
+  time: "17:00",
+  entryTime: "15:30",
+  showDurationMinutes: 60,
+  seatMapVariant: "ab-only",
+};
+
+export const GARDENS_PERFORMANCE_JULY_19_2030: GardensScheduleEntry = {
+  date: "2026-07-19",
+  time: "20:30",
+  entryTime: "19:00",
+  showDurationMinutes: 60,
+  seatMapVariant: "ab-only",
+};
+
 export const GARDENS_PERFORMANCE_JULY_20: GardensScheduleEntry = {
   date: "2026-07-20",
   time: "20:00",
@@ -46,6 +62,8 @@ export const GARDENS_PERFORMANCE = GARDENS_PERFORMANCE_JULY_6;
 
 export const GARDENS_PERFORMANCE_SCHEDULE: GardensScheduleEntry[] = [
   GARDENS_PERFORMANCE_JULY_6,
+  GARDENS_PERFORMANCE_JULY_19_1700,
+  GARDENS_PERFORMANCE_JULY_19_2030,
   GARDENS_PERFORMANCE_JULY_20,
 ];
 

@@ -169,6 +169,8 @@ const ADMIN_TICKET_STOREFRONTS = [
   { href: "/buy-tickets-summer", label: "Лето (Tilda)" },
   { href: "/buy-tickets-smr", label: "Лето v2" },
   { href: "/sady-snovideniy", label: "Сады сновидений (6 июл)" },
+  { href: "/sady-snovideniy-19-07", label: "Сады сновидений (19 июл, 17:00)" },
+  { href: "/sady-snovideniy-19-07-2030", label: "Сады сновидений (19 июл, 20:30)" },
   { href: "/sady-snovideniy-20-07", label: "Сады сновидений (20 июл)" },
 ] as const;
 
@@ -2048,6 +2050,22 @@ export default function AdminDashboard() {
                 rel="noopener noreferrer"
               >
                 Сады (6 июл)
+              </a>
+              <a
+                href="/sady-snovideniy-19-07"
+                className="btn btn-secondary"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Сады (19 июл, 17:00)
+              </a>
+              <a
+                href="/sady-snovideniy-19-07-2030"
+                className="btn btn-secondary"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Сады (19 июл, 20:30)
               </a>
               <a
                 href="/sady-snovideniy-20-07"

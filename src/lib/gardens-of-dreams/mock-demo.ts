@@ -5,10 +5,12 @@ import {
   type GardensSeatMapVariant,
 } from "@/lib/gardens-of-dreams/seat-map";
 import {
+  findGardensScheduleEntry,
   findGardensScheduleEntryByDate,
   formatGardensPerformanceTitle,
   GARDENS_PERFORMANCE_JULY_6,
-  GARDENS_PERFORMANCE_JULY_20,
+  GARDENS_PERFORMANCE_SCHEDULE,
+  getGardensSeatMapVariantForSchedule,
 } from "@/lib/gardens-of-dreams/schedule";
 
 /** Базовый набор «занятых» мест для мока (пусто — все A/B свободны). */
@@ -18,13 +20,13 @@ export function gardensMockSlotId(date: string, time: string): string {
   return `mock-gardens-${date}-${time.replace(":", "")}`;
 }
 
-function mockVariantForDate(date: string): GardensSeatMapVariant {
-  return findGardensScheduleEntryByDate(date)?.seatMapVariant ?? "default";
+function mockVariantForSession(date: string, time: string): GardensSeatMapVariant {
+  return getGardensSeatMapVariantForSchedule(date, time);
 }
 
 /** Детерминированно чуть разная занятость по сеансам. */
 function mockOccupiedForSession(date: string, time: string): string[] {
-  const variant = mockVariantForDate(date);
+  const variant = mockVariantForSession(date, time);
   const seed = `${date}:${time}`.split("").reduce((n, c) => n + c.charCodeAt(0), 0);
   const extra = BASE_MOCK_OCCUPIED.filter((_, i) => (seed + i * 7) % 5 === 0);
   const drop = BASE_MOCK_OCCUPIED.filter((_, i) => (seed + i * 3) % 11 === 0);
@@ -55,8 +57,11 @@ export type GardensMockSession = {
   bookable: boolean;
 };
 
-function buildMockSession(eventDate: string): GardensMockSession {
-  const entry = findGardensScheduleEntryByDate(eventDate) ?? GARDENS_PERFORMANCE_JULY_6;
+function buildMockSession(eventDate: string, eventTime?: string): GardensMockSession {
+  const entry =
+    (eventTime
+      ? findGardensScheduleEntry(eventDate, eventTime)
+      : findGardensScheduleEntryByDate(eventDate)) ?? GARDENS_PERFORMANCE_JULY_6;
   const variant = entry.seatMapVariant ?? "default";
   const occupied = mockOccupiedForSession(entry.date, entry.time);
   const selectableCount = countGardensSelectableSeats(variant);
@@ -78,8 +83,8 @@ export const GARDENS_MOCK_SESSION = buildMockSession(GARDENS_PERFORMANCE_JULY_6.
 /** @deprecated используйте GARDENS_MOCK_SESSION */
 export const GARDENS_MOCK_SESSIONS = [GARDENS_MOCK_SESSION];
 
-export function getGardensMockSession(eventDate: string): GardensMockSession {
-  return buildMockSession(eventDate);
+export function getGardensMockSession(eventDate: string, eventTime?: string): GardensMockSession {
+  return buildMockSession(eventDate, eventTime);
 }
 
 export function getGardensMockSeatMapResponse(session: {
@@ -88,7 +93,7 @@ export function getGardensMockSeatMapResponse(session: {
   time: string;
   title: string;
 }) {
-  const variant = mockVariantForDate(session.date);
+  const variant = mockVariantForSession(session.date, session.time);
   const occupied = mockOccupiedForSession(session.date, session.time);
   return {
     slotId: session.slotId,
@@ -101,8 +106,8 @@ export function getGardensMockSeatMapResponse(session: {
 }
 
 export function findGardensMockSession(slotId: string): GardensMockSession | undefined {
-  for (const date of [GARDENS_PERFORMANCE_JULY_6.date, GARDENS_PERFORMANCE_JULY_20.date]) {
-    const session = buildMockSession(date);
+  for (const entry of GARDENS_PERFORMANCE_SCHEDULE) {
+    const session = buildMockSession(entry.date, entry.time);
     if (session.slotId === slotId) return session;
   }
   return undefined;

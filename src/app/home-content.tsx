@@ -47,6 +47,18 @@ export function HomeContent() {
           Сады сновидений (6 июл)
         </Link>
         <Link
+          href="/sady-snovideniy-19-07"
+          className="rounded-xl border border-violet-700/40 bg-violet-50 px-6 py-3 text-sm font-medium text-violet-900 hover:bg-violet-100"
+        >
+          Сады сновидений (19 июл, 17:00)
+        </Link>
+        <Link
+          href="/sady-snovideniy-19-07-2030"
+          className="rounded-xl border border-violet-700/40 bg-violet-50 px-6 py-3 text-sm font-medium text-violet-900 hover:bg-violet-100"
+        >
+          Сады сновидений (19 июл, 20:30)
+        </Link>
+        <Link
           href="/sady-snovideniy-20-07"
           className="rounded-xl border border-violet-700/40 bg-violet-50 px-6 py-3 text-sm font-medium text-violet-900 hover:bg-violet-100"
         >

@@ -99,9 +99,11 @@ function applySessionToState(
 type GardensTicketsPageProps = {
   /** Календарная дата сеанса YYYY-MM-DD (отдельная витрина на каждый показ). */
   eventDate: string;
+  /** HH:mm — если на эту дату несколько сеансов. */
+  eventTime?: string;
 };
 
-export function GardensTicketsPage({ eventDate }: GardensTicketsPageProps) {
+export function GardensTicketsPage({ eventDate, eventTime }: GardensTicketsPageProps) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [isMock, setIsMock] = useState(false);
@@ -208,7 +210,7 @@ export function GardensTicketsPage({ eventDate }: GardensTicketsPageProps) {
 
       if (mock) {
         if (!cancelled) {
-          applyMockSession(getGardensMockSession(eventDate));
+          applyMockSession(getGardensMockSession(eventDate, eventTime));
           setLoading(false);
         }
         return;
@@ -221,7 +223,10 @@ export function GardensTicketsPage({ eventDate }: GardensTicketsPageProps) {
         const body = await readResponseJson<GardensSessionsResponse>(r);
         if (!r.ok) throw new Error(body.hint || body.error || "gardens-sessions");
 
-        const show = body.sessions.find((s) => s.bookable) ?? body.sessions[0];
+        const sessions = eventTime
+          ? body.sessions.filter((s) => s.time === eventTime)
+          : body.sessions;
+        const show = sessions.find((s) => s.bookable) ?? sessions[0];
         if (!show) {
           throw new Error("Сеанс не найден в расписании.");
         }
@@ -240,7 +245,7 @@ export function GardensTicketsPage({ eventDate }: GardensTicketsPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [applyMockSession, eventDate, loadSeatMap]);
+  }, [applyMockSession, eventDate, eventTime, loadSeatMap]);
 
   useEffect(() => {
     if (isMock || !slotId || selectedKeys.length === 0) {
