@@ -1,6 +1,7 @@
 import type { OrderStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
+import { dateKeyInTz, getExhibitionTimezone } from "@/lib/exhibition-time";
 import { formatDisplayDateTime } from "@/lib/format-display-datetime";
 
 export async function OPTIONS(req: Request) {
@@ -70,6 +71,7 @@ export async function GET(req: Request) {
   const bepaidRefundAvailable = Boolean(
     process.env.BEPAID_SHOP_ID?.trim() && process.env.BEPAID_SECRET_KEY?.trim(),
   );
+  const tz = getExhibitionTimezone();
 
   const orders = rows.map((o) => {
     const { visitState, visitedAt } = visitMeta(o.status, o.tickets);
@@ -106,8 +108,11 @@ export async function GET(req: Request) {
       },
       slot: {
         id: o.slot.id,
+        kind: o.slot.kind,
         title: o.slot.title,
         startsAt: formatDisplayDateTime(o.slot.startsAt.toISOString()),
+        /** Календарный день сеанса в поясе выставки (для фильтра «на дату»). */
+        dateKey: dateKeyInTz(o.slot.startsAt, tz),
       },
       lines: o.lines.map((l) => ({
         tier: l.tier,

@@ -73,7 +73,7 @@ type OrderRow = {
     refundedAt: string | null;
   }[];
   customer: { name: string; email: string; phone: string };
-  slot: { id: string; title: string; startsAt: string };
+  slot: { id: string; kind: string; title: string; startsAt: string; dateKey: string };
   lines: { tier: string; quantity: number; unitPriceCents: number }[];
 };
 
@@ -332,7 +332,12 @@ function orderMatchesFilters(
   o: OrderRow,
   pay: OrderPayFilter,
   visit: OrderVisitFilter,
+  eventKind: string,
+  eventDate: string,
 ): boolean {
+  if (eventKind !== "all" && o.slot.kind !== eventKind) return false;
+  if (eventDate !== "all" && o.slot.dateKey !== eventDate) return false;
+
   const st = o.status.toUpperCase();
   if (pay === "paid" && st !== "PAID") return false;
   if (pay === "pending" && st !== "PENDING") return false;
@@ -959,6 +964,8 @@ export default function AdminDashboard() {
   const [ordersData, setOrdersData] = useState<OrdersResponse | null>(null);
   const [orderPayFilter, setOrderPayFilter] = useState<OrderPayFilter>("all");
   const [orderVisitFilter, setOrderVisitFilter] = useState<OrderVisitFilter>("all");
+  const [orderEventKindFilter, setOrderEventKindFilter] = useState<string>("all");
+  const [orderEventDateFilter, setOrderEventDateFilter] = useState<string>("all");
   const [promosData, setPromosData] = useState<PromoRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(todayDateKey);
@@ -1630,9 +1637,46 @@ export default function AdminDashboard() {
   }, [ordersData, orderPayFilter]);
 
   const filteredOrders = useMemo(
-    () => ordersListPool.filter((o) => orderMatchesFilters(o, orderPayFilter, orderVisitFilter)),
-    [ordersListPool, orderPayFilter, orderVisitFilter],
+    () =>
+      ordersListPool.filter((o) =>
+        orderMatchesFilters(
+          o,
+          orderPayFilter,
+          orderVisitFilter,
+          orderEventKindFilter,
+          orderEventDateFilter,
+        ),
+      ),
+    [ordersListPool, orderPayFilter, orderVisitFilter, orderEventKindFilter, orderEventDateFilter],
   );
+
+  /** События (каналы), по которым есть заявки в текущем пуле. */
+  const orderEventKindOptions = useMemo(() => {
+    const kinds = new Set<string>();
+    for (const o of ordersListPool) {
+      if (o.slot.kind) kinds.add(o.slot.kind);
+    }
+    return [...kinds].sort((a, b) =>
+      slotSalesChannelLabel(a).localeCompare(slotSalesChannelLabel(b), "ru"),
+    );
+  }, [ordersListPool]);
+
+  /** Даты сеансов (день события), по которым есть заявки с учётом фильтра события. */
+  const orderEventDateOptions = useMemo(() => {
+    const dates = new Set<string>();
+    for (const o of ordersListPool) {
+      if (orderEventKindFilter !== "all" && o.slot.kind !== orderEventKindFilter) continue;
+      if (o.slot.dateKey) dates.add(o.slot.dateKey);
+    }
+    return [...dates].sort().reverse();
+  }, [ordersListPool, orderEventKindFilter]);
+
+  useEffect(() => {
+    if (orderEventDateFilter === "all") return;
+    if (!orderEventDateOptions.includes(orderEventDateFilter)) {
+      setOrderEventDateFilter("all");
+    }
+  }, [orderEventDateFilter, orderEventDateOptions]);
 
   const slotsForSelectedDate = useMemo(() => {
     if (!slotsData) return [];
@@ -1845,6 +1889,36 @@ export default function AdminDashboard() {
               ) : null}
             </div>
             <div className="admin-order-filters">
+              <label>
+                Событие
+                <select
+                  value={orderEventKindFilter}
+                  onChange={(e) => setOrderEventKindFilter(e.target.value)}
+                  aria-label="Фильтр по событию"
+                >
+                  <option value="all">Все события</option>
+                  {orderEventKindOptions.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {slotSalesChannelLabel(kind)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Дата сеанса
+                <select
+                  value={orderEventDateFilter}
+                  onChange={(e) => setOrderEventDateFilter(e.target.value)}
+                  aria-label="Фильтр по дате сеанса"
+                >
+                  <option value="all">Все даты</option>
+                  {orderEventDateOptions.map((dateKey) => (
+                    <option key={dateKey} value={dateKey}>
+                      {formatDateKeyShort(dateKey)}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label>
                 Оплата
                 <select
