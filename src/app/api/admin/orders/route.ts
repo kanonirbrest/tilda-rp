@@ -1,8 +1,9 @@
-import type { OrderStatus } from "@prisma/client";
+import type { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
-import { dateKeyInTz, getExhibitionTimezone } from "@/lib/exhibition-time";
+import { dateKeyInTz, getExhibitionTimezone, wallDayUtcRange } from "@/lib/exhibition-time";
 import { formatDisplayDateTime } from "@/lib/format-display-datetime";
+import { parseOptionalSlotKind } from "@/lib/slot-kind";
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
@@ -32,17 +33,66 @@ function visitMeta(
   return { visitState: "partial", visitedAt: null };
 }
 
+async function orderFilterFacets(
+  tz: string,
+  slotKind: string | null,
+): Promise<{ kinds: string[]; dates: string[] }> {
+  const [allKindsSlots, dateSlots] = await Promise.all([
+    prisma.slot.findMany({
+      where: { orders: { some: {} } },
+      select: { kind: true },
+      distinct: ["kind"],
+    }),
+    prisma.slot.findMany({
+      where: {
+        orders: { some: {} },
+        ...(slotKind ? { kind: slotKind } : {}),
+      },
+      select: { startsAt: true },
+    }),
+  ]);
+  const dates = new Set<string>();
+  for (const s of dateSlots) {
+    dates.add(dateKeyInTz(s.startsAt, tz));
+  }
+  return {
+    kinds: allKindsSlots.map((s) => s.kind).sort(),
+    dates: [...dates].sort().reverse(),
+  };
+}
+
 export async function GET(req: Request) {
   const deny = await requireAdmin(req);
   if (deny) return deny;
 
   const url = new URL(req.url);
-  const limit = Math.min(500, Math.max(1, Number.parseInt(url.searchParams.get("limit") ?? "200", 10) || 200));
+  const limit = Math.min(2000, Math.max(1, Number.parseInt(url.searchParams.get("limit") ?? "500", 10) || 500));
   const offset = Math.max(0, Number.parseInt(url.searchParams.get("offset") ?? "0", 10) || 0);
+  const slotKind = parseOptionalSlotKind(url.searchParams.get("kind"));
+  const dateYmd = url.searchParams.get("date")?.trim() || "";
+  const tz = getExhibitionTimezone();
 
-  const [total, rows] = await Promise.all([
-    prisma.order.count(),
+  const slotWhere: Prisma.SlotWhereInput = {};
+  if (slotKind) slotWhere.kind = slotKind;
+  if (dateYmd) {
+    const range = wallDayUtcRange(dateYmd, tz);
+    if (!range) {
+      return jsonWithCors(
+        req,
+        { error: "INVALID_DATE", hint: "date должен быть YYYY-MM-DD" },
+        { status: 400 },
+      );
+    }
+    slotWhere.startsAt = { gte: range.start, lte: range.end };
+  }
+
+  const where: Prisma.OrderWhereInput =
+    Object.keys(slotWhere).length > 0 ? { slot: slotWhere } : {};
+
+  const [total, rows, facets] = await Promise.all([
+    prisma.order.count({ where }),
     prisma.order.findMany({
+      where,
       take: limit,
       skip: offset,
       orderBy: { createdAt: "desc" },
@@ -66,12 +116,12 @@ export async function GET(req: Request) {
         },
       },
     }),
+    orderFilterFacets(tz, slotKind),
   ]);
 
   const bepaidRefundAvailable = Boolean(
     process.env.BEPAID_SHOP_ID?.trim() && process.env.BEPAID_SECRET_KEY?.trim(),
   );
-  const tz = getExhibitionTimezone();
 
   const orders = rows.map((o) => {
     const { visitState, visitedAt } = visitMeta(o.status, o.tickets);
@@ -122,5 +172,13 @@ export async function GET(req: Request) {
     };
   });
 
-  return jsonWithCors(req, { total, limit, offset, bepaidRefundAvailable, orders });
+  return jsonWithCors(req, {
+    total,
+    limit,
+    offset,
+    truncated: offset + orders.length < total,
+    bepaidRefundAvailable,
+    facets,
+    orders,
+  });
 }

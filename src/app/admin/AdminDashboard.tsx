@@ -96,7 +96,9 @@ type OrdersResponse = {
   total: number;
   limit: number;
   offset: number;
+  truncated?: boolean;
   bepaidRefundAvailable: boolean;
+  facets?: { kinds: string[]; dates: string[] };
   orders: OrderRow[];
 };
 
@@ -332,12 +334,7 @@ function orderMatchesFilters(
   o: OrderRow,
   pay: OrderPayFilter,
   visit: OrderVisitFilter,
-  eventKind: string,
-  eventDate: string,
 ): boolean {
-  if (eventKind !== "all" && o.slot.kind !== eventKind) return false;
-  if (eventDate !== "all" && o.slot.dateKey !== eventDate) return false;
-
   const st = o.status.toUpperCase();
   if (pay === "paid" && st !== "PAID") return false;
   if (pay === "pending" && st !== "PENDING") return false;
@@ -356,6 +353,11 @@ function orderMatchesFilters(
   if (visit === "partial") return o.visitState === "partial";
   if (visit === "not_full") return o.visitState === "not_visited" || o.visitState === "partial";
   return true;
+}
+
+/** Активные (не возвращённые) билеты в заявке. */
+function orderActiveTicketCount(o: OrderRow): number {
+  return o.tickets.filter((t) => t.refundedAt == null).length;
 }
 
 function truncateText(s: string, max: number): string {
@@ -1030,7 +1032,10 @@ export default function AdminDashboard() {
     setErrMsg("");
     setLoading(true);
     try {
-      const data = await apiFetch<OrdersResponse>("/api/admin/orders?limit=500");
+      const q = new URLSearchParams({ limit: "2000" });
+      if (orderEventKindFilter !== "all") q.set("kind", orderEventKindFilter);
+      if (orderEventDateFilter !== "all") q.set("date", orderEventDateFilter);
+      const data = await apiFetch<OrdersResponse>(`/api/admin/orders?${q}`);
       setOrdersData(data);
     } catch (e: unknown) {
       setErrMsg(e instanceof Error ? e.message : String(e));
@@ -1038,7 +1043,7 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [orderEventKindFilter, orderEventDateFilter]);
 
   const loadPromos = useCallback(async () => {
     setErrMsg("");
@@ -1637,46 +1642,25 @@ export default function AdminDashboard() {
   }, [ordersData, orderPayFilter]);
 
   const filteredOrders = useMemo(
-    () =>
-      ordersListPool.filter((o) =>
-        orderMatchesFilters(
-          o,
-          orderPayFilter,
-          orderVisitFilter,
-          orderEventKindFilter,
-          orderEventDateFilter,
-        ),
-      ),
-    [ordersListPool, orderPayFilter, orderVisitFilter, orderEventKindFilter, orderEventDateFilter],
+    () => ordersListPool.filter((o) => orderMatchesFilters(o, orderPayFilter, orderVisitFilter)),
+    [ordersListPool, orderPayFilter, orderVisitFilter],
   );
 
-  /** События (каналы), по которым есть заявки в текущем пуле. */
+  const filteredTicketCount = useMemo(
+    () => filteredOrders.reduce((sum, o) => sum + orderActiveTicketCount(o), 0),
+    [filteredOrders],
+  );
+
+  /** События с хотя бы одной заявкой (из facets API — не обрезаются лимитом списка). */
   const orderEventKindOptions = useMemo(() => {
-    const kinds = new Set<string>();
-    for (const o of ordersListPool) {
-      if (o.slot.kind) kinds.add(o.slot.kind);
-    }
+    const kinds = ordersData?.facets?.kinds ?? [];
     return [...kinds].sort((a, b) =>
       slotSalesChannelLabel(a).localeCompare(slotSalesChannelLabel(b), "ru"),
     );
-  }, [ordersListPool]);
+  }, [ordersData]);
 
-  /** Даты сеансов (день события), по которым есть заявки с учётом фильтра события. */
-  const orderEventDateOptions = useMemo(() => {
-    const dates = new Set<string>();
-    for (const o of ordersListPool) {
-      if (orderEventKindFilter !== "all" && o.slot.kind !== orderEventKindFilter) continue;
-      if (o.slot.dateKey) dates.add(o.slot.dateKey);
-    }
-    return [...dates].sort().reverse();
-  }, [ordersListPool, orderEventKindFilter]);
-
-  useEffect(() => {
-    if (orderEventDateFilter === "all") return;
-    if (!orderEventDateOptions.includes(orderEventDateFilter)) {
-      setOrderEventDateFilter("all");
-    }
-  }, [orderEventDateFilter, orderEventDateOptions]);
+  /** Даты сеансов с заявками (с учётом выбранного события на сервере). */
+  const orderEventDateOptions = useMemo(() => ordersData?.facets?.dates ?? [], [ordersData]);
 
   const slotsForSelectedDate = useMemo(() => {
     if (!slotsData) return [];
@@ -1883,8 +1867,13 @@ export default function AdminDashboard() {
               </button>
               {ordersData ? (
                 <span className="admin-hint">
-                  Активных: {activeOrders.length} · показано: {filteredOrders.length} · в ответе API:{" "}
-                  {ordersData.orders.length}
+                  Заявок: {filteredOrders.length} · билетов: {filteredTicketCount}
+                  {ordersData.total !== ordersData.orders.length ?
+                    ` · в БД по фильтру: ${ordersData.total}`
+                  : null}
+                  {ordersData.truncated ?
+                    " · список обрезан лимитом — уточните событие или дату"
+                  : null}
                 </span>
               ) : null}
             </div>
@@ -2569,10 +2558,14 @@ export default function AdminDashboard() {
             }}
             onTicketRefunded={async () => {
               setInfoMsg("Возврат по билету оформлен.");
+              const orderId = modal.order.id;
               try {
-                const data = await apiFetch<OrdersResponse>("/api/admin/orders?limit=500");
+                const q = new URLSearchParams({ limit: "2000" });
+                if (orderEventKindFilter !== "all") q.set("kind", orderEventKindFilter);
+                if (orderEventDateFilter !== "all") q.set("date", orderEventDateFilter);
+                const data = await apiFetch<OrdersResponse>(`/api/admin/orders?${q}`);
                 setOrdersData(data);
-                const next = data.orders.find((x) => x.id === modal.order.id);
+                const next = data.orders.find((x) => x.id === orderId);
                 if (next) setModal({ type: "order", order: next });
               } catch (e: unknown) {
                 setErrMsg(e instanceof Error ? e.message : String(e));
