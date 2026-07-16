@@ -40,6 +40,8 @@ const nextConfig: NextConfig = {
       { source: "/sady-20-07", destination: "/sady-snovideniy-20-07", permanent: true },
       { source: "/sady-21-07", destination: "/sady-snovideniy-20-07", permanent: true },
       { source: "/sady-snovideniy-21-07", destination: "/sady-snovideniy-20-07", permanent: true },
+      { source: "/sady-17-08", destination: "/sady-snovideniy-17-08", permanent: true },
+      { source: "/sady-18-08", destination: "/sady-snovideniy-18-08", permanent: true },
     ];
   },
   /**

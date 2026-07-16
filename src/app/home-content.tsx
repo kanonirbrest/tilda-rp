@@ -65,6 +65,18 @@ export function HomeContent() {
           Сады сновидений (20 июл)
         </Link>
         <Link
+          href="/sady-snovideniy-17-08"
+          className="rounded-xl border border-violet-700/40 bg-violet-50 px-6 py-3 text-sm font-medium text-violet-900 hover:bg-violet-100"
+        >
+          Сады сновидений (17 авг)
+        </Link>
+        <Link
+          href="/sady-snovideniy-18-08"
+          className="rounded-xl border border-violet-700/40 bg-violet-50 px-6 py-3 text-sm font-medium text-violet-900 hover:bg-violet-100"
+        >
+          Сады сновидений (18 авг)
+        </Link>
+        <Link
           href="/staff/login"
           className="rounded-xl border border-zinc-300 px-6 py-3 text-sm font-medium text-zinc-800"
         >
