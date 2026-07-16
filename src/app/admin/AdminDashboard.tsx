@@ -249,11 +249,24 @@ function visibleDateChipOptions(
   if (showAll || allDates.length <= DATE_CHIPS_VISIBLE_LIMIT) {
     return allDates;
   }
-  const tail = allDates.slice(-DATE_CHIPS_VISIBLE_LIMIT);
-  if (allDates.includes(selectedDate) && !tail.includes(selectedDate)) {
-    return [...new Set([...tail, selectedDate])].sort();
+  const today = todayDateKey();
+  /** Ближайшие к «сегодня» даты (прошлые + будущие), а не только хвост календаря. */
+  const withDistance = allDates.map((d) => ({
+    d,
+    dist: Math.abs(dateKeyDayIndex(d) - dateKeyDayIndex(today)),
+  }));
+  withDistance.sort((a, b) => a.dist - b.dist || a.d.localeCompare(b.d));
+  const near = withDistance.slice(0, DATE_CHIPS_VISIBLE_LIMIT).map((x) => x.d);
+  if (allDates.includes(selectedDate) && !near.includes(selectedDate)) {
+    near.push(selectedDate);
   }
-  return tail;
+  return [...new Set(near)].sort();
+}
+
+function dateKeyDayIndex(dateKey: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!m) return 0;
+  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86_400_000;
 }
 
 function AdminDateChips({
@@ -1700,6 +1713,24 @@ export default function AdminDashboard() {
     return [...keys].sort();
   }, [slotsData]);
 
+  /** Даты для вкладки «Сеансы» — только дни с сеансами выбранного канала. */
+  const scheduleDateOptions = useMemo(() => {
+    if (!slotsData) return [];
+    const slots =
+      scheduleKindFilter === "all" ?
+        slotsData.slots
+      : slotsData.slots.filter((s) => s.kind === scheduleKindFilter);
+    return [...new Set(slots.map((s) => s.dateKey))].sort();
+  }, [slotsData, scheduleKindFilter]);
+
+  useEffect(() => {
+    if (tab !== "schedule" || scheduleDateOptions.length === 0) return;
+    if (scheduleDateOptions.includes(selectedDate)) return;
+    const today = todayDateKey();
+    const upcoming = scheduleDateOptions.find((d) => d >= today);
+    setSelectedDate(upcoming ?? scheduleDateOptions[scheduleDateOptions.length - 1]!);
+  }, [tab, scheduleDateOptions, selectedDate]);
+
   const deleteSlotsForSelectedDate = useCallback(async () => {
     if (!slotsData) return;
     if (
@@ -2080,12 +2111,18 @@ export default function AdminDashboard() {
                   Сегодня
                 </button>
               </div>
-              {dateOptions.length > 0 ? (
+              {scheduleDateOptions.length > 0 ? (
                 <AdminDateChips
-                  dates={dateOptions}
+                  dates={scheduleDateOptions}
                   selectedDate={selectedDate}
                   onSelectDate={setSelectedDate}
                 />
+              ) : slotsData ? (
+                <p className="admin-hint admin-hint--tight">
+                  {scheduleKindFilter === "all" ?
+                    "Нет сеансов — создайте или обновите список."
+                  : `Нет сеансов для «${slotSalesChannelLabel(scheduleKindFilter)}».`}
+                </p>
               ) : (
                 <p className="admin-hint admin-hint--tight">Загрузите список — появятся быстрые переходы по датам.</p>
               )}
