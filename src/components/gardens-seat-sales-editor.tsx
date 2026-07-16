@@ -175,8 +175,11 @@ export function GardensSeatSalesEditor({
           {overrideCount > 0 ? ` · ручных правок: ${overrideCount}` : ""}
         </span>
       </div>
-      {err ? <p className="admin-hint" style={{ color: "#f87171" }}>{err}</p> : null}
-      {info ? <p className="admin-hint">{info}</p> : null}
+      <div className="admin-gardens-seat-sales__status" aria-live="polite">
+        {err ? <p className="admin-hint" style={{ color: "#f87171", margin: 0 }}>{err}</p> : null}
+        {!err && info ? <p className="admin-hint" style={{ margin: 0 }}>{info}</p> : null}
+        {!err && !info ? <p className="admin-hint" style={{ margin: 0, opacity: 0.55 }}>Готово к правкам</p> : null}
+      </div>
       {loading ? (
         <div className="admin-empty admin-empty--compact">Загрузка схемы…</div>
       ) : (

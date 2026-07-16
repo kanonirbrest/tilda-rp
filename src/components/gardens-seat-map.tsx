@@ -77,6 +77,10 @@ function SeatButton({
       aria-pressed={state === "selected"}
       disabled={clickDisabled}
       title={title}
+      onMouseDown={(e) => {
+        // Без фокуса браузер не скроллит кнопку в overflow-контейнере (прыжок схемы).
+        e.preventDefault();
+      }}
       onClick={() => onToggle(seat.key)}
     >
       {seat.seat}
