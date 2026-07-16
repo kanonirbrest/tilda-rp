@@ -828,7 +828,7 @@
 }
 
 .admin-root .admin-modal--wide {
-  max-width: 36rem;
+  max-width: min(96vw, 72rem);
 }
 
 .admin-root .admin-modal-head {
@@ -1276,4 +1276,14 @@
 
 .admin-root td input[name="capacity"] {
   width: 4.5rem;
+}
+
+.admin-root .admin-gardens-seat-sales__map {
+  margin-top: 0.75rem;
+  max-height: min(70vh, 36rem);
+  overflow: auto;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm);
+  background: #0f1115;
+  padding: 0.5rem;
 }

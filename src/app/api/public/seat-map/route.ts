@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
-import { ensureGardensSlots, findGardensOccupiedSeatKeys, gardensSeatMapVariantForSlot } from "@/lib/gardens-of-dreams/ensure-slots";
+import { ensureGardensSlots, findGardensOccupiedSeatKeys, gardensSeatMapVariantForSlot, gardensSeatSaleOverridesForSlot } from "@/lib/gardens-of-dreams/ensure-slots";
 import {
-  buildGardensSeatMap,
+  buildGardensSeatMapWithOverrides,
   formatGardensPrice,
   GARDENS_ECONOMY_CENTS,
   GARDENS_LEGEND,
@@ -58,8 +58,9 @@ export async function GET(req: Request) {
     }
 
     const variant = gardensSeatMapVariantForSlot(slot);
-    const occupied = [...(await findGardensOccupiedSeatKeys(slot.id, variant))];
-    const seats = buildGardensSeatMap(variant);
+    const overrides = gardensSeatSaleOverridesForSlot(slot);
+    const occupied = [...(await findGardensOccupiedSeatKeys(slot.id, variant, overrides))];
+    const seats = buildGardensSeatMapWithOverrides(variant, overrides);
 
     return jsonPublicReadResponse(
       req,

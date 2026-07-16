@@ -7,7 +7,7 @@ export function adminCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("origin");
   const headers: Record<string, string> = {
     "Access-Control-Allow-Headers": "Authorization, Content-Type",
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
   };
 
   // Локально: любой порт Vite (5173, 5174, …) и любой localhost / LAN — иначе браузер даёт «Failed to fetch»

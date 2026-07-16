@@ -14,6 +14,11 @@ type GardensSeatMapProps = {
   selected: Set<string>;
   onToggle: (key: string) => void;
   disabled?: boolean;
+  /**
+   * admin-sale: места не в продаже кликабельны (выставить),
+   * места в продаже (свободные) кликабельны (снять), занятые — нет.
+   */
+  mode?: "buy" | "admin-sale";
 };
 
 function seatByKey(seats: GardensSeat[], key: string): GardensSeat | undefined {
@@ -24,8 +29,14 @@ function seatState(
   seat: GardensSeat,
   occupied: Set<string>,
   selected: Set<string>,
-): "sold" | "selected" | GardensSeatTier {
-  if (!seat.selectable || occupied.has(seat.key)) return "sold";
+  mode: "buy" | "admin-sale",
+): "sold" | "selected" | "offsale" | GardensSeatTier {
+  if (occupied.has(seat.key)) return "sold";
+  if (mode === "admin-sale") {
+    if (!seat.selectable) return "offsale";
+    return seat.tier;
+  }
+  if (!seat.selectable) return "sold";
   if (selected.has(seat.key)) return "selected";
   return seat.tier;
 }
@@ -35,27 +46,47 @@ function SeatButton({
   state,
   onToggle,
   disabled,
+  mode,
 }: {
   seat: GardensSeat;
   state: ReturnType<typeof seatState>;
   onToggle: (key: string) => void;
   disabled?: boolean;
+  mode: "buy" | "admin-sale";
 }) {
-  const isSold = state === "sold";
-  const soldLabel = seat.selectable ? "занято" : "продано";
+  const isOffSale = state === "offsale";
+  const isBlockedBuy = mode === "buy" && state === "sold";
+  const clickDisabled = Boolean(disabled || (mode === "admin-sale" ? state === "sold" : isBlockedBuy));
+
+  let title: string;
+  if (state === "sold") {
+    title = `${seat.label} — ${occupiedSoldLabel(seat, mode)}`;
+  } else if (isOffSale) {
+    title = `${seat.label} — не в продаже (нажмите, чтобы выставить)`;
+  } else if (mode === "admin-sale") {
+    title = `${seat.label} — в продаже, ${seat.priceCents / 100} BYN (нажмите, чтобы снять)`;
+  } else {
+    title = `${seat.label} — ${seat.priceCents / 100} BYN`;
+  }
+
   return (
     <button
       type="button"
       className={`god-seat god-seat--${state}`}
       aria-label={seat.label}
       aria-pressed={state === "selected"}
-      disabled={disabled || isSold}
-      title={isSold ? `${seat.label} — ${soldLabel}` : `${seat.label} — ${seat.priceCents / 100} BYN`}
+      disabled={clickDisabled}
+      title={title}
       onClick={() => onToggle(seat.key)}
     >
       {seat.seat}
     </button>
   );
+}
+
+function occupiedSoldLabel(seat: GardensSeat, mode: "buy" | "admin-sale"): string {
+  if (seat.selectable) return "занято";
+  return mode === "admin-sale" ? "занято" : "продано";
 }
 
 function RowLabel({ n }: { n: number }) {
@@ -70,7 +101,8 @@ function renderGroupedRow(
   groups: number[][],
   sector: GardensSeat["sector"],
   row: number,
-  disabled?: boolean,
+  disabled: boolean | undefined,
+  mode: "buy" | "admin-sale",
 ) {
   return (
     <div className="god-seat-row">
@@ -85,9 +117,10 @@ function renderGroupedRow(
                 <SeatButton
                   key={seat.key}
                   seat={seat}
-                  state={seatState(seat, occupied, selected)}
+                  state={seatState(seat, occupied, selected, mode)}
                   onToggle={onToggle}
                   disabled={disabled}
+                  mode={mode}
                 />
               );
             })}
@@ -106,7 +139,8 @@ function renderFlatRow(
   sector: GardensSeat["sector"],
   row: number,
   count: number,
-  disabled?: boolean,
+  disabled: boolean | undefined,
+  mode: "buy" | "admin-sale",
 ) {
   return (
     <div className="god-seat-row">
@@ -120,9 +154,10 @@ function renderFlatRow(
               <SeatButton
                 key={seat.key}
                 seat={seat}
-                state={seatState(seat, occupied, selected)}
+                state={seatState(seat, occupied, selected, mode)}
                 onToggle={onToggle}
                 disabled={disabled}
+                mode={mode}
               />
             );
           })}
@@ -141,7 +176,8 @@ function renderVerticalColumn(
   row: number,
   count: number,
   towardStage: "top" | "bottom",
-  disabled?: boolean,
+  disabled: boolean | undefined,
+  mode: "buy" | "admin-sale",
 ) {
   return (
     <div className="god-seat-col">
@@ -156,9 +192,10 @@ function renderVerticalColumn(
             <SeatButton
               key={seat.key}
               seat={seat}
-              state={seatState(seat, occupied, selected)}
+              state={seatState(seat, occupied, selected, mode)}
               onToggle={onToggle}
               disabled={disabled}
+              mode={mode}
             />
           );
         })}
@@ -215,8 +252,9 @@ export function GardensSeatMap({
   selected,
   onToggle,
   disabled,
+  mode = "buy",
 }: GardensSeatMapProps) {
-  const sectorDHasSale = seats.some((s) => s.sector === "D" && s.selectable);
+  const sectorDHasSale = mode === "admin-sale" || seats.some((s) => s.sector === "D" && s.selectable);
 
   return (
     <div className="god-map">
@@ -224,7 +262,12 @@ export function GardensSeatMap({
         <span className="god-legend-item god-legend-item--premium">150 BYN</span>
         <span className="god-legend-item god-legend-item--standard">120 BYN</span>
         <span className="god-legend-item god-legend-item--economy">90 BYN</span>
-        <span className="god-legend-item god-legend-item--sold">Продано</span>
+        {mode === "admin-sale" ? (
+          <span className="god-legend-item god-legend-item--offsale">Не в продаже</span>
+        ) : null}
+        <span className="god-legend-item god-legend-item--sold">
+          {mode === "admin-sale" ? "Занято" : "Продано"}
+        </span>
       </div>
 
       {/*
@@ -240,17 +283,17 @@ export function GardensSeatMap({
         <div className="god-map__left god-map__left--top">
           <p className="god-sector-title">Сектор «A»</p>
           <div className="god-sector-vertical">
-            {renderVerticalColumn(seats, occupied, selected, onToggle, "A", 3, 7, "bottom", disabled)}
-            {renderVerticalColumn(seats, occupied, selected, onToggle, "A", 2, 6, "bottom", disabled)}
-            {renderVerticalColumn(seats, occupied, selected, onToggle, "A", 1, 6, "bottom", disabled)}
+            {renderVerticalColumn(seats, occupied, selected, onToggle, "A", 3, 7, "bottom", disabled, mode)}
+            {renderVerticalColumn(seats, occupied, selected, onToggle, "A", 2, 6, "bottom", disabled, mode)}
+            {renderVerticalColumn(seats, occupied, selected, onToggle, "A", 1, 6, "bottom", disabled, mode)}
           </div>
         </div>
 
         <div className="god-map__center god-map__center--top">
           <p className="god-sector-title">Сектор «B»</p>
           <div className="god-sector-rows">
-            {renderFlatRow(seats, occupied, selected, onToggle, "B", 2, 37, disabled)}
-            {renderGroupedRow(seats, occupied, selected, onToggle, B_ROW1_GROUPS, "B", 1, disabled)}
+            {renderFlatRow(seats, occupied, selected, onToggle, "B", 2, 37, disabled, mode)}
+            {renderGroupedRow(seats, occupied, selected, onToggle, B_ROW1_GROUPS, "B", 1, disabled, mode)}
           </div>
         </div>
 
@@ -263,17 +306,17 @@ export function GardensSeatMap({
             {sectorDHasSale ? "Сектор «D»" : "Сектор «D» — продано"}
           </p>
           <div className="god-sector-vertical god-sector-vertical--bottom">
-            {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 3, 7, "top", disabled)}
-            {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 2, 6, "top", disabled)}
-            {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 1, 6, "top", disabled)}
+            {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 3, 7, "top", disabled, mode)}
+            {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 2, 6, "top", disabled, mode)}
+            {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 1, 6, "top", disabled, mode)}
           </div>
         </div>
 
         <div className="god-map__center god-map__center--bottom">
           <p className="god-sector-title">Сектор «C»</p>
           <div className="god-sector-rows">
-            {renderGroupedRow(seats, occupied, selected, onToggle, C_ROW1_GROUPS, "C", 1, disabled)}
-            {renderFlatRow(seats, occupied, selected, onToggle, "C", 2, 37, disabled)}
+            {renderGroupedRow(seats, occupied, selected, onToggle, C_ROW1_GROUPS, "C", 1, disabled, mode)}
+            {renderFlatRow(seats, occupied, selected, onToggle, "C", 2, 37, disabled, mode)}
           </div>
         </div>
       </div>

@@ -158,6 +158,25 @@
   color: var(--god-muted);
 }
 
+.god-legend-item--offsale {
+  border-color: #6b7280;
+  color: #9ca3af;
+  border-style: dashed;
+}
+
+.god-seat--offsale {
+  border-color: #6b7280;
+  border-style: dashed;
+  background: rgba(107, 114, 128, 0.18);
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+}
+
+.god-seat--offsale:hover:not(:disabled) {
+  border-color: #a3a3a3;
+  color: rgba(255, 255, 255, 0.75);
+}
+
 .god-map__left--top,
 .god-map__center--top {
   align-self: start;

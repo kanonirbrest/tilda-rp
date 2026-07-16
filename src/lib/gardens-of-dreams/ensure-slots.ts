@@ -7,11 +7,15 @@ import {
   wallDateAndTimeToUtc,
 } from "@/lib/exhibition-time";
 import {
-  countGardensSelectableSeats,
-  getSelectableGardensSeats,
-  GARDENS_PREMIUM_CENTS,
+  countGardensSelectableSeatsWithOverrides,
+  getSelectableGardensSeatsWithOverrides,
   type GardensSeatMapVariant,
+  GARDENS_PREMIUM_CENTS,
 } from "@/lib/gardens-of-dreams/seat-map";
+import {
+  parseGardensSeatSaleOverrides,
+  type GardensSeatSaleOverrides,
+} from "@/lib/gardens-of-dreams/seat-sale-overrides";
 import { seatReservationStillHoldsSeat } from "@/lib/seat-reservation-lock";
 import {
   GARDENS_LEGACY_JULY_21_DATE,
@@ -25,7 +29,13 @@ import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
 
 const MATCH_WINDOW_MS = 90_000;
 
-export const GARDENS_SELECTABLE_SEAT_COUNT = countGardensSelectableSeats("default");
+export const GARDENS_SELECTABLE_SEAT_COUNT = countGardensSelectableSeatsWithOverrides("default");
+
+export function gardensSeatSaleOverridesForSlot(
+  slot: Pick<Slot, "seatSaleOverrides">,
+): GardensSeatSaleOverrides {
+  return parseGardensSeatSaleOverrides(slot.seatSaleOverrides);
+}
 
 async function findGardensSlotByStartsAt(startsAt: Date): Promise<Slot | null> {
   const t = startsAt.getTime();
@@ -135,21 +145,26 @@ export function gardensSeatMapVariantForSlot(slot: Pick<Slot, "startsAt">): Gard
 export async function countGardensOccupiedSeats(
   slotId: string,
   variant: GardensSeatMapVariant,
+  overrides?: GardensSeatSaleOverrides | null,
 ): Promise<number> {
-  return (await findGardensOccupiedSeatKeys(slotId, variant)).length;
+  return (await findGardensOccupiedSeatKeys(slotId, variant, overrides)).length;
 }
 
 export async function countGardensFreeSeats(
   slotId: string,
   variant: GardensSeatMapVariant,
+  overrides?: GardensSeatSaleOverrides | null,
 ): Promise<number> {
-  const occupied = await countGardensOccupiedSeats(slotId, variant);
-  return Math.max(0, countGardensSelectableSeats(variant) - occupied);
+  const occupied = await countGardensOccupiedSeats(slotId, variant, overrides);
+  return Math.max(0, countGardensSelectableSeatsWithOverrides(variant, overrides) - occupied);
 }
 
-export async function isGardensSlotBookable(slot: Pick<Slot, "id" | "startsAt">): Promise<boolean> {
+export async function isGardensSlotBookable(
+  slot: Pick<Slot, "id" | "startsAt" | "seatSaleOverrides">,
+): Promise<boolean> {
   const variant = gardensSeatMapVariantForSlot(slot);
-  return (await countGardensFreeSeats(slot.id, variant)) > 0;
+  const overrides = gardensSeatSaleOverridesForSlot(slot);
+  return (await countGardensFreeSeats(slot.id, variant, overrides)) > 0;
 }
 
 export type GardensSessionPublic = {
@@ -182,7 +197,8 @@ export async function listGardensSessionsPublic(options?: {
     if (hidePast && slot.startsAt < now) continue;
 
     const variant = getGardensSeatMapVariantForSchedule(date, time);
-    const freeSeats = await countGardensFreeSeats(slot.id, variant);
+    const overrides = gardensSeatSaleOverridesForSlot(slot);
+    const freeSeats = await countGardensFreeSeats(slot.id, variant, overrides);
     const meta = gardensScheduleMeta(date, time);
     sessions.push({
       slotId: slot.id,
@@ -202,6 +218,7 @@ export async function listGardensSessionsPublic(options?: {
 export async function findGardensOccupiedSeatKeys(
   slotId: string,
   variant?: GardensSeatMapVariant,
+  overrides?: GardensSeatSaleOverrides | null,
 ): Promise<string[]> {
   const rows = await prisma.seatReservation.findMany({
     where: {
@@ -219,7 +236,9 @@ export async function findGardensOccupiedSeatKeys(
   });
   let keys = rows.filter(seatReservationStillHoldsSeat).map((r) => r.seatKey);
   if (variant != null) {
-    const selectable = new Set(getSelectableGardensSeats(variant).map((s) => s.key));
+    const selectable = new Set(
+      getSelectableGardensSeatsWithOverrides(variant, overrides).map((s) => s.key),
+    );
     keys = keys.filter((k) => selectable.has(k));
   }
   return keys;

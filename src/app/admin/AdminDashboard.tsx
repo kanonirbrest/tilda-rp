@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { GardensSeatSalesEditor } from "@/components/gardens-seat-sales-editor";
 import {
   formatMinorUnits,
   minorToMajorNumber,
@@ -195,6 +196,7 @@ type AdminModal =
   | { type: "slot-belye-nochi" }
   | { type: "slot-bulk" }
   | { type: "slot-edit"; slot: SlotRow }
+  | { type: "gardens-seat-sales"; slot: SlotRow }
   | { type: "promo-new" }
   | { type: "promo-edit"; promo: PromoRow };
 
@@ -3120,6 +3122,15 @@ export default function AdminDashboard() {
                     Удалить
                   </button>
                   <div className="admin-modal-actions__end">
+                    {s.kind === GARDENS_OF_DREAMS_SLOT_KIND ? (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setModal({ type: "gardens-seat-sales", slot: s })}
+                      >
+                        Места в продаже
+                      </button>
+                    ) : null}
                     <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "none" })}>
                       Отмена
                     </button>
@@ -3131,6 +3142,20 @@ export default function AdminDashboard() {
               </form>
             );
           })()}
+        </AdminModalFrame>
+      ) : null}
+
+      {modal.type === "gardens-seat-sales" ? (
+        <AdminModalFrame
+          size="wide"
+          title="Сады сновидений — места в продаже"
+          onClose={() => setModal({ type: "none" })}
+        >
+          <GardensSeatSalesEditor
+            slotId={modal.slot.id}
+            slotTitle={modal.slot.title}
+            onClose={() => setModal({ type: "none" })}
+          />
         </AdminModalFrame>
       ) : null}
 

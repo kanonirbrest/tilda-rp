@@ -4,8 +4,12 @@ import { createPublicTicketToken } from "@/lib/ticket-token";
 import { createBepaidPayment } from "@/lib/bepaid";
 import { fulfillPaidOrder } from "@/lib/fulfill-order";
 import { applyPromoAtCheckout } from "@/lib/resolve-order-promo";
-import { getGardensSeat } from "@/lib/gardens-of-dreams/seat-map";
-import { ensureGardensSlots, gardensSeatMapVariantForSlot } from "@/lib/gardens-of-dreams/ensure-slots";
+import { getGardensSeatWithOverrides } from "@/lib/gardens-of-dreams/seat-map";
+import {
+  ensureGardensSlots,
+  gardensSeatMapVariantForSlot,
+  gardensSeatSaleOverridesForSlot,
+} from "@/lib/gardens-of-dreams/ensure-slots";
 import { ensureGardensPromos } from "@/lib/gardens-of-dreams/ensure-promo";
 import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
 import {
@@ -103,8 +107,9 @@ export async function createSeatOrderCheckout(
     }
 
     const seatMapVariant = gardensSeatMapVariantForSlot(slot);
+    const overrides = gardensSeatSaleOverridesForSlot(slot);
     const seats = uniqueKeys.map((key) => {
-      const seat = getGardensSeat(key, seatMapVariant);
+      const seat = getGardensSeatWithOverrides(key, seatMapVariant, overrides);
       if (!seat?.selectable) return null;
       return seat;
     });
