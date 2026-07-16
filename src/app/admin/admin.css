@@ -289,6 +289,17 @@
   filter: brightness(1.12);
 }
 
+.admin-root .btn-success {
+  background: linear-gradient(180deg, #34d399 0%, #059669 100%);
+  color: #052e1c;
+  border-color: #047857;
+  font-weight: 600;
+}
+
+.admin-root .btn-success:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
 .admin-root .admin-slot-actions {
   display: flex;
   flex-wrap: wrap;

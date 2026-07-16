@@ -3149,6 +3149,21 @@ export default function AdminDashboard() {
                     </label>
                   </div>
                 </div>
+                {s.kind === GARDENS_OF_DREAMS_SLOT_KIND ? (
+                  <div className="admin-field admin-field--full" style={{ marginTop: "0.5rem" }}>
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      style={{ width: "100%" }}
+                      onClick={() => setModal({ type: "gardens-seat-sales", slot: s })}
+                    >
+                      Места в продаже — открыть схему зала
+                    </button>
+                    <p className="admin-hint admin-hint--tight" style={{ marginTop: "0.35rem" }}>
+                      Выставить или снять места с продажи на схеме (без правки кода).
+                    </p>
+                  </div>
+                ) : null}
                 <div className="admin-modal-actions admin-modal-actions--split">
                   <button
                     type="button"
@@ -3159,15 +3174,6 @@ export default function AdminDashboard() {
                     Удалить
                   </button>
                   <div className="admin-modal-actions__end">
-                    {s.kind === GARDENS_OF_DREAMS_SLOT_KIND ? (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => setModal({ type: "gardens-seat-sales", slot: s })}
-                      >
-                        Места в продаже
-                      </button>
-                    ) : null}
                     <button type="button" className="btn btn-secondary" onClick={() => setModal({ type: "none" })}>
                       Отмена
                     </button>
