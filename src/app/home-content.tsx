@@ -11,8 +11,20 @@ export function HomeContent() {
       </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
         <Link
-          href="/buy-tickets"
+          href="/anketa"
           className="rounded-xl bg-emerald-800 px-6 py-3 text-sm font-medium text-white hover:bg-emerald-900"
+        >
+          Анкета
+        </Link>
+        <Link
+          href="/users"
+          className="rounded-xl border border-emerald-700/40 bg-emerald-50 px-6 py-3 text-sm font-medium text-emerald-900 hover:bg-emerald-100"
+        >
+          Пользователи
+        </Link>
+        <Link
+          href="/buy-tickets"
+          className="rounded-xl border border-emerald-700/40 bg-white px-6 py-3 text-sm font-medium text-emerald-900 hover:bg-emerald-50"
         >
           Купить билет
         </Link>
