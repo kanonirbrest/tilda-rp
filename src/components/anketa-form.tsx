@@ -149,7 +149,7 @@ export function AnketaForm() {
       </button>
 
       <p className="anketa-footnote">
-        <Link href="/">← На главную</Link>
+        <Link href="/">На главную</Link>
       </p>
     </form>
   );

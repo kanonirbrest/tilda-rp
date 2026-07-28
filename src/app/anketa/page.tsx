@@ -17,16 +17,22 @@ const syne = Syne({
 
 export const metadata: Metadata = {
   title: "Анкета — DEI Tickets",
-  description: "Оставьте контакты: фамилия, имя, телефон и email.",
+  description: "Контактная анкета DEI",
 };
 
 export default function AnketaPage() {
   return (
     <main className={`${manrope.variable} ${syne.variable} ${manrope.className} anketa-page`}>
+      <div className="anketa-bg" aria-hidden>
+        <span className="anketa-orb anketa-orb--a" />
+        <span className="anketa-orb anketa-orb--b" />
+        <span className="anketa-grid-fade" />
+      </div>
       <div className="anketa-shell">
-        <p className="anketa-brand">DEI</p>
-        <p className="anketa-lead">Оставьте контакты — фамилия, имя, телефон и email.</p>
-        <div className="anketa-card">
+        <header className="anketa-hero">
+          <p className="anketa-brand">DEI</p>
+        </header>
+        <div className="anketa-panel">
           <AnketaForm />
         </div>
       </div>
