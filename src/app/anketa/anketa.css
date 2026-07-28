@@ -1,7 +1,7 @@
 .anketa-page {
   --anketa-ink: #101814;
   --anketa-muted: #6a7a70;
-  --anketa-line: rgba(16, 24, 20, 0.1);
+  --anketa-line: rgba(16, 24, 20, 0.18);
   --anketa-accent: #0f7a4e;
   --anketa-accent-deep: #0a5537;
   --anketa-surface: #ffffff;
@@ -175,7 +175,7 @@
   color: var(--anketa-ink);
   padding: 1.65rem 0.95rem 0.7rem;
   border-radius: 1rem;
-  border: 1px solid transparent;
+  border: 1px solid var(--anketa-line);
   background: rgba(16, 24, 20, 0.04);
   outline: none;
   transition: background 0.15s, box-shadow 0.15s, border-color 0.15s;
@@ -183,11 +183,12 @@
 
 .anketa-field input:hover {
   background: rgba(16, 24, 20, 0.055);
+  border-color: rgba(16, 24, 20, 0.18);
 }
 
 .anketa-field input:focus {
   background: #fff;
-  border-color: rgba(15, 122, 78, 0.35);
+  border-color: rgba(15, 122, 78, 0.45);
   box-shadow: 0 0 0 4px rgba(15, 122, 78, 0.12);
 }
 
@@ -199,7 +200,7 @@
   padding: 1.45rem 0.75rem 0.55rem;
   gap: 0.25rem;
   border-radius: 1rem;
-  border: 1px solid transparent;
+  border: 1px solid var(--anketa-line);
   background: rgba(16, 24, 20, 0.04);
   text-transform: none;
   letter-spacing: 0;
@@ -208,9 +209,13 @@
   transition: background 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
 
+.anketa-field:hover .t-input.t-input-phonemask__wrap {
+  border-color: rgba(16, 24, 20, 0.18);
+}
+
 .anketa-field:focus-within .t-input.t-input-phonemask__wrap {
   background: #fff;
-  border-color: rgba(15, 122, 78, 0.35);
+  border-color: rgba(15, 122, 78, 0.45);
   box-shadow: 0 0 0 4px rgba(15, 122, 78, 0.12);
 }
 
