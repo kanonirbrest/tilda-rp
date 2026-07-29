@@ -70,6 +70,7 @@ export function AnketaForm() {
   if (done) {
     return (
       <div className="anketa-success" role="status">
+        <span className="anketa-success__icon" aria-hidden>✓</span>
         <p className="anketa-success__title">Спасибо!</p>
         <p className="anketa-success__text">Данные сохранены. Мы свяжемся с вами при необходимости.</p>
         <button
@@ -145,7 +146,8 @@ export function AnketaForm() {
       {error ? <p className="anketa-error">{error}</p> : null}
 
       <button type="submit" className="anketa-btn" disabled={busy}>
-        {busy ? "Отправка…" : "Отправить"}
+        <span>{busy ? "Отправка…" : "Отправить"}</span>
+        {!busy ? <span className="anketa-btn__icon" aria-hidden>→</span> : null}
       </button>
 
       <p className="anketa-footnote">
