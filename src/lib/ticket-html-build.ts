@@ -325,10 +325,12 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       </section>`;
 
   const bgStyle = hasBg ? `background-image: url(${bg.dataUrl})` : "";
+  const isBelyeNochi = opts.slotKind === BELYE_NOCHI_18_SLOT_KIND;
   const sheetClass = ["sheet", hasBg ? (isGardens ? "sheet--gardens" : "sheet--mesh") : ""]
     .filter(Boolean)
     .join(" ");
-  const compactSheetClass = " ticket-sheet--compact";
+  const compactSheetClass =
+    " ticket-sheet--compact" + (isBelyeNochi ? " ticket-sheet--belye" : "");
   const bodyPageClass =
     hasBg ?
       isGardens ? "ticket-page--gardens"
@@ -818,6 +820,23 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     }
     .sheet.ticket-sheet--compact .razman-footer {
       margin-top: calc(44px * 1.18 + 15px);
+    }
+
+    /* «Белые ночи»: экономим низ страницы (юрблок + футер), чтобы влезать в одну A4 */
+    .sheet.ticket-sheet--belye .venue-wrap {
+      margin: 14px 0;
+      gap: 3.5mm;
+    }
+    .sheet.ticket-sheet--belye .blocks + .rule.star-right,
+    .sheet.ticket-sheet--belye .blocks + .rule.rule--svg-end {
+      margin-top: 20px;
+    }
+    .sheet.ticket-sheet--belye .fine-print {
+      padding-top: calc(5mm + 10px);
+      padding-bottom: 1mm;
+    }
+    .sheet.ticket-sheet--belye .razman-footer {
+      margin-top: 59px;
     }
   </style>
 </head>
