@@ -5,6 +5,7 @@ import { PhoneCountryField } from "@/components/phone-country-field";
 import { PolicyConsentField } from "@/components/policy-consent-field";
 import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
 import { DEI_POLICY_CONSENT_ERROR } from "@/lib/policy-consent";
+import { normalizePromoCode } from "@/lib/promo-code";
 import { BELYE_NOCHI_18_SLOT_KIND } from "@/lib/slot-kind";
 
 type CalendarResponse = {
@@ -29,6 +30,14 @@ type QuoteResponse = {
   formattedTotal?: string;
   totalCents?: number;
   currency?: string;
+  promo?: {
+    applied?: boolean;
+    hint?: string;
+    error?: string;
+    discountCents?: number;
+    amountCents?: number;
+    formattedAmount?: string;
+  };
   error?: string;
   hint?: string;
 };
@@ -82,6 +91,12 @@ export default function BelyeNochi18Page() {
   const [quoteCurrency, setQuoteCurrency] = useState("BYN");
   const [quotePending, setQuotePending] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [promoInput, setPromoInput] = useState("");
+  /** Код, переданный в order-quote после «Применить». */
+  const [promoForQuote, setPromoForQuote] = useState("");
+  /** Промокод, подтверждённый ответом quote (applied === true). */
+  const [promoConfirmed, setPromoConfirmed] = useState("");
+  const [promoHint, setPromoHint] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneLocal, setPhoneLocal] = useState("");
@@ -139,9 +154,12 @@ export default function BelyeNochi18Page() {
     let cancelled = false;
     if (!date || !time) return;
     setQuotePending(true);
+    const promoQ = promoForQuote.trim();
+    const promoSuffix = promoQ ? `&promoCode=${encodeURIComponent(promoQ)}` : "";
     const url =
       `/api/public/order-quote?kind=${encodeURIComponent(BELYE_NOCHI_18_SLOT_KIND)}` +
-      `&date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&adult=${qty}&child=0&concession=0`;
+      `&date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}&adult=${qty}&child=0&concession=0` +
+      promoSuffix;
     fetch(url)
       .then(async (r) => ({ ok: r.ok, body: (await r.json()) as QuoteResponse }))
       .then(({ ok, body }) => {
@@ -154,11 +172,28 @@ export default function BelyeNochi18Page() {
         ) {
           setQuoteTotalLabel(body.hint || body.error || "Не удалось посчитать сумму");
           setQuoteTotalCents(null);
+          if (body.promo?.hint) setPromoHint(body.promo.hint);
           return;
         }
         setQuoteTotalLabel(body.formattedTotal);
         setQuoteTotalCents(body.totalCents);
         setQuoteCurrency(body.currency || "BYN");
+        if (body.promo?.applied === false && promoQ) {
+          setPromoHint(body.promo.hint || "Промокод не применён");
+          setPromoForQuote("");
+          setPromoConfirmed("");
+        } else if (body.promo?.applied === true) {
+          setPromoHint(body.promo.hint || "");
+          setPromoConfirmed(promoQ);
+          if (typeof body.promo.amountCents === "number") {
+            setQuoteTotalCents(body.promo.amountCents);
+            if (typeof body.promo.formattedAmount === "string") {
+              setQuoteTotalLabel(body.promo.formattedAmount);
+            }
+          }
+        } else if (!promoQ) {
+          setPromoConfirmed("");
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -170,7 +205,31 @@ export default function BelyeNochi18Page() {
     return () => {
       cancelled = true;
     };
-  }, [date, time, qty]);
+  }, [date, time, qty, promoForQuote]);
+
+  function applyPromo() {
+    const code = promoInput.trim();
+    if (!code) {
+      setPromoForQuote("");
+      setPromoConfirmed("");
+      setPromoHint("");
+      return;
+    }
+    setPromoForQuote(code);
+    setPromoConfirmed("");
+    setPromoHint("");
+  }
+
+  function onPromoInputChange(value: string) {
+    setPromoInput(value);
+    const forQuote = promoForQuote.trim();
+    if (!forQuote) return;
+    if (normalizePromoCode(value) !== normalizePromoCode(forQuote)) {
+      setPromoForQuote("");
+      setPromoConfirmed("");
+      setPromoHint("");
+    }
+  }
 
   const unitPriceLabel = useMemo(() => {
     if (quotePending) return "…";
@@ -217,6 +276,7 @@ export default function BelyeNochi18Page() {
           name: name.trim(),
           email: email.trim(),
           phone: toE164Phone(phoneCountryIso, phoneLocal),
+          ...(promoConfirmed ? { promoCode: promoConfirmed } : {}),
         }),
       });
       const body = (await r.json()) as { redirectUrl?: string; hint?: string; error?: string };
@@ -286,6 +346,31 @@ export default function BelyeNochi18Page() {
                     </button>
                   </div>
                 </div>
+              </section>
+
+              <section className="nom-block" aria-label="Промокод">
+                <p className="nom-block-label">Промокод</p>
+                <div className="sv2-promo-row">
+                  <input
+                    type="text"
+                    className="sv2-promo-input"
+                    placeholder="Промокод"
+                    maxLength={64}
+                    autoComplete="off"
+                    value={promoInput}
+                    onChange={(e) => onPromoInputChange(e.target.value)}
+                    disabled={busy}
+                  />
+                  <button
+                    type="button"
+                    className="sv2-promo-apply"
+                    disabled={busy || !promoInput.trim()}
+                    onClick={applyPromo}
+                  >
+                    Применить
+                  </button>
+                </div>
+                {promoHint ? <p className="sv2-promo-hint">{promoHint}</p> : null}
               </section>
 
               {summaryLine ? (

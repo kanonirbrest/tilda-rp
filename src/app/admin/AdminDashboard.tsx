@@ -2545,8 +2545,8 @@ export default function AdminDashboard() {
             </div>
             <p className="admin-hint admin-hint--inline">
               Код на сайте / в POST <span className="mono">promoCode</span> или в ссылке /pay?promo=КОД.
-              Занято: заявки PENDING+PAID с этим промо. Витрина ограничивает, на каком канале (Небо.Река / Ночь
-              музеев) сработает код; «Все витрины» — везде.
+              Занято: заявки PENDING+PAID с этим промо. Витрина ограничивает канал (Небо.Река, Ночь музеев, Белые
+              ночи 18+, Сады сновидений); «Все витрины» — везде.
             </p>
           </div>
           {!promosData ? (
@@ -2648,7 +2648,7 @@ export default function AdminDashboard() {
           <form onSubmit={(e) => void onCreatePromo(e)} className="admin-modal-form">
             <p className="admin-hint admin-hint--tight">
               Код сохраняется в верхнем регистре. Фиксированная скидка — в BYN (как цены сеансов). Витрина «Все» —
-              промокод действует и на Небо.Река, и на Ночь музеев.
+              промокод действует на все каналы (Небо.Река, Ночь музеев, Белые ночи 18+, Сады сновидений).
             </p>
             <div className="admin-field">
               <label htmlFor="promo-code">Код</label>
