@@ -892,7 +892,7 @@ export default function BuyTicketsSmrPage() {
 
             <button
               type="submit"
-              disabled={busy || !date || !time || ticketCount < 1 || !policyConsent}
+              disabled={busy || !checkoutReady || ticketCount < 1 || !policyConsent}
               className="t-submit nom-submit"
             >
               {busy ? "Оформляем…" : "Перейти к оплате"}
