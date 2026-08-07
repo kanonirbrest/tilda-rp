@@ -49,7 +49,7 @@ export async function GET(req: Request) {
   const activeOnly = url.searchParams.get("active") !== "all";
 
   const slots = await prisma.slot.findMany({
-    where: activeOnly ? { active: true } : undefined,
+    where: activeOnly ? { active: true, giftOpenDate: false } : { giftOpenDate: false },
     orderBy: { startsAt: "asc" },
   });
 

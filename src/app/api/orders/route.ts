@@ -8,6 +8,7 @@ import { jsonOrdersResponse, publicOrdersCorsHeaders } from "@/lib/public-orders
 import { getRequestOrigin } from "@/lib/request-origin";
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
+import { ensureNeboGiftOpenDateSlot } from "@/lib/nebo-reka/ensure-gift-slot";
 import { normalizeSlotKind } from "@/lib/slot-kind";
 import { buildLinesFromCounts, type LineInput } from "@/lib/slot-pricing";
 import {
@@ -40,12 +41,15 @@ const bodySchema = z
     promoCode: z.string().trim().max(64).optional(),
     /** Ключи мест для GARDENS_OF_DREAMS, например B:1:15 */
     seats: z.array(z.string().trim().min(1).max(40)).max(24).optional(),
+    /** Подарочный билет Небо.Река с открытой датой */
+    giftOpenDate: z.boolean().optional(),
   })
   .refine(
     (d) =>
+      Boolean(d.giftOpenDate) ||
       Boolean(d.slotId?.length) ||
       (Boolean(d.date?.trim()) && Boolean(d.time?.trim())),
-    { message: "Нужен slotId или пара date и time", path: ["slotId"] },
+    { message: "Нужен giftOpenDate, slotId или пара date и time", path: ["slotId"] },
   );
 
 function resolveFailureStatus(
@@ -90,12 +94,15 @@ export async function POST(req: Request) {
   const { name, email, phone } = d;
   const lineItems = (d.lines ?? []).filter((l) => l.quantity > 0);
 
-  const resolved = await resolveCheckoutSlot({
-    slotId: d.slotId ?? null,
-    date: d.date ?? null,
-    time: d.time ?? null,
-    slotKind,
-  });
+  const resolved =
+    d.giftOpenDate ?
+      { ok: true as const, slot: await ensureNeboGiftOpenDateSlot() }
+    : await resolveCheckoutSlot({
+        slotId: d.slotId ?? null,
+        date: d.date ?? null,
+        time: d.time ?? null,
+        slotKind,
+      });
 
   if (!resolved.ok) {
     const code = resolved.code;

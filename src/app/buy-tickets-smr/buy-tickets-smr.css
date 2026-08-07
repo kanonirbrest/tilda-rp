@@ -220,6 +220,49 @@
   cursor: not-allowed;
 }
 
+.sv2-gift-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 22px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font-family: var(--t-text-font), Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.sv2-gift-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.sv2-gift-btn--selected {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: #fff;
+}
+
+.sv2-gift-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sv2-gift-hint {
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.35;
+}
+
 .sv2-promo-row {
   display: flex;
   flex-wrap: wrap;

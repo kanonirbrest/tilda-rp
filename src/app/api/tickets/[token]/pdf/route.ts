@@ -5,6 +5,7 @@ import { getPublicAppBaseUrl } from "@/lib/request-origin";
 import { paidCentsForOrderTicketAtIndex } from "@/lib/ticket-refund-alloc";
 import { BELYE_NOCHI_18_SLOT_KIND } from "@/lib/slot-kind";
 import { tierTicketSingularRu } from "@/lib/slot-pricing";
+import { isNeboGiftOpenDateSlot } from "@/lib/nebo-reka/ensure-gift-slot";
 
 /** На Vercel и др. поднимает лимит выполнения route (иначе PDF + очередь семафора могут обрезаться). На self-hosted `next start` часто игнорируется. */
 export const maxDuration = 300;
@@ -44,8 +45,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
   const qrUrl = `${base}/staff/quick?t=${ticket.publicToken}`;
 
   try {
+    const giftOpenDate = isNeboGiftOpenDateSlot(ticket.order.slot);
     const pdfBytes = await buildTicketPdf({
-      title: ticket.order.slot.title,
+      title: giftOpenDate ? "Небо.Река" : ticket.order.slot.title,
       startsAt: ticket.order.slot.startsAt,
       amountCents: ticketPriceCents,
       currency: ticket.order.currency,
@@ -62,6 +64,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
           ? { index: idx + 1, total: ordered.length }
           : undefined,
       slotKind: ticket.order.slot.kind,
+      giftOpenDate,
     });
 
     return new NextResponse(Buffer.from(pdfBytes), {

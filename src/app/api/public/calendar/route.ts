@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     const now = new Date();
 
     const slots = await prisma.slot.findMany({
-      where: { active: true, kind: slotKind },
+      where: { active: true, kind: slotKind, giftOpenDate: false },
       orderBy: { startsAt: "asc" },
       select: { id: true, capacity: true, startsAt: true },
     });

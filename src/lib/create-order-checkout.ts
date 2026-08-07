@@ -189,7 +189,10 @@ export async function createOrderCheckout(
         orderId,
         amountCents: chargedAmountCents,
         currency: slot.currency,
-        description: `${slot.title} — ${slot.startsAt.toISOString()}`,
+        description:
+          slot.giftOpenDate ?
+            slot.title
+          : `${slot.title} — ${slot.startsAt.toISOString()}`,
         customerEmail: email.trim(),
         customerName: name,
         publicBaseUrl,

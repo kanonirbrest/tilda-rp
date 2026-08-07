@@ -235,6 +235,8 @@ export default function BuyTicketsSmrPage() {
   const [time, setTime] = useState("");
   const [times, setTimes] = useState<string[]>([]);
   const [timesLoading, setTimesLoading] = useState(false);
+  /** Подарочный билет с открытой датой (без выбора сеанса). */
+  const [giftOpenDate, setGiftOpenDate] = useState(false);
 
   const [adult, setAdult] = useState(0);
   const [child, setChild] = useState(0);
@@ -367,12 +369,14 @@ export default function BuyTicketsSmrPage() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!date || !time) return;
+    if (!giftOpenDate && (!date || !time)) return;
 
     setQuotePending(true);
     const base =
-      `/api/public/order-quote?kind=${encodeURIComponent(NEBO_REKA_SLOT_KIND)}` +
-      `&date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}`;
+      giftOpenDate ?
+        `/api/public/order-quote?kind=${encodeURIComponent(NEBO_REKA_SLOT_KIND)}&giftOpenDate=1`
+      : `/api/public/order-quote?kind=${encodeURIComponent(NEBO_REKA_SLOT_KIND)}` +
+        `&date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}`;
 
     const promoQ = promoForQuote.trim();
     const promoSuffix = promoQ ? `&promoCode=${encodeURIComponent(promoQ)}` : "";
@@ -442,7 +446,9 @@ export default function BuyTicketsSmrPage() {
     return () => {
       cancelled = true;
     };
-  }, [date, time, adult, child, concession, promoForQuote]);
+  }, [giftOpenDate, date, time, adult, child, concession, promoForQuote]);
+
+  const checkoutReady = giftOpenDate || Boolean(date && time);
 
   const summaryLine = useMemo(() => {
     if (ticketCount < 1) return null;
@@ -456,8 +462,18 @@ export default function BuyTicketsSmrPage() {
   function onSelectDate(dateKey: string, bookable: boolean, hasSlots: boolean) {
     if (!hasSlots || !bookable) return;
     scrollToTimeAfterDateRef.current = true;
+    setGiftOpenDate(false);
     setDate(dateKey);
     setFormError("");
+  }
+
+  function onSelectGiftOpenDate() {
+    setGiftOpenDate(true);
+    setDate("");
+    setTime("");
+    setTimes([]);
+    setFormError("");
+    if (adult + child + concession < 1) setAdult(1);
   }
 
   function applyPromo() {
@@ -486,8 +502,8 @@ export default function BuyTicketsSmrPage() {
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!date || !time) {
-      setFormError("Выберите дату и время сеанса.");
+    if (!giftOpenDate && (!date || !time)) {
+      setFormError("Выберите дату и время сеанса или подарочный билет.");
       return;
     }
     if (ticketCount < 1) {
@@ -510,8 +526,6 @@ export default function BuyTicketsSmrPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slotKind: NEBO_REKA_SLOT_KIND,
-          date,
-          time,
           adult,
           child,
           concession,
@@ -519,6 +533,9 @@ export default function BuyTicketsSmrPage() {
           email: email.trim(),
           phone: toE164Phone(phoneCountryIso, phoneLocal),
           ...(promoConfirmed ? { promoCode: promoConfirmed } : {}),
+          ...(giftOpenDate ?
+            { giftOpenDate: true }
+          : { date, time }),
         }),
       });
       const body = await readResponseJson<{
@@ -629,7 +646,25 @@ export default function BuyTicketsSmrPage() {
               </div>
             </section>
 
-            {date ? (
+            <section className="nom-block" aria-label="Подарочный билет">
+              <button
+                type="button"
+                className={[
+                  "sv2-gift-btn",
+                  giftOpenDate ? "sv2-gift-btn--selected" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                aria-pressed={giftOpenDate}
+                disabled={busy}
+                onClick={onSelectGiftOpenDate}
+              >
+                Купить в подарок
+              </button>
+              <p className="sv2-gift-hint">Билет с открытой датой — визит по графику работы выставки</p>
+            </section>
+
+            {!giftOpenDate && date ? (
               <section
                 ref={timeSectionRef}
                 className="nom-block"
@@ -666,7 +701,7 @@ export default function BuyTicketsSmrPage() {
               </section>
             ) : null}
 
-            {date && time ? (
+            {checkoutReady ? (
               <section className="nom-block" aria-labelledby="sv2-tickets-label">
                 <p id="sv2-tickets-label" className="nom-block-label">
                   Билеты
@@ -758,7 +793,7 @@ export default function BuyTicketsSmrPage() {
               </section>
             ) : null}
 
-            {date && time ? (
+            {checkoutReady ? (
               <section className="nom-block" aria-label="Промокод">
                 <p className="nom-block-label">Промокод</p>
                 <div className="sv2-promo-row">
@@ -789,7 +824,7 @@ export default function BuyTicketsSmrPage() {
               <p className="nom-summary" aria-busy={quotePending}>
                 <strong>{summaryLine}</strong>
               </p>
-            ) : date && time && ticketCount < 1 ? (
+            ) : checkoutReady && ticketCount < 1 ? (
               <p className="nom-plain-msg nom-plain-msg--muted">Укажите количество билетов</p>
             ) : null}
 

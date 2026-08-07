@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureNeboGiftOpenDateSlot } from "@/lib/nebo-reka/ensure-gift-slot";
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
@@ -29,11 +30,16 @@ export async function OPTIONS(req: Request) {
 /**
  * Публичная оценка суммы заказа для Тильды (без создания заказа).
  * GET ?date=YYYY-MM-DD&time=HH:MM&adult=&child=&concession=&promoCode=
+ * или ?slotId=… / ?giftOpenDate=1 (подарочный билет Небо.Река)
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date")?.trim() ?? "";
   const time = searchParams.get("time")?.trim() ?? "";
+  const slotId = searchParams.get("slotId")?.trim() ?? "";
+  const giftOpenDate =
+    searchParams.get("giftOpenDate") === "1" ||
+    searchParams.get("giftOpenDate")?.toLowerCase() === "true";
   const slotKind = normalizeSlotKind(searchParams.get("kind"));
   const adult = parseTicketCountParam(searchParams.get("adult"));
   const child = parseTicketCountParam(searchParams.get("child"));
@@ -41,61 +47,79 @@ export async function GET(req: Request) {
   const promoRaw =
     searchParams.get("promoCode")?.trim() || searchParams.get("promo")?.trim() || "";
 
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return jsonPublicReadResponse(req, { error: "DATE_REQUIRED", hint: "Укажите date в формате YYYY-MM-DD" }, 400);
-  }
-  if (!time) {
-    return jsonPublicReadResponse(req, { error: "TIME_REQUIRED", hint: "Укажите time (например 14:00)" }, 400);
+  if (!giftOpenDate && !slotId) {
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return jsonPublicReadResponse(
+        req,
+        { error: "DATE_REQUIRED", hint: "Укажите date в формате YYYY-MM-DD" },
+        400,
+      );
+    }
+    if (!time) {
+      return jsonPublicReadResponse(
+        req,
+        { error: "TIME_REQUIRED", hint: "Укажите time (например 14:00)" },
+        400,
+      );
+    }
   }
 
   try {
-    const resolved = await resolveCheckoutSlot({ slotId: null, date, time, slotKind });
-  if (!resolved.ok) {
-    const code = resolved.code;
-    const status =
-      code === "DATE_REQUIRED" || code === "TIME_REQUIRED" || code === "TIME_PAST" ?
-        400
-      : code === "AMBIGUOUS" ? 409
-      : 404;
-    return jsonPublicReadResponse(
-      req,
-      { error: code, hint: messageForResolveFailure(code, "checkout") },
-      status,
-    );
-  }
-
-  const slot = resolved.slot;
-  const lines = buildLinesFromCounts(slot, { adult, child, concession });
-  const totalCents = totalCentsForLines(slot, lines);
-  const currency = slot.currency || "BYN";
-  const formattedTotal = formatTotal(totalCents, currency);
-
-  type PromoOk = {
-    applied: true;
-    discountCents: number;
-    amountCents: number;
-    formattedAmount: string;
-    hint?: string;
-  };
-  type PromoErr = { applied: false; error: string; hint: string };
-  let promo: PromoOk | PromoErr | null = null;
-
-  if (promoRaw) {
-    const resolved = await resolvePromoForQuote(promoRaw, totalCents, slot);
-    if (!resolved) {
-      promo = { applied: false, error: "INVALID_PROMO", hint: "Промокод не найден" };
-    } else if (!resolved.applied) {
-      promo = { applied: false, error: resolved.error, hint: resolved.hint };
-    } else {
-      promo = {
-        applied: true,
-        discountCents: resolved.discountCents,
-        amountCents: resolved.amountCents,
-        formattedAmount: formatTotal(resolved.amountCents, currency),
-        ...(resolved.hint ? { hint: resolved.hint } : {}),
-      };
+    const resolved =
+      giftOpenDate ?
+        { ok: true as const, slot: await ensureNeboGiftOpenDateSlot() }
+      : await resolveCheckoutSlot({
+          slotId: slotId || null,
+          date: date || null,
+          time: time || null,
+          slotKind,
+        });
+    if (!resolved.ok) {
+      const code = resolved.code;
+      const status =
+        code === "DATE_REQUIRED" || code === "TIME_REQUIRED" || code === "TIME_PAST" ?
+          400
+        : code === "AMBIGUOUS" ? 409
+        : 404;
+      return jsonPublicReadResponse(
+        req,
+        { error: code, hint: messageForResolveFailure(code, "checkout") },
+        status,
+      );
     }
-  }
+
+    const slot = resolved.slot;
+    const lines = buildLinesFromCounts(slot, { adult, child, concession });
+    const totalCents = totalCentsForLines(slot, lines);
+    const currency = slot.currency || "BYN";
+    const formattedTotal = formatTotal(totalCents, currency);
+
+    type PromoOk = {
+      applied: true;
+      discountCents: number;
+      amountCents: number;
+      formattedAmount: string;
+      hint?: string;
+    };
+    type PromoErr = { applied: false; error: string; hint: string };
+    let promo: PromoOk | PromoErr | null = null;
+
+    if (promoRaw) {
+      const promoResolved = await resolvePromoForQuote(promoRaw, totalCents, slot);
+      if (!promoResolved) {
+        promo = { applied: false, error: "INVALID_PROMO", hint: "Промокод не найден" };
+      } else if (!promoResolved.applied) {
+        promo = { applied: false, error: promoResolved.error, hint: promoResolved.hint };
+      } else {
+        promo = {
+          applied: true,
+          discountCents: promoResolved.discountCents,
+          amountCents: promoResolved.amountCents,
+          formattedAmount: formatTotal(promoResolved.amountCents, currency),
+          ...(promoResolved.hint ? { hint: promoResolved.hint } : {}),
+        };
+      }
+    }
 
     return jsonPublicReadResponse(
       req,
@@ -105,6 +129,8 @@ export async function GET(req: Request) {
         kind: slotKind,
         formattedTotal,
         promo,
+        slotId: slot.id,
+        giftOpenDate: Boolean(slot.giftOpenDate),
       },
       200,
     );

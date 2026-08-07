@@ -56,6 +56,7 @@ export async function GET(req: Request) {
     where: {
       active: true,
       kind: slotKind,
+      giftOpenDate: false,
       startsAt: { gte: range.start, lte: range.end },
     },
     orderBy: { startsAt: "asc" },

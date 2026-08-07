@@ -8,6 +8,7 @@ import { formatMinorUnits } from "./money";
 import { paidCentsForOrderTicketAtIndex } from "./ticket-refund-alloc";
 import { BELYE_NOCHI_18_SLOT_KIND } from "./slot-kind";
 import { linesSummaryRu, tierTicketSingularRu } from "./slot-pricing";
+import { isNeboGiftOpenDateSlot } from "./nebo-reka/ensure-gift-slot";
 
 export async function fulfillPaidOrder(orderId: string): Promise<void> {
   const transitioned = await prisma.$transaction(async (tx) => {
@@ -63,8 +64,9 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
   for (let i = 0; i < tickets.length; i++) {
     const t = tickets[i]!;
     const qrUrl = `${base}/staff/quick?t=${t.publicToken}`;
+    const giftOpenDate = isNeboGiftOpenDateSlot(full.slot);
     const pdfBytes = await buildTicketPdf({
-      title: full.slot.title,
+      title: giftOpenDate ? "Небо.Река" : full.slot.title,
       startsAt: full.slot.startsAt,
       amountCents: paidCentsForOrderTicketAtIndex(full, i, tickets.length),
       currency: full.currency,
@@ -80,6 +82,7 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
         ? { index: i + 1, total: tickets.length }
         : undefined,
       slotKind: full.slot.kind,
+      giftOpenDate,
     });
     pdfAttachments.push({
       filename: multiPdf

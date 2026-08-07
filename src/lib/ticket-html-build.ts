@@ -26,6 +26,8 @@ export type TicketPdfInput = {
   ticketOrdinal?: { index: number; total: number };
   /** `NEBO_REKA` (smr/Тильда): дата и время в одной строке; `NIGHT_OF_MUSEUMS` — две строки. */
   slotKind?: string;
+  /** Подарочный билет с открытой датой: без конкретной даты/времени и без цены на PDF. */
+  giftOpenDate?: boolean;
 };
 
 const VENUE_LINE =
@@ -246,15 +248,19 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
   const hasBg = Boolean(bg.dataUrl);
 
   const tz = getExhibitionTimezone();
+  const giftOpenDate = Boolean(opts.giftOpenDate);
   const eventTimeRange =
-    opts.slotKind && isEventSessionSlotKind(opts.slotKind) && !isGardens ?
+    opts.slotKind && isEventSessionSlotKind(opts.slotKind) && !isGardens && !giftOpenDate ?
       parseEventSessionTimeRangeFromTitle(opts.title, opts.slotKind)
     : null;
   const whenDateLine = formatEventDateOnlyRuUpper(opts.startsAt, tz);
   const whenTimePart =
     eventTimeRange ? sanitizeForPdfText(eventTimeRange) : formatEventWallTime(opts.startsAt, tz);
+  const openDateWhenText = "согласно графику работы выставки";
   const whenValueHtml =
-    isGardens ?
+    giftOpenDate ?
+      `<div class="field-value value-wide">${escapeHtml(sanitizeForPdfText(openDateWhenText))}</div>`
+    : isGardens ?
       (() => {
         const showTime = formatEventWallTime(opts.startsAt, tz);
         const { entryLine, showLine } = formatGardensTicketTimeLines(
@@ -318,7 +324,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
   })();
 
   const priceBlock =
-    isGardens ? ""
+    isGardens || giftOpenDate ? ""
     : `<section class="field-block">
         <div class="field-label">Стоимость</div>
         <div class="field-value value-wide">${escapeHtml(priceStr)}</div>
