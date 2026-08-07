@@ -74,7 +74,7 @@ const MONTH_NOMINATIVE = [
 
 function isSummerMonth(dateKey: string): boolean {
   const m = Number(dateKey.split("-")[1]);
-  return m >= 6 && m <= 8;
+  return m >= 8 && m <= 10;
 }
 
 function sortDateKeysAsc(keys: string[]): string[] {
@@ -125,7 +125,7 @@ function ticketsWord(n: number): string {
   return "билетов";
 }
 
-const SUMMER_MONTHS = [6, 7, 8] as const;
+const SUMMER_MONTHS = [8, 9, 10] as const;
 
 /** Не показывать прошедшие сеансы сегодня и прошлые дни (как на /buy-tickets-summer). */
 const PUBLIC_API_HIDE_PAST = "hidePastTimes=1";
@@ -178,7 +178,7 @@ function buildMonthDayCells(
   return cells;
 }
 
-/** Июнь–август: все дни месяца; пн/вт без слотов в БД скрыты; остальные — как раньше */
+/** Август–октябрь: все дни месяца; пн/вт без слотов в БД скрыты; остальные — как раньше */
 function groupSummerDays(
   days: Record<string, { bookable: boolean; hover: string }>,
 ): MonthGroup[] {
@@ -330,7 +330,7 @@ export default function BuyTicketsSmrPage() {
             .map(([dk]) => dk),
         )[0];
         if (!firstBookable) {
-          throw new Error("На летний сезон пока нет доступных дат.");
+          throw new Error("На август–октябрь пока нет доступных дат.");
         }
         if (!cancelled) {
           setDate(firstBookable);
