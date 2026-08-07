@@ -6,7 +6,6 @@ import {
   redeemDeiClubPromoCode,
   computeDeiClubPromoAmounts,
 } from "@/lib/dei-club-promo";
-import { promoAllowsZeroPayment } from "@/lib/gardens-of-dreams/ensure-promo";
 import {
   computePromoAmounts,
   isPromoActiveBySchedule,
@@ -91,18 +90,11 @@ export async function resolvePromoForQuote(
   }
   const { discountCents, amountCents } = computePromoAmounts(subtotalCents, row);
   if (amountCents < 1) {
-    if (promoAllowsZeroPayment(norm)) {
-      return {
-        applied: true,
-        discountCents,
-        amountCents: 0,
-        hint: "Промокод применён — оплата не требуется",
-      };
-    }
     return {
-      applied: false,
-      error: "PROMO_ZERO_PAYMENT",
-      hint: "После скидки сумма слишком мала для онлайн-оплаты",
+      applied: true,
+      discountCents,
+      amountCents: 0,
+      hint: "Промокод применён — оплата не требуется",
     };
   }
   return { applied: true, discountCents, amountCents };
@@ -214,16 +206,10 @@ export async function applyPromoAtCheckout(
     }
   }
   const applied = computePromoAmounts(params.subtotalCents, promo);
-  if (applied.amountCents < 1 && !params.skipPayment && !promoAllowsZeroPayment(norm)) {
-    throw new PromoApplyError(
-      "После скидки сумма слишком мала для онлайн-оплаты. Измените состав заказа или промокод.",
-      "PROMO_ZERO_PAYMENT",
-    );
-  }
 
   return {
     discountCents: applied.discountCents,
-    amountCents: applied.amountCents,
+    amountCents: applied.amountCents < 1 ? 0 : applied.amountCents,
     promoCodeId: promo.id,
     clubPromoCode: null,
     clubPromoTelegramUserId: null,

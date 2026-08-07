@@ -167,7 +167,7 @@ export async function createOrderCheckout(
       return o.id;
     });
 
-    if (skipPayment) {
+    if (skipPayment || chargedAmountCents === 0) {
       await fulfillPaidOrder(orderId);
       return {
         ok: true,

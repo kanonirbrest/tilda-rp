@@ -4,7 +4,7 @@ import { normalizePromoCode } from "@/lib/promo-code";
 
 export const GARDENS_DREAM5_PROMO_CODE = "DREAM5";
 
-/** 100% скидка на «Сады сновидений» — только этот код допускает оплату 0 BYN. */
+/** Встроенный 100% промокод «Сады сновидений» (бесплатная выдача без bePaid). */
 export const GARDENS_COMPLIMENTARY_PROMO_CODE = "SNVID100";
 
 const MINSK_OFFSET = "+03:00";
@@ -22,7 +22,10 @@ export function isGardensComplimentaryPromoCode(raw: string): boolean {
   return normalizePromoCode(raw) === GARDENS_COMPLIMENTARY_PROMO_CODE;
 }
 
-/** Разрешает checkout с amountCents = 0 (без bePaid). */
+/**
+ * @deprecated Любой локальный PromoCode с amountCents = 0 уже допускается в checkout.
+ * Оставлено для обратной совместимости вызовов.
+ */
 export function promoAllowsZeroPayment(raw: string): boolean {
   return isGardensComplimentaryPromoCode(raw);
 }

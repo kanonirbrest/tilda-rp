@@ -2564,7 +2564,8 @@ export default function AdminDashboard() {
             <p className="admin-hint admin-hint--inline">
               Код на сайте / в POST <span className="mono">promoCode</span> или в ссылке /pay?promo=КОД.
               Занято: заявки PENDING+PAID с этим промо. Витрина ограничивает канал (Небо.Река, Ночь музеев, Белые
-              ночи 18+, Сады сновидений); «Все витрины» — везде.
+              ночи 18+, Сады сновидений); «Все витрины» — везде. Скидка 100% (или фикс ≥ суммы заказа) — билет без
+              оплаты, сразу после оформления.
             </p>
           </div>
           {!promosData ? (
