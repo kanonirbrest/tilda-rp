@@ -20,6 +20,9 @@ type CustomerRow = {
   fromBot: boolean;
 };
 
+type SortField = "createdAt" | "ordersCount";
+type SortDir = "asc" | "desc";
+
 type CustomersResponse = {
   total: number;
   page: number;
@@ -27,6 +30,8 @@ type CustomersResponse = {
   totalPages: number;
   customers: CustomerRow[];
   facets?: { titles: string[]; dates: string[] };
+  sort?: SortField;
+  dir?: SortDir;
 };
 
 type CustomerOrder = {
@@ -170,6 +175,8 @@ export function UsersDirectory() {
   const [titleFilter, setTitleFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [minOrdersFilter, setMinOrdersFilter] = useState("");
+  const [sortBy, setSortBy] = useState<SortField>("createdAt");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<CustomersResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -217,6 +224,8 @@ export function UsersDirectory() {
       if (titleFilter.trim()) params.set("title", titleFilter.trim());
       if (dateFilter.trim()) params.set("date", dateFilter.trim());
       if (minOrdersFilter.trim() !== "") params.set("minOrders", minOrdersFilter.trim());
+      params.set("sort", sortBy);
+      params.set("dir", sortDir);
       const res = await adminFetch<CustomersResponse>(`/api/admin/customers?${params}`);
       setData(res);
     } catch (e: unknown) {
@@ -225,7 +234,7 @@ export function UsersDirectory() {
     } finally {
       setLoading(false);
     }
-  }, [page, q, titleFilter, dateFilter, minOrdersFilter]);
+  }, [page, q, titleFilter, dateFilter, minOrdersFilter, sortBy, sortDir]);
 
   useEffect(() => {
     if (!authed) return;
@@ -307,10 +316,29 @@ export function UsersDirectory() {
     setTitleFilter("");
     setDateFilter("");
     setMinOrdersFilter("");
+    setSortBy("createdAt");
+    setSortDir("desc");
     setPage(1);
   }
 
-  const hasFilters = Boolean(q || titleFilter || dateFilter || minOrdersFilter !== "");
+  const hasFilters = Boolean(
+    q || titleFilter || dateFilter || minOrdersFilter !== "" || sortBy !== "createdAt" || sortDir !== "desc",
+  );
+
+  function toggleSort(field: SortField) {
+    setPage(1);
+    if (sortBy === field) {
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+      return;
+    }
+    setSortBy(field);
+    setSortDir(field === "ordersCount" ? "desc" : "desc");
+  }
+
+  function sortMark(field: SortField): string {
+    if (sortBy !== field) return "";
+    return sortDir === "asc" ? " ↑" : " ↓";
+  }
 
   async function downloadExport(format: "csv" | "xlsx") {
     setExporting(format);
@@ -520,13 +548,31 @@ export function UsersDirectory() {
           <table className="users-table">
             <thead>
               <tr>
-                <th>Когда</th>
+                <th>
+                  <button
+                    type="button"
+                    className="users-th-sort"
+                    onClick={() => toggleSort("createdAt")}
+                    aria-label="Сортировать по дате добавления"
+                  >
+                    Когда{sortMark("createdAt")}
+                  </button>
+                </th>
                 <th>Имя</th>
                 <th>Дата рождения</th>
                 <th>Телефон</th>
                 <th>Email</th>
                 <th>Откуда</th>
-                <th>Заказов</th>
+                <th>
+                  <button
+                    type="button"
+                    className="users-th-sort"
+                    onClick={() => toggleSort("ordersCount")}
+                    aria-label="Сортировать по числу заказов"
+                  >
+                    Заказов{sortMark("ordersCount")}
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>

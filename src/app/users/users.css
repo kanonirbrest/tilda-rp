@@ -238,6 +238,24 @@
   top: 0;
 }
 
+.users-th-sort {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.users-th-sort:hover {
+  color: var(--users-ink, #1c2a22);
+}
+
 .users-table tbody tr:last-child td {
   border-bottom: none;
 }

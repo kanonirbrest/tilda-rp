@@ -64,7 +64,7 @@ async function customerIdsWithMinOrders(minOrders: number): Promise<string[]> {
 
 /**
  * Список пользователей (Customer) для страницы /users.
- * GET ?q=&title=&date=YYYY-MM-DD&minOrders=&page=1&limit=20
+ * GET ?q=&title=&date=YYYY-MM-DD&minOrders=&sort=createdAt|ordersCount&dir=asc|desc&page=1&limit=20
  * minOrders: 0 = без заказов; 1/2/3… = не меньше N заказов.
  * Фильтры title/date — покупатели с заказом на это мероприятие / дату сеанса.
  */
@@ -82,6 +82,10 @@ export async function GET(req: Request) {
     : Number.isFinite(Number.parseInt(minOrdersRaw, 10)) ?
       Math.max(0, Number.parseInt(minOrdersRaw, 10))
     : null;
+  const sortRaw = (url.searchParams.get("sort") ?? "createdAt").trim();
+  const sort = sortRaw === "ordersCount" ? "ordersCount" : "createdAt";
+  const dirRaw = (url.searchParams.get("dir") ?? "desc").trim().toLowerCase();
+  const dir = dirRaw === "asc" ? "asc" : "desc";
   const page = Math.max(1, Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
   const limit = Math.min(100, Math.max(1, Number.parseInt(url.searchParams.get("limit") ?? "20", 10) || 20));
   const skip = (page - 1) * limit;
@@ -132,6 +136,8 @@ export async function GET(req: Request) {
           facets: await customerFilterFacets(tz, title || null, dateYmd || null),
           customers: [],
           minOrders,
+          sort,
+          dir,
         });
       }
       and.push({ id: { in: ids } });
@@ -139,12 +145,16 @@ export async function GET(req: Request) {
   }
 
   const where: Prisma.CustomerWhereInput = and.length > 0 ? { AND: and } : {};
+  const orderBy: Prisma.CustomerOrderByWithRelationInput =
+    sort === "ordersCount" ?
+      { orders: { _count: dir } }
+    : { createdAt: dir };
 
   const [total, rows, facets] = await Promise.all([
     prisma.customer.count({ where }),
     prisma.customer.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy,
       skip,
       take: limit,
       select: {
@@ -174,6 +184,8 @@ export async function GET(req: Request) {
     totalPages,
     facets,
     minOrders,
+    sort,
+    dir,
     customers: rows.map((c) => {
       const fromBot = c.orders.some((o) => Boolean(o.clubPromoTelegramUserId?.trim()));
       const source = c._count.orders === 0 ? "anketa" : "tickets";
