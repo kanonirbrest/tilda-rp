@@ -64,6 +64,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ customerId: str
       name: customer.name,
       email: customer.email,
       phone: customer.phone,
+      birthDate: customer.birthDate ? customer.birthDate.toISOString().slice(0, 10) : null,
       createdAt: formatDisplayDateTime(customer.createdAt.toISOString()),
       createdAtIso: customer.createdAt.toISOString(),
       ordersCount: customer.orders.length,

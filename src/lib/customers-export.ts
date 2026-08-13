@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 export const CUSTOMERS_EXPORT_HEADER = [
   "customer_id",
   "name",
+  "birth_date",
   "email",
   "phone",
   "customer_created_at",
@@ -27,6 +28,11 @@ export type CustomerExportCell = string | number;
 
 function iso(d: Date | null): string {
   return d ? d.toISOString() : "";
+}
+
+function birthDateYmd(d: Date | null | undefined): string {
+  if (!d) return "";
+  return d.toISOString().slice(0, 10);
 }
 
 /** Строки таблицы выгрузки покупателей (без заголовка). */
@@ -113,6 +119,7 @@ export async function buildCustomerExportRows(): Promise<CustomerExportCell[][]>
     rows.push([
       c.id,
       c.name,
+      birthDateYmd(c.birthDate),
       c.email,
       c.phone,
       iso(c.createdAt),

@@ -40,11 +40,13 @@ enum TicketTier {
 }
 
 model Customer {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   email     String
   phone     String
-  createdAt DateTime @default(now())
+  /// Дата рождения (анкета); у покупателей билетов обычно null.
+  birthDate DateTime? @db.Date
+  createdAt DateTime  @default(now())
   orders    Order[]
 }
 

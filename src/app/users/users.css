@@ -503,8 +503,8 @@
 }
 
 @media (max-width: 720px) {
-  .users-table th:nth-child(4),
-  .users-table td:nth-child(4) {
+  .users-table th:nth-child(5),
+  .users-table td:nth-child(5) {
     display: none;
   }
 

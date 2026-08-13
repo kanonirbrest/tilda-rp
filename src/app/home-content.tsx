@@ -16,7 +16,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Контакты",
     items: [
-      { href: "/anketa", label: "Анкета", hint: "Сбор фамилии, имени, телефона и email" },
+      { href: "/anketa", label: "Анкета", hint: "Сбор имени, даты рождения, телефона и email" },
       { href: "/users", label: "Пользователи", hint: "Список из базы, поиск и пагинация" },
     ],
   },

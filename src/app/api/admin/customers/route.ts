@@ -109,6 +109,7 @@ export async function GET(req: Request) {
         name: true,
         email: true,
         phone: true,
+        birthDate: true,
         createdAt: true,
         _count: { select: { orders: true } },
         orders: {
@@ -137,6 +138,7 @@ export async function GET(req: Request) {
         name: c.name,
         email: c.email,
         phone: c.phone,
+        birthDate: c.birthDate ? c.birthDate.toISOString().slice(0, 10) : null,
         createdAt: formatDisplayDateTime(c.createdAt.toISOString()),
         createdAtIso: c.createdAt.toISOString(),
         ordersCount: c._count.orders,

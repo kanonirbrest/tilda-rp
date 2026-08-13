@@ -8,8 +8,8 @@ import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
 const PHONE_COUNTRIES = ["by", "ru"] as const;
 
 export function AnketaForm() {
-  const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [email, setEmail] = useState("");
   const [phoneLocal, setPhoneLocal] = useState("");
   const [phoneCountryIso, setPhoneCountryIso] = useState("by");
@@ -21,11 +21,15 @@ export function AnketaForm() {
     e.preventDefault();
     setError("");
 
-    const ln = lastName.trim();
     const fn = firstName.trim();
+    const bd = birthDate.trim();
     const em = email.trim();
-    if (!ln || !fn) {
-      setError("Укажите фамилию и имя");
+    if (!fn) {
+      setError("Укажите имя");
+      return;
+    }
+    if (!bd) {
+      setError("Укажите дату рождения");
       return;
     }
     if (!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
@@ -43,8 +47,8 @@ export function AnketaForm() {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
-          lastName: ln,
           firstName: fn,
+          birthDate: bd,
           email: em,
           phone: toE164Phone(phoneCountryIso, phoneLocal),
         }),
@@ -78,8 +82,8 @@ export function AnketaForm() {
           className="anketa-btn anketa-btn--ghost"
           onClick={() => {
             setDone(false);
-            setLastName("");
             setFirstName("");
+            setBirthDate("");
             setEmail("");
             setPhoneLocal("");
           }}
@@ -94,17 +98,6 @@ export function AnketaForm() {
     <form className="anketa-form" onSubmit={(e) => void onSubmit(e)} noValidate>
       <div className="anketa-grid">
         <label className="anketa-field">
-          <span>Фамилия</span>
-          <input
-            name="lastName"
-            autoComplete="family-name"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            disabled={busy}
-            required
-          />
-        </label>
-        <label className="anketa-field">
           <span>Имя</span>
           <input
             name="firstName"
@@ -113,6 +106,20 @@ export function AnketaForm() {
             onChange={(e) => setFirstName(e.target.value)}
             disabled={busy}
             required
+          />
+        </label>
+        <label className="anketa-field">
+          <span>Дата рождения</span>
+          <input
+            name="birthDate"
+            type="date"
+            autoComplete="bday"
+            value={birthDate}
+            onChange={(e) => setBirthDate(e.target.value)}
+            disabled={busy}
+            required
+            max={new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Minsk" })}
+            min="1900-01-01"
           />
         </label>
       </div>

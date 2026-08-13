@@ -13,6 +13,7 @@ type CustomerRow = {
   name: string;
   email: string;
   phone: string;
+  birthDate: string | null;
   createdAt: string;
   ordersCount: number;
   source: CustomerSource;
@@ -63,6 +64,7 @@ type CustomerDetail = {
     name: string;
     email: string;
     phone: string;
+    birthDate: string | null;
     createdAt: string;
     ordersCount: number;
     source: CustomerSource;
@@ -71,6 +73,13 @@ type CustomerDetail = {
   };
   orders: CustomerOrder[];
 };
+
+function formatBirthDateRu(ymd: string | null | undefined): string {
+  if (!ymd) return "—";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  if (!m) return ymd;
+  return `${m[3]}.${m[2]}.${m[1]}`;
+}
 
 function readStoredAdminSecret(): string {
   try {
@@ -494,6 +503,7 @@ export function UsersDirectory() {
               <tr>
                 <th>Когда</th>
                 <th>Имя</th>
+                <th>Дата рождения</th>
                 <th>Телефон</th>
                 <th>Email</th>
                 <th>Откуда</th>
@@ -503,14 +513,14 @@ export function UsersDirectory() {
             <tbody>
               {loading && rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="users-empty">
+                  <td colSpan={7} className="users-empty">
                     Загрузка…
                   </td>
                 </tr>
               ) : null}
               {!loading && rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="users-empty">
+                  <td colSpan={7} className="users-empty">
                     {q ? "Никого не найдено по запросу" : "Пока нет пользователей"}
                   </td>
                 </tr>
@@ -534,6 +544,7 @@ export function UsersDirectory() {
                 >
                   <td className="users-mono">{c.createdAt}</td>
                   <td>{c.name}</td>
+                  <td className="users-mono">{formatBirthDateRu(c.birthDate)}</td>
                   <td className="users-mono">{c.phone}</td>
                   <td>{c.email}</td>
                   <td>
@@ -601,6 +612,9 @@ export function UsersDirectory() {
                 </h2>
                 {detail ? (
                   <p className="users-drawer-meta">
+                    {detail.customer.birthDate ?
+                      `ДР ${formatBirthDateRu(detail.customer.birthDate)} · `
+                    : ""}
                     {detail.customer.phone}
                     {detail.customer.email ? ` · ${detail.customer.email}` : ""}
                   </p>
