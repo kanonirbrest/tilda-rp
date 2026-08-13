@@ -4,8 +4,12 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { PhoneCountryField } from "@/components/phone-country-field";
 import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
+import { DEI_POLICY_URL } from "@/lib/policy-consent";
 
 const PHONE_COUNTRIES = ["by", "ru"] as const;
+
+const ANKETA_POLICY_CONSENT_ERROR =
+  "Нужно дать согласие на обработку персональных данных";
 
 export function AnketaForm() {
   const [firstName, setFirstName] = useState("");
@@ -13,6 +17,7 @@ export function AnketaForm() {
   const [email, setEmail] = useState("");
   const [phoneLocal, setPhoneLocal] = useState("");
   const [phoneCountryIso, setPhoneCountryIso] = useState("by");
+  const [policyConsent, setPolicyConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -40,6 +45,10 @@ export function AnketaForm() {
       setError("Укажите полный номер телефона");
       return;
     }
+    if (!policyConsent) {
+      setError(ANKETA_POLICY_CONSENT_ERROR);
+      return;
+    }
 
     setBusy(true);
     try {
@@ -51,6 +60,7 @@ export function AnketaForm() {
           birthDate: bd,
           email: em,
           phone: toE164Phone(phoneCountryIso, phoneLocal),
+          policyConsent: true,
         }),
       });
       const body = (await r.json().catch(() => null)) as {
@@ -86,6 +96,7 @@ export function AnketaForm() {
             setBirthDate("");
             setEmail("");
             setPhoneLocal("");
+            setPolicyConsent(false);
           }}
         >
           Отправить ещё раз
@@ -148,6 +159,26 @@ export function AnketaForm() {
           disabled={busy}
           required
         />
+      </label>
+
+      <label className="anketa-consent" htmlFor="anketa-policy-consent">
+        <input
+          id="anketa-policy-consent"
+          type="checkbox"
+          name="policyConsent"
+          checked={policyConsent}
+          onChange={(e) => setPolicyConsent(e.target.checked)}
+          disabled={busy}
+          required
+        />
+        <span className="anketa-consent__text">
+          Я даю согласие ООО &quot;РАЗМАН ПРОДАКШН&quot;, на обработку предоставленных мной
+          персональных данных, включая имя, дату рождения, контактные данные.
+          С политикой обработки персональных данных ознакомлен(а):{" "}
+          <a href={DEI_POLICY_URL} target="_blank" rel="noopener noreferrer">
+            {DEI_POLICY_URL}
+          </a>
+        </span>
       </label>
 
       {error ? <p className="anketa-error">{error}</p> : null}

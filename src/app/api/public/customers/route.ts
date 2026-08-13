@@ -33,6 +33,9 @@ const bodySchema = z.object({
   birthDate: z.string().trim().min(1, "Укажите дату рождения"),
   email: z.string().trim().email("Некорректный email").max(200),
   phone: z.string().trim().min(8, "Укажите телефон").max(32),
+  policyConsent: z.boolean().refine((v) => v === true, {
+    message: "Нужно дать согласие на обработку персональных данных",
+  }),
 });
 
 /**
