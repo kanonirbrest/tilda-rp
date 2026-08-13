@@ -13,6 +13,7 @@ import {
   type LineInput,
 } from "@/lib/slot-pricing";
 import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
+import { findOrCreateCustomerByEmail } from "@/lib/customer-upsert";
 
 export class CapacityExceededError extends Error {
   constructor() {
@@ -123,8 +124,10 @@ export async function createOrderCheckout(
 
       chargedAmountCents = amountCents;
 
-      const customer = await tx.customer.create({
-        data: { name, email: email.trim().toLowerCase(), phone },
+      const customer = await findOrCreateCustomerByEmail(tx, {
+        name,
+        email,
+        phone,
       });
       const o = await tx.order.create({
         data: {

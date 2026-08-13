@@ -48,9 +48,24 @@ async function customerFilterFacets(
   };
 }
 
+async function customerIdsWithMinOrders(minOrders: number): Promise<string[]> {
+  if (minOrders <= 0) return [];
+  const groups = await prisma.order.groupBy({
+    by: ["customerId"],
+    _count: { _all: true },
+    having: {
+      customerId: {
+        _count: { gte: minOrders },
+      },
+    },
+  });
+  return groups.map((g) => g.customerId);
+}
+
 /**
  * Список пользователей (Customer) для страницы /users.
- * GET ?q=&title=&date=YYYY-MM-DD&page=1&limit=20
+ * GET ?q=&title=&date=YYYY-MM-DD&minOrders=&page=1&limit=20
+ * minOrders: 0 = без заказов; 1/2/3… = не меньше N заказов.
  * Фильтры title/date — покупатели с заказом на это мероприятие / дату сеанса.
  */
 export async function GET(req: Request) {
@@ -61,6 +76,12 @@ export async function GET(req: Request) {
   const q = (url.searchParams.get("q") ?? "").trim();
   const title = (url.searchParams.get("title") ?? "").trim();
   const dateYmd = (url.searchParams.get("date") ?? "").trim();
+  const minOrdersRaw = (url.searchParams.get("minOrders") ?? "").trim();
+  const minOrders =
+    minOrdersRaw === "" ? null
+    : Number.isFinite(Number.parseInt(minOrdersRaw, 10)) ?
+      Math.max(0, Number.parseInt(minOrdersRaw, 10))
+    : null;
   const page = Math.max(1, Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
   const limit = Math.min(100, Math.max(1, Number.parseInt(url.searchParams.get("limit") ?? "20", 10) || 20));
   const skip = (page - 1) * limit;
@@ -93,6 +114,28 @@ export async function GET(req: Request) {
         some: { slot: slotWhere },
       },
     });
+  }
+
+  if (minOrders === 0) {
+    and.push({ orders: { none: {} } });
+  } else if (minOrders != null && minOrders >= 1) {
+    if (minOrders === 1) {
+      and.push({ orders: { some: {} } });
+    } else {
+      const ids = await customerIdsWithMinOrders(minOrders);
+      if (ids.length === 0) {
+        return jsonWithCors(req, {
+          total: 0,
+          page,
+          limit,
+          totalPages: 1,
+          facets: await customerFilterFacets(tz, title || null, dateYmd || null),
+          customers: [],
+          minOrders,
+        });
+      }
+      and.push({ id: { in: ids } });
+    }
   }
 
   const where: Prisma.CustomerWhereInput = and.length > 0 ? { AND: and } : {};
@@ -130,6 +173,7 @@ export async function GET(req: Request) {
     limit,
     totalPages,
     facets,
+    minOrders,
     customers: rows.map((c) => {
       const fromBot = c.orders.some((o) => Boolean(o.clubPromoTelegramUserId?.trim()));
       const source = c._count.orders === 0 ? "anketa" : "tickets";

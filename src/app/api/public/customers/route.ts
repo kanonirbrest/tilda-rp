@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { findOrCreateCustomerByEmail } from "@/lib/customer-upsert";
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonOrdersResponse, publicOrdersCorsHeaders } from "@/lib/public-orders-cors";
 
@@ -39,7 +40,7 @@ const bodySchema = z.object({
 });
 
 /**
- * Публичная анкета: создаёт запись Customer в той же таблице, что и покупатели билетов.
+ * Публичная анкета: создаёт/обновляет Customer (по email) в той же таблице, что и покупатели билетов.
  * name = имя; birthDate — дата рождения.
  */
 export async function POST(req: Request) {
@@ -64,8 +65,14 @@ export async function POST(req: Request) {
     const email = parsed.data.email.toLowerCase();
     const phone = parsed.data.phone.replace(/\s+/g, " ");
 
-    const customer = await prisma.customer.create({
-      data: { name: firstName, email, phone, birthDate },
+    const { id } = await findOrCreateCustomerByEmail(prisma, {
+      name: firstName,
+      email,
+      phone,
+      birthDate,
+    });
+    const customer = await prisma.customer.findUniqueOrThrow({
+      where: { id },
       select: { id: true, name: true, email: true, phone: true, birthDate: true, createdAt: true },
     });
 

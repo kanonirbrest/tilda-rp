@@ -25,6 +25,7 @@ import {
   mapSeatCheckoutException,
   SeatUnavailableError,
 } from "@/lib/seat-checkout-errors";
+import { findOrCreateCustomerByEmail } from "@/lib/customer-upsert";
 import type { CreateOrderCheckoutErr, CreateOrderCheckoutOk } from "@/lib/create-order-checkout";
 
 export { SeatUnavailableError };
@@ -153,8 +154,10 @@ export async function createSeatOrderCheckout(
         promoApplied;
       chargedAmountCents = amountCents;
 
-      const customer = await tx.customer.create({
-        data: { name, email: email.trim().toLowerCase(), phone },
+      const customer = await findOrCreateCustomerByEmail(tx, {
+        name,
+        email,
+        phone,
       });
 
       const order = await tx.order.create({

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useId, useState } from "react";
+import { FormEvent, Fragment, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { formatMinorUnits } from "@/lib/money";
 
@@ -160,7 +160,6 @@ function formatDateKeyShort(dateKey: string): string {
 const PAGE_SIZE = 20;
 
 export function UsersDirectory() {
-  const detailTitleId = useId();
   const [authChecked, setAuthChecked] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [secretInput, setSecretInput] = useState("");
@@ -170,6 +169,7 @@ export function UsersDirectory() {
   const [q, setQ] = useState("");
   const [titleFilter, setTitleFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
+  const [minOrdersFilter, setMinOrdersFilter] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<CustomersResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -216,6 +216,7 @@ export function UsersDirectory() {
       if (q.trim()) params.set("q", q.trim());
       if (titleFilter.trim()) params.set("title", titleFilter.trim());
       if (dateFilter.trim()) params.set("date", dateFilter.trim());
+      if (minOrdersFilter.trim() !== "") params.set("minOrders", minOrdersFilter.trim());
       const res = await adminFetch<CustomersResponse>(`/api/admin/customers?${params}`);
       setData(res);
     } catch (e: unknown) {
@@ -224,7 +225,7 @@ export function UsersDirectory() {
     } finally {
       setLoading(false);
     }
-  }, [page, q, titleFilter, dateFilter]);
+  }, [page, q, titleFilter, dateFilter, minOrdersFilter]);
 
   useEffect(() => {
     if (!authed) return;
@@ -305,10 +306,11 @@ export function UsersDirectory() {
     setQ("");
     setTitleFilter("");
     setDateFilter("");
+    setMinOrdersFilter("");
     setPage(1);
   }
 
-  const hasFilters = Boolean(q || titleFilter || dateFilter);
+  const hasFilters = Boolean(q || titleFilter || dateFilter || minOrdersFilter !== "");
 
   async function downloadExport(format: "csv" | "xlsx") {
     setExporting(format);
@@ -387,7 +389,6 @@ export function UsersDirectory() {
   const total = data?.total ?? 0;
   const totalPages = data?.totalPages ?? 1;
   const rows = data?.customers ?? [];
-  const panelOpen = selectedId != null;
 
   return (
     <div className="users-page">
@@ -396,7 +397,7 @@ export function UsersDirectory() {
           <div>
             <h1 className="users-title">Пользователи</h1>
             <p className="users-lead">
-              Все записи из базы покупателей · новые сверху
+              Покупатели и анкета · один email = один человек · новые сверху
               {data ? ` · всего ${total}` : ""}
             </p>
           </div>
@@ -493,6 +494,24 @@ export function UsersDirectory() {
               ) : null}
             </select>
           </label>
+          <label className="users-filter">
+            <span>Заказов</span>
+            <select
+              value={minOrdersFilter}
+              onChange={(e) => {
+                setMinOrdersFilter(e.target.value);
+                setPage(1);
+              }}
+              aria-label="Фильтр по количеству заказов"
+            >
+              <option value="">Любое число</option>
+              <option value="0">Без заказов (анкета)</option>
+              <option value="1">От 1</option>
+              <option value="2">От 2</option>
+              <option value="3">От 3</option>
+              <option value="5">От 5</option>
+            </select>
+          </label>
         </div>
 
         {err ? <p className="users-error">{err}</p> : null}
@@ -526,24 +545,36 @@ export function UsersDirectory() {
                 </tr>
               ) : null}
               {rows.map((c) => (
+                <Fragment key={c.id}>
                 <tr
-                  key={c.id}
                   className={
                     selectedId === c.id ? "users-row users-row--active" : "users-row"
                   }
                   tabIndex={0}
                   role="button"
-                  aria-label={`Открыть историю покупок: ${c.name}`}
-                  onClick={() => setSelectedId(c.id)}
+                  aria-label={
+                    selectedId === c.id ?
+                      `Скрыть заказы: ${c.name}`
+                    : `Показать заказы: ${c.name}`
+                  }
+                  aria-expanded={selectedId === c.id}
+                  onClick={() => setSelectedId((id) => (id === c.id ? null : c.id))}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      setSelectedId(c.id);
+                      setSelectedId((id) => (id === c.id ? null : c.id));
                     }
                   }}
                 >
                   <td className="users-mono">{c.createdAt}</td>
-                  <td>{c.name}</td>
+                  <td>
+                    <span className="users-name-cell">
+                      <span className="users-expand-caret" aria-hidden>
+                        {selectedId === c.id ? "▾" : "▸"}
+                      </span>
+                      {c.name}
+                    </span>
+                  </td>
                   <td className="users-mono">{formatBirthDateRu(c.birthDate)}</td>
                   <td className="users-mono">{c.phone}</td>
                   <td>{c.email}</td>
@@ -562,6 +593,106 @@ export function UsersDirectory() {
                   </td>
                   <td className="users-num">{c.ordersCount}</td>
                 </tr>
+                {selectedId === c.id ? (
+                  <tr className="users-expand-row">
+                    <td colSpan={7}>
+                      <div className="users-expand-panel">
+                        {detailLoading ? (
+                          <p className="users-muted">Загрузка заказов…</p>
+                        ) : null}
+                        {detailErr ? <p className="users-error">{detailErr}</p> : null}
+                        {detail && detail.customer.id === c.id ? (
+                          <>
+                            <div className="users-expand-head">
+                              <span
+                                className={
+                                  detail.customer.source === "anketa" ?
+                                    "users-source users-source--anketa"
+                                  : detail.customer.fromBot ?
+                                    "users-source users-source--bot"
+                                  : "users-source users-source--tickets"
+                                }
+                              >
+                                {sourceLabel(detail.customer.source, detail.customer.fromBot)}
+                              </span>
+                              <span className="users-muted">
+                                В базе с {detail.customer.createdAt}
+                                {detail.customer.birthDate ?
+                                  ` · ДР ${formatBirthDateRu(detail.customer.birthDate)}`
+                                : ""}
+                              </span>
+                              {detail.customer.botTelegramUserIds.length > 0 ? (
+                                <span className="users-muted">
+                                  Telegram:{" "}
+                                  <span className="users-mono">
+                                    {detail.customer.botTelegramUserIds.join(", ")}
+                                  </span>
+                                </span>
+                              ) : null}
+                            </div>
+                            <h3 className="users-drawer-section">Заказы ({detail.orders.length})</h3>
+                            {detail.orders.length === 0 ? (
+                              <p className="users-muted">
+                                Заказов нет — запись из анкеты контактов.
+                              </p>
+                            ) : (
+                              <ul className="users-orders">
+                                {detail.orders.map((o) => (
+                                  <li key={o.id} className="users-order">
+                                    <div className="users-order-top">
+                                      <div>
+                                        <div className="users-order-title">{o.slot.title}</div>
+                                        <div className="users-muted users-mono">
+                                          {o.slot.startsAt} · {o.slot.kind}
+                                        </div>
+                                      </div>
+                                      <div className="users-order-sum users-mono">
+                                        {formatMinorUnits(o.amountCents, o.currency)}
+                                      </div>
+                                    </div>
+                                    <div className="users-order-tags">
+                                      <span
+                                        className={`users-status users-status--${o.status.toLowerCase()}`}
+                                      >
+                                        {statusLabel(o.status)}
+                                      </span>
+                                      {o.fromBot ? (
+                                        <span className="users-source users-source--bot">Бот</span>
+                                      ) : null}
+                                      {o.promoCode ? (
+                                        <span className="users-mono users-promo">{o.promoCode}</span>
+                                      ) : null}
+                                    </div>
+                                    <div className="users-muted users-order-foot">
+                                      Создан {o.createdAt}
+                                      {o.paidAt ? ` · оплачен ${o.paidAt}` : ""}
+                                      {o.tickets.length > 0 ?
+                                        ` · билетов: ${o.tickets.length}`
+                                      : ""}
+                                      {o.refundedCents > 0 ?
+                                        ` · возврат ${formatMinorUnits(o.refundedCents, o.currency)}`
+                                      : ""}
+                                    </div>
+                                    {o.tickets.some((t) => t.seatLabel) ? (
+                                      <div className="users-muted users-order-seats">
+                                        Места:{" "}
+                                        {o.tickets
+                                          .map((t) => t.seatLabel)
+                                          .filter(Boolean)
+                                          .join(", ")}
+                                      </div>
+                                    ) : null}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -590,138 +721,6 @@ export function UsersDirectory() {
           </button>
         </div>
       </div>
-
-      {panelOpen ? (
-        <div className="users-drawer-root">
-          <button
-            type="button"
-            className="users-drawer-backdrop"
-            aria-label="Закрыть"
-            onClick={() => setSelectedId(null)}
-          />
-          <aside
-            className="users-drawer"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={detailTitleId}
-          >
-            <div className="users-drawer-head">
-              <div>
-                <h2 id={detailTitleId} className="users-drawer-title">
-                  {detail?.customer.name ?? "Пользователь"}
-                </h2>
-                {detail ? (
-                  <p className="users-drawer-meta">
-                    {detail.customer.birthDate ?
-                      `ДР ${formatBirthDateRu(detail.customer.birthDate)} · `
-                    : ""}
-                    {detail.customer.phone}
-                    {detail.customer.email ? ` · ${detail.customer.email}` : ""}
-                  </p>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                className="users-btn users-btn--ghost"
-                onClick={() => setSelectedId(null)}
-              >
-                Закрыть
-              </button>
-            </div>
-
-            {detailLoading ? <p className="users-muted">Загрузка истории…</p> : null}
-            {detailErr ? <p className="users-error">{detailErr}</p> : null}
-
-            {detail ? (
-              <>
-                <div className="users-drawer-badges">
-                  <span
-                    className={
-                      detail.customer.source === "anketa" ?
-                        "users-source users-source--anketa"
-                      : detail.customer.fromBot ?
-                        "users-source users-source--bot"
-                      : "users-source users-source--tickets"
-                    }
-                  >
-                    {sourceLabel(detail.customer.source, detail.customer.fromBot)}
-                  </span>
-                  <span className="users-muted">
-                    В базе с {detail.customer.createdAt}
-                  </span>
-                </div>
-
-                {detail.customer.botTelegramUserIds.length > 0 ? (
-                  <p className="users-drawer-bot">
-                    Telegram ID:{" "}
-                    <span className="users-mono">
-                      {detail.customer.botTelegramUserIds.join(", ")}
-                    </span>
-                  </p>
-                ) : null}
-
-                <h3 className="users-drawer-section">История покупок</h3>
-
-                {detail.orders.length === 0 ? (
-                  <p className="users-muted">
-                    Заказов нет — запись из анкеты контактов.
-                  </p>
-                ) : (
-                  <ul className="users-orders">
-                    {detail.orders.map((o) => (
-                      <li key={o.id} className="users-order">
-                        <div className="users-order-top">
-                          <div>
-                            <div className="users-order-title">{o.slot.title}</div>
-                            <div className="users-muted users-mono">
-                              {o.slot.startsAt} · {o.slot.kind}
-                            </div>
-                          </div>
-                          <div className="users-order-sum users-mono">
-                            {formatMinorUnits(o.amountCents, o.currency)}
-                          </div>
-                        </div>
-                        <div className="users-order-tags">
-                          <span
-                            className={`users-status users-status--${o.status.toLowerCase()}`}
-                          >
-                            {statusLabel(o.status)}
-                          </span>
-                          {o.fromBot ? (
-                            <span className="users-source users-source--bot">Бот</span>
-                          ) : null}
-                          {o.promoCode ? (
-                            <span className="users-mono users-promo">{o.promoCode}</span>
-                          ) : null}
-                        </div>
-                        <div className="users-muted users-order-foot">
-                          Создан {o.createdAt}
-                          {o.paidAt ? ` · оплачен ${o.paidAt}` : ""}
-                          {o.tickets.length > 0 ?
-                            ` · билетов: ${o.tickets.length}`
-                          : ""}
-                          {o.refundedCents > 0 ?
-                            ` · возврат ${formatMinorUnits(o.refundedCents, o.currency)}`
-                          : ""}
-                        </div>
-                        {o.tickets.some((t) => t.seatLabel) ? (
-                          <div className="users-muted users-order-seats">
-                            Места:{" "}
-                            {o.tickets
-                              .map((t) => t.seatLabel)
-                              .filter(Boolean)
-                              .join(", ")}
-                          </div>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            ) : null}
-          </aside>
-        </div>
-      ) : null}
     </div>
   );
 }

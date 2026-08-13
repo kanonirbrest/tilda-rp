@@ -263,6 +263,38 @@
   box-shadow: inset 3px 0 0 var(--users-accent);
 }
 
+.users-name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.users-expand-caret {
+  display: inline-block;
+  width: 0.9rem;
+  color: var(--users-muted);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.users-expand-row > td {
+  padding: 0 !important;
+  background: rgba(47, 107, 79, 0.04);
+  border-bottom: 1px solid var(--users-line);
+}
+
+.users-expand-panel {
+  padding: 0.85rem 1rem 1.1rem;
+}
+
+.users-expand-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1rem;
+  align-items: center;
+  margin-bottom: 0.65rem;
+}
+
 .users-source {
   display: inline-flex;
   align-items: center;
