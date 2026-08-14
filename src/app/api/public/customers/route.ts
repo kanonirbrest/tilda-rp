@@ -2,31 +2,12 @@ import { z } from "zod";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { findOrCreateCustomerByEmail } from "@/lib/customer-upsert";
+import { parseBirthDate } from "@/lib/birth-date";
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonOrdersResponse, publicOrdersCorsHeaders } from "@/lib/public-orders-cors";
 
 export async function OPTIONS(req: Request) {
   return new NextResponse(null, { status: 204, headers: publicOrdersCorsHeaders(req) });
-}
-
-const BIRTH_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-function parseBirthDateYmd(raw: string): Date | null {
-  const m = BIRTH_DATE_RE.exec(raw.trim());
-  if (!m) return null;
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  const d = Number(m[3]);
-  if (y < 1900 || mo < 1 || mo > 12 || d < 1 || d > 31) return null;
-  const dt = new Date(Date.UTC(y, mo - 1, d));
-  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) {
-    return null;
-  }
-  const todayYmd = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Minsk" });
-  const [ty, tm, td] = todayYmd.split("-").map(Number);
-  const todayUtc = Date.UTC(ty!, tm! - 1, td!);
-  if (dt.getTime() > todayUtc) return null;
-  return dt;
 }
 
 const bodySchema = z.object({
@@ -52,7 +33,7 @@ export async function POST(req: Request) {
       return jsonOrdersResponse(req, { error: "BAD_REQUEST", message: msg }, 400);
     }
 
-    const birthDate = parseBirthDateYmd(parsed.data.birthDate);
+    const birthDate = parseBirthDate(parsed.data.birthDate);
     if (!birthDate) {
       return jsonOrdersResponse(
         req,

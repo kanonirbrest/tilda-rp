@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { PhoneCountryField } from "@/components/phone-country-field";
 import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
+import { birthDateToYmd, formatBirthDateRuInput } from "@/lib/birth-date";
 import { DEI_POLICY_URL } from "@/lib/policy-consent";
 
 const PHONE_COUNTRIES = ["by", "ru"] as const;
@@ -28,13 +29,14 @@ export function AnketaForm() {
 
     const fn = firstName.trim();
     const bd = birthDate.trim();
+    const birthDateYmd = birthDateToYmd(bd);
     const em = email.trim();
     if (!fn) {
       setError("Укажите имя");
       return;
     }
-    if (!bd) {
-      setError("Укажите дату рождения");
+    if (!birthDateYmd) {
+      setError(bd ? "Некорректная дата рождения (ДД.ММ.ГГГГ)" : "Укажите дату рождения");
       return;
     }
     if (!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
@@ -57,7 +59,7 @@ export function AnketaForm() {
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
           firstName: fn,
-          birthDate: bd,
+          birthDate: birthDateYmd,
           email: em,
           phone: toE164Phone(phoneCountryIso, phoneLocal),
           policyConsent: true,
@@ -123,14 +125,15 @@ export function AnketaForm() {
           <span>Дата рождения</span>
           <input
             name="birthDate"
-            type="date"
+            type="text"
+            inputMode="numeric"
             autoComplete="bday"
+            placeholder="ДД.ММ.ГГГГ"
             value={birthDate}
-            onChange={(e) => setBirthDate(e.target.value)}
+            onChange={(e) => setBirthDate(formatBirthDateRuInput(e.target.value))}
             disabled={busy}
             required
-            max={new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Minsk" })}
-            min="1900-01-01"
+            maxLength={10}
           />
         </label>
       </div>
