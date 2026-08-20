@@ -55,8 +55,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ customerId: str
         .filter((id): id is string => Boolean(id)),
     ),
   ];
+  const paidOrders = customer.orders.filter((o) => o.status === "PAID");
   const fromBot = botTelegramIds.length > 0;
-  const source = customer.orders.length === 0 ? "anketa" : "tickets";
+  const source = paidOrders.length === 0 ? "anketa" : "tickets";
 
   return jsonWithCors(req, {
     customer: {
@@ -67,7 +68,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ customerId: str
       birthDate: customer.birthDate ? customer.birthDate.toISOString().slice(0, 10) : null,
       createdAt: formatDisplayDateTime(customer.createdAt.toISOString()),
       createdAtIso: customer.createdAt.toISOString(),
-      ordersCount: customer.orders.length,
+      ordersCount: paidOrders.length,
       source,
       fromBot,
       botTelegramUserIds: botTelegramIds,

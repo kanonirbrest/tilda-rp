@@ -523,17 +523,17 @@ export function UsersDirectory() {
             </select>
           </label>
           <label className="users-filter">
-            <span>Заказов</span>
+            <span>Оплач. заказов</span>
             <select
               value={minOrdersFilter}
               onChange={(e) => {
                 setMinOrdersFilter(e.target.value);
                 setPage(1);
               }}
-              aria-label="Фильтр по количеству заказов"
+              aria-label="Фильтр по числу оплаченных заказов"
             >
               <option value="">Любое число</option>
-              <option value="0">Без заказов (анкета)</option>
+              <option value="0">Без оплаченных (анкета)</option>
               <option value="1">От 1</option>
               <option value="2">От 2</option>
               <option value="3">От 3</option>
@@ -570,7 +570,7 @@ export function UsersDirectory() {
                     onClick={() => toggleSort("ordersCount")}
                     aria-label="Сортировать по числу заказов"
                   >
-                    Заказов{sortMark("ordersCount")}
+                    Оплач.{sortMark("ordersCount")}
                   </button>
                 </th>
               </tr>

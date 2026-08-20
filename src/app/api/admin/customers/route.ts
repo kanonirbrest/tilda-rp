@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
+import { PAID_ORDER_WHERE } from "@/lib/customer-paid-orders";
 import { dateKeyInTz, getExhibitionTimezone, wallDayUtcRange } from "@/lib/exhibition-time";
 import { formatDisplayDateTime } from "@/lib/format-display-datetime";
 
@@ -8,15 +9,33 @@ export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
 }
 
+const customerListSelect = {
+  id: true,
+  name: true,
+  email: true,
+  phone: true,
+  birthDate: true,
+  createdAt: true,
+  _count: { select: { orders: { where: PAID_ORDER_WHERE } } },
+  orders: {
+    where: { clubPromoTelegramUserId: { not: null } },
+    select: { clubPromoTelegramUserId: true },
+    take: 1,
+  },
+} satisfies Prisma.CustomerSelect;
+
+type CustomerListRow = Prisma.CustomerGetPayload<{ select: typeof customerListSelect }>;
+
 async function customerFilterFacets(
   tz: string,
   title: string | null,
   dateYmd: string | null,
 ): Promise<{ titles: string[]; dates: string[] }> {
+  const paidOrderOnSlot = { some: PAID_ORDER_WHERE };
   const [titleSlots, dateSlots] = await Promise.all([
     prisma.slot.findMany({
       where: {
-        orders: { some: {} },
+        orders: paidOrderOnSlot,
         ...(dateYmd ?
           (() => {
             const range = wallDayUtcRange(dateYmd, tz);
@@ -30,7 +49,7 @@ async function customerFilterFacets(
     }),
     prisma.slot.findMany({
       where: {
-        orders: { some: {} },
+        orders: paidOrderOnSlot,
         ...(title ? { title } : {}),
       },
       select: { startsAt: true },
@@ -48,10 +67,11 @@ async function customerFilterFacets(
   };
 }
 
-async function customerIdsWithMinOrders(minOrders: number): Promise<string[]> {
+async function customerIdsWithMinPaidOrders(minOrders: number): Promise<string[]> {
   if (minOrders <= 0) return [];
   const groups = await prisma.order.groupBy({
     by: ["customerId"],
+    where: PAID_ORDER_WHERE,
     _count: { _all: true },
     having: {
       customerId: {
@@ -62,11 +82,54 @@ async function customerIdsWithMinOrders(minOrders: number): Promise<string[]> {
   return groups.map((g) => g.customerId);
 }
 
+async function paginateCustomersByPaidOrderCount(
+  where: Prisma.CustomerWhereInput,
+  dir: "asc" | "desc",
+  skip: number,
+  take: number,
+): Promise<{ ids: string[]; total: number }> {
+  const matching = await prisma.customer.findMany({ where, select: { id: true } });
+  const total = matching.length;
+  if (total === 0) return { ids: [], total: 0 };
+
+  const idList = matching.map((c) => c.id);
+  const groups = await prisma.order.groupBy({
+    by: ["customerId"],
+    where: { ...PAID_ORDER_WHERE, customerId: { in: idList } },
+    _count: { _all: true },
+  });
+  const countByCustomer = new Map(groups.map((g) => [g.customerId, g._count._all]));
+
+  const sorted = [...idList].sort((a, b) => {
+    const diff = (countByCustomer.get(a) ?? 0) - (countByCustomer.get(b) ?? 0);
+    return dir === "asc" ? diff : -diff;
+  });
+
+  return { ids: sorted.slice(skip, skip + take), total };
+}
+
+function mapCustomerRow(c: CustomerListRow) {
+  const fromBot = c.orders.some((o) => Boolean(o.clubPromoTelegramUserId?.trim()));
+  const source = c._count.orders === 0 ? "anketa" : "tickets";
+  return {
+    id: c.id,
+    name: c.name,
+    email: c.email,
+    phone: c.phone,
+    birthDate: c.birthDate ? c.birthDate.toISOString().slice(0, 10) : null,
+    createdAt: formatDisplayDateTime(c.createdAt.toISOString()),
+    createdAtIso: c.createdAt.toISOString(),
+    ordersCount: c._count.orders,
+    source,
+    fromBot,
+  };
+}
+
 /**
  * Список пользователей (Customer) для страницы /users.
  * GET ?q=&title=&date=YYYY-MM-DD&minOrders=&sort=createdAt|ordersCount&dir=asc|desc&page=1&limit=20
- * minOrders: 0 = без заказов; 1/2/3… = не меньше N заказов.
- * Фильтры title/date — покупатели с заказом на это мероприятие / дату сеанса.
+ * minOrders: 0 = без оплаченных заказов; 1/2/3… = не меньше N оплаченных.
+ * Фильтры title/date — покупатели с оплаченным заказом на это мероприятие / дату сеанса.
  */
 export async function GET(req: Request) {
   const deny = await requireAdmin(req);
@@ -115,18 +178,18 @@ export async function GET(req: Request) {
     }
     and.push({
       orders: {
-        some: { slot: slotWhere },
+        some: { ...PAID_ORDER_WHERE, slot: slotWhere },
       },
     });
   }
 
   if (minOrders === 0) {
-    and.push({ orders: { none: {} } });
+    and.push({ orders: { none: PAID_ORDER_WHERE } });
   } else if (minOrders != null && minOrders >= 1) {
     if (minOrders === 1) {
-      and.push({ orders: { some: {} } });
+      and.push({ orders: { some: PAID_ORDER_WHERE } });
     } else {
-      const ids = await customerIdsWithMinOrders(minOrders);
+      const ids = await customerIdsWithMinPaidOrders(minOrders);
       if (ids.length === 0) {
         return jsonWithCors(req, {
           total: 0,
@@ -145,35 +208,54 @@ export async function GET(req: Request) {
   }
 
   const where: Prisma.CustomerWhereInput = and.length > 0 ? { AND: and } : {};
-  const orderBy: Prisma.CustomerOrderByWithRelationInput =
-    sort === "ordersCount" ?
-      { orders: { _count: dir } }
-    : { createdAt: dir };
+  const facetsPromise = customerFilterFacets(tz, title || null, dateYmd || null);
 
-  const [total, rows, facets] = await Promise.all([
+  let total: number;
+  let rows: CustomerListRow[];
+
+  if (sort === "ordersCount") {
+    const [facets, paginated] = await Promise.all([
+      facetsPromise,
+      paginateCustomersByPaidOrderCount(where, dir, skip, limit),
+    ]);
+    total = paginated.total;
+    if (paginated.ids.length === 0) {
+      rows = [];
+    } else {
+      const found = await prisma.customer.findMany({
+        where: { id: { in: paginated.ids } },
+        select: customerListSelect,
+      });
+      const byId = new Map(found.map((r) => [r.id, r]));
+      rows = paginated.ids.map((id) => byId.get(id)).filter((r): r is CustomerListRow => r != null);
+    }
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    return jsonWithCors(req, {
+      total,
+      page,
+      limit,
+      totalPages,
+      facets,
+      minOrders,
+      sort,
+      dir,
+      customers: rows.map(mapCustomerRow),
+    });
+  }
+
+  const [facets, counted, listed] = await Promise.all([
+    facetsPromise,
     prisma.customer.count({ where }),
     prisma.customer.findMany({
       where,
-      orderBy,
+      orderBy: { createdAt: dir },
       skip,
       take: limit,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        birthDate: true,
-        createdAt: true,
-        _count: { select: { orders: true } },
-        orders: {
-          where: { clubPromoTelegramUserId: { not: null } },
-          select: { clubPromoTelegramUserId: true },
-          take: 1,
-        },
-      },
+      select: customerListSelect,
     }),
-    customerFilterFacets(tz, title || null, dateYmd || null),
   ]);
+  total = counted;
+  rows = listed;
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
@@ -186,21 +268,6 @@ export async function GET(req: Request) {
     minOrders,
     sort,
     dir,
-    customers: rows.map((c) => {
-      const fromBot = c.orders.some((o) => Boolean(o.clubPromoTelegramUserId?.trim()));
-      const source = c._count.orders === 0 ? "anketa" : "tickets";
-      return {
-        id: c.id,
-        name: c.name,
-        email: c.email,
-        phone: c.phone,
-        birthDate: c.birthDate ? c.birthDate.toISOString().slice(0, 10) : null,
-        createdAt: formatDisplayDateTime(c.createdAt.toISOString()),
-        createdAtIso: c.createdAt.toISOString(),
-        ordersCount: c._count.orders,
-        source,
-        fromBot,
-      };
-    }),
+    customers: rows.map(mapCustomerRow),
   });
 }
