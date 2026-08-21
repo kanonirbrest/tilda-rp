@@ -449,6 +449,11 @@ export default function BuyTicketsSmrPage() {
   }, [giftOpenDate, date, time, adult, child, concession, promoForQuote]);
 
   const checkoutReady = giftOpenDate || Boolean(date && time);
+  /** Пока quote не подтвердил промо — не пускаем в оплату (иначе bePaid получит полную сумму). */
+  const promoCheckoutBlocked =
+    quotePending ||
+    (Boolean(promoForQuote.trim()) &&
+      normalizePromoCode(promoForQuote) !== normalizePromoCode(promoConfirmed));
 
   const summaryLine = useMemo(() => {
     if (ticketCount < 1) return null;
@@ -478,6 +483,7 @@ export default function BuyTicketsSmrPage() {
 
   function applyPromo() {
     const code = promoInput.trim();
+    setQuotePending(true);
     if (!code) {
       setPromoForQuote("");
       setPromoConfirmed("");
@@ -494,6 +500,7 @@ export default function BuyTicketsSmrPage() {
     const forQuote = promoForQuote.trim();
     if (!forQuote) return;
     if (normalizePromoCode(value) !== normalizePromoCode(forQuote)) {
+      setQuotePending(true);
       setPromoForQuote("");
       setPromoConfirmed("");
       setPromoHint("");
@@ -508,6 +515,10 @@ export default function BuyTicketsSmrPage() {
     }
     if (ticketCount < 1) {
       setFormError("Укажите количество билетов.");
+      return;
+    }
+    if (promoCheckoutBlocked) {
+      setFormError("Дождитесь пересчёта суммы с промокодом.");
       return;
     }
     if (!policyConsent) {
@@ -892,7 +903,9 @@ export default function BuyTicketsSmrPage() {
 
             <button
               type="submit"
-              disabled={busy || !checkoutReady || ticketCount < 1 || !policyConsent}
+              disabled={
+                busy || !checkoutReady || ticketCount < 1 || !policyConsent || promoCheckoutBlocked
+              }
               className="t-submit nom-submit"
             >
               {busy ? "Оформляем…" : "Перейти к оплате"}

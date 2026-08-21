@@ -279,6 +279,7 @@ export function GardensTicketsPage({ eventDate, eventTime }: GardensTicketsPageP
           setQuoteDiscountCents(0);
           if (promoQ) {
             setPromoHint(body.hint || body.error || "Промокод не применён");
+            setPromoForQuote("");
             setPromoConfirmed("");
           }
           return;
@@ -288,6 +289,7 @@ export function GardensTicketsPage({ eventDate, eventTime }: GardensTicketsPageP
 
         if (body.promo?.applied === false && promoQ) {
           setPromoHint(body.promo.hint || "Промокод не применён");
+          setPromoForQuote("");
           setPromoConfirmed("");
           setQuoteDiscountCents(0);
         } else if (body.promo?.applied === true) {
@@ -316,8 +318,14 @@ export function GardensTicketsPage({ eventDate, eventTime }: GardensTicketsPageP
     };
   }, [isMock, slotId, selectedKeys, promoForQuote, totalCents]);
 
+  const promoCheckoutBlocked =
+    quotePending ||
+    (Boolean(promoForQuote.trim()) &&
+      normalizePromoCode(promoForQuote) !== normalizePromoCode(promoConfirmed));
+
   function applyPromo() {
     const code = promoInput.trim();
+    setQuotePending(true);
     if (!code) {
       setPromoForQuote("");
       setPromoConfirmed("");
@@ -334,6 +342,7 @@ export function GardensTicketsPage({ eventDate, eventTime }: GardensTicketsPageP
     const forQuote = promoForQuote.trim();
     if (!forQuote) return;
     if (normalizePromoCode(value) !== normalizePromoCode(forQuote)) {
+      setQuotePending(true);
       setPromoForQuote("");
       setPromoConfirmed("");
       setPromoHint("");
@@ -354,6 +363,10 @@ export function GardensTicketsPage({ eventDate, eventTime }: GardensTicketsPageP
     }
     if (selectedKeys.length === 0) {
       setFormError("Выберите места на схеме.");
+      return;
+    }
+    if (promoCheckoutBlocked) {
+      setFormError("Дождитесь пересчёта суммы с промокодом.");
       return;
     }
     if (!policyConsent) {
@@ -573,7 +586,9 @@ export function GardensTicketsPage({ eventDate, eventTime }: GardensTicketsPageP
                 <button
                   type="submit"
                   className="god-submit"
-                  disabled={busy || selectedSeats.length === 0 || !policyConsent}
+                  disabled={
+                    busy || selectedSeats.length === 0 || !policyConsent || promoCheckoutBlocked
+                  }
                 >
                   {isMock ? "Оплата скоро" : busy ? "Оформляем…" : "Перейти к оплате"}
                 </button>

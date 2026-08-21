@@ -1620,12 +1620,18 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
       return;
     }
     var btn = row.querySelector(".dei-promo-apply");
+    var out = document.getElementById("dei-order-total");
     if (!raw) {
       form.dataset.deiPromoForQuote = "";
+      form.dataset.deiPromoPending = "0";
       deiPromoMsg(form, "");
+      if (out) out.textContent = "…";
       deiScheduleQuoteRefresh(form);
       return;
     }
+    form.dataset.deiPromoPending = "1";
+    form.dataset.deiPromoForQuote = "";
+    if (out) out.textContent = "…";
     var base = API_BASE.replace(/\/$/, "");
     var url =
       base +
@@ -1645,7 +1651,6 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
       btn.disabled = true;
       btn.setAttribute("aria-busy", "true");
     }
-    var out = document.getElementById("dei-order-total");
     fetch(url)
       .then(function (r) {
         return r.json().then(function (j) {
@@ -1654,7 +1659,9 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
       })
       .then(function (res) {
         if (!res.ok || !res.body || typeof res.body.formattedTotal !== "string") {
+          form.dataset.deiPromoForQuote = "";
           deiPromoMsg(form, "Не удалось проверить промокод");
+          if (out) out.textContent = "Не удалось посчитать сумму";
           return;
         }
         if (res.body.promo && res.body.promo.applied === false) {
@@ -1677,9 +1684,12 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
         if (out) out.textContent = "Сумма заказа: " + res.body.formattedTotal;
       })
       .catch(function () {
+        form.dataset.deiPromoForQuote = "";
         deiPromoMsg(form, "Ошибка сети");
+        if (out) out.textContent = "Не удалось посчитать сумму";
       })
       .finally(function () {
+        form.dataset.deiPromoPending = "0";
         if (btn) {
           btn.disabled = false;
           btn.removeAttribute("aria-busy");
@@ -1710,7 +1720,10 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
         if (!applied) return;
         if (deiNormalizePromoCode(t.value) !== applied) {
           form.dataset.deiPromoForQuote = "";
+          form.dataset.deiPromoPending = "0";
           deiPromoMsg(form, "");
+          var out = document.getElementById("dei-order-total");
+          if (out) out.textContent = "…";
           deiScheduleQuoteRefresh(form);
         }
       },
@@ -2235,6 +2248,11 @@ body.dei-ticket-popup-open #rec1961449631 .t396__filter {
     }
     if (adult + child + concession < 1) {
       deiShowFormError(form, "Укажите хотя бы один билет.");
+      form.dataset.deiSending = "0";
+      return;
+    }
+    if (form.dataset.deiPromoPending === "1") {
+      deiShowFormError(form, "Дождитесь проверки промокода.");
       form.dataset.deiSending = "0";
       return;
     }

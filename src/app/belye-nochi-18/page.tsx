@@ -207,8 +207,14 @@ export default function BelyeNochi18Page() {
     };
   }, [date, time, qty, promoForQuote]);
 
+  const promoCheckoutBlocked =
+    quotePending ||
+    (Boolean(promoForQuote.trim()) &&
+      normalizePromoCode(promoForQuote) !== normalizePromoCode(promoConfirmed));
+
   function applyPromo() {
     const code = promoInput.trim();
+    setQuotePending(true);
     if (!code) {
       setPromoForQuote("");
       setPromoConfirmed("");
@@ -225,6 +231,7 @@ export default function BelyeNochi18Page() {
     const forQuote = promoForQuote.trim();
     if (!forQuote) return;
     if (normalizePromoCode(value) !== normalizePromoCode(forQuote)) {
+      setQuotePending(true);
       setPromoForQuote("");
       setPromoConfirmed("");
       setPromoHint("");
@@ -250,6 +257,10 @@ export default function BelyeNochi18Page() {
     e.preventDefault();
     if (!date || !time) {
       setFormError("Слот для покупки пока недоступен.");
+      return;
+    }
+    if (promoCheckoutBlocked) {
+      setFormError("Дождитесь пересчёта суммы с промокодом.");
       return;
     }
     if (!policyConsent) {
@@ -445,7 +456,7 @@ export default function BelyeNochi18Page() {
 
               <button
                 type="submit"
-                disabled={busy || !policyConsent}
+                disabled={busy || !policyConsent || promoCheckoutBlocked}
                 className="t-submit nom-submit"
               >
                 {busy ? "Оформляем…" : "Перейти к оплате"}
