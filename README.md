@@ -7,7 +7,7 @@
 - PostgreSQL + Prisma: слоты, клиенты, заказы, билеты с `publicToken`, персонал, идемпотентность вебхуков bePaid.
 - Публичные страницы: главная `/`, страница успеха `/success`. Оплата с лендинга Тильды — **`/pay`** или **`POST /api/orders`**.
 - API: слоты, создание заказа, статус заказа, PDF билета, вебхук bePaid, вход персонала, verify/check-in.
-- Страницы персонала: `/staff/login`, `/staff/scan` (камера + ручной ввод), `/staff/quick?t=…` (проверка и кнопка «Клиент прошёл»).
+- Страницы персонала: `/staff/login`, `/staff/scan` (камера телефона), `/staff/scan/terminal` (ТСД), `/staff/quick?t=…` (проверка и кнопка «Клиент прошёл»).
 - Заглушки: отправка в Tilda CRM по `TILDA_CRM_WEBHOOK_URL`, SMTP для письма.
 
 ## Быстрый старт (локально)
@@ -156,6 +156,7 @@ npm run dev
 | `src/lib/fulfill-order.ts` | Оплаченный заказ: PDF, почта, CRM |
 | `src/app/api/tickets/[token]/pdf/route.ts` | Скачивание PDF |
 | `src/app/staff/scan/scan-client.tsx` | Камера QR |
+| `src/app/staff/scan/terminal/` | Сканер ТСД (Keyboard Wedge) |
 | `render.yaml` | Blueprint для Render (Docker + Postgres) |
 | `src/app/api/admin/*` | Админ-API: Bearer `ADMIN_API_SECRET` или cookie после `/admin` |
 | `src/app/admin/*` | Веб-админка `/admin` |

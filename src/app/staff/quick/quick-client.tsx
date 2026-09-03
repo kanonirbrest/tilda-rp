@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { formatMinorUnits } from "@/lib/money";
 
@@ -24,6 +25,9 @@ type VerifyOk = {
 };
 
 export function QuickClient({ token }: { token: string }) {
+  const searchParams = useSearchParams();
+  const fromTerminal = searchParams.get("from") === "terminal";
+  const scanHref = fromTerminal ? "/staff/scan/terminal" : "/staff/scan";
   const [auth, setAuth] = useState<"unknown" | "yes" | "no">("unknown");
   const [data, setData] = useState<VerifyOk | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -99,7 +103,7 @@ export function QuickClient({ token }: { token: string }) {
   }
 
   if (auth === "no") {
-    const next = `/staff/quick?t=${encodeURIComponent(token)}`;
+    const next = `/staff/quick?t=${encodeURIComponent(token)}${fromTerminal ? "&from=terminal" : ""}`;
     return (
       <div className="mx-auto w-full max-w-6xl px-4 py-10 text-sm sm:px-6">
         <p className="text-zinc-700">Войдите, чтобы проверить билет.</p>
@@ -115,9 +119,9 @@ export function QuickClient({ token }: { token: string }) {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-8 sm:px-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h1 className="text-lg font-semibold text-zinc-900">Проверка билета</h1>
-        <Link href="/staff/scan" className="text-sm text-zinc-500 underline">
+        <Link href={scanHref} className="text-sm text-zinc-500 underline">
           Сканер
         </Link>
       </div>
@@ -162,13 +166,20 @@ export function QuickClient({ token }: { token: string }) {
               type="button"
               disabled={busy}
               onClick={() => void checkIn()}
-              className="mt-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              className="mt-2 rounded-lg bg-emerald-700 px-4 py-3 text-base font-medium text-white disabled:opacity-60"
             >
               {busy ? "…" : "Клиент прошёл"}
             </button>
           ) : null}
         </div>
       ) : null}
+
+      <Link
+        href={scanHref}
+        className="rounded-lg bg-zinc-900 px-4 py-3 text-center text-base font-medium text-white"
+      >
+        Сканировать дальше
+      </Link>
     </div>
   );
 }

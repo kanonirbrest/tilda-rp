@@ -16,6 +16,16 @@ export default async function StaffLoginPage({
         <p className="mt-1 text-sm text-zinc-600">Вход по логину и паролю</p>
       </div>
       <StaffLoginForm nextPath={safeNext} />
+      <p className="text-sm text-zinc-600">
+        После входа:{" "}
+        <a className="font-medium text-zinc-900 underline" href="/staff/scan">
+          сканер телефона
+        </a>
+        {" · "}
+        <a className="font-medium text-zinc-900 underline" href="/staff/scan/terminal">
+          сканер терминала
+        </a>
+      </p>
     </div>
   );
 }

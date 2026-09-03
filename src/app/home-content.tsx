@@ -51,7 +51,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Служебное",
     items: [
-      { href: "/staff/login", label: "Персонал", hint: "Сканер QR и быстрый вход" },
+      { href: "/staff/login", label: "Вход персонала", hint: "Логин и пароль" },
+      { href: "/staff/scan", label: "Сканер телефона", hint: "Камера QR" },
+      { href: "/staff/scan/terminal", label: "Сканер терминала", hint: "ТСД, Keyboard Wedge" },
       { href: "/admin", label: "Админка", hint: "Заявки, сеансы, статистика" },
     ],
   },

@@ -2,7 +2,7 @@
 
 import { Html5Qrcode } from "html5-qrcode";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { parseTicketToken } from "@/lib/parse-qr-token";
 
 function formatCameraError(e: unknown): string {
@@ -22,7 +22,6 @@ export function ScanClient() {
   const [auth, setAuth] = useState<"unknown" | "yes" | "no">("unknown");
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** false = localhost/https; true = типичный http://192.168.x.x — камера часто запрещена */
   const [insecureContext] = useState(
     () => typeof window !== "undefined" && !window.isSecureContext,
   );
@@ -70,13 +69,25 @@ export function ScanClient() {
     };
   }, [stopScanner]);
 
+  const goToTicket = useCallback(
+    (raw: string) => {
+      const token = parseTicketToken(raw);
+      if (token.length < 8) {
+        setError("Не удалось распознать код из QR");
+        return;
+      }
+      setError(null);
+      router.push(`/staff/quick?t=${encodeURIComponent(token)}`);
+    },
+    [router],
+  );
+
   const onDecoded = useCallback(
     async (text: string) => {
       await stopScanner();
-      const token = parseTicketToken(text);
-      router.push(`/staff/quick?t=${encodeURIComponent(token)}`);
+      goToTicket(text);
     },
-    [router, stopScanner],
+    [goToTicket, stopScanner],
   );
 
   const startScanner = useCallback(async () => {
@@ -128,33 +139,23 @@ export function ScanClient() {
   return (
     <div className="flex flex-col gap-4">
       <InstallHint />
-      {insecureContext ? (
+      {insecureContext ?
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
           <p className="font-medium">Камера на этом адресе часто не работает</p>
           <p className="mt-1 text-amber-900">
-            Открыто по <strong>http://</strong> и IP в Wi‑Fi — Chrome и Safari считают это небезопасным контекстом и{" "}
-            <strong>блокируют getUserMedia</strong> (камеру). Исключения: <strong>localhost</strong> и{" "}
-            <strong>https</strong>.
+            Открыто по <strong>http://</strong> и IP в Wi‑Fi — браузеры блокируют камеру. Нужны{" "}
+            <strong>localhost</strong> или <strong>https</strong>. Для ТСД откройте{" "}
+            <a className="underline" href="/staff/scan/terminal">
+              сканер терминала
+            </a>
+            .
           </p>
-          <ul className="mt-2 list-inside list-disc space-y-1 text-amber-900">
-            <li>
-              Тест камеры на компьютере:{" "}
-              <code className="rounded bg-amber-100 px-1 text-xs">http://127.0.0.1:ПОРТ/staff/scan</code>
-            </li>
-            <li>
-              С телефона: на Mac выполните{" "}
-              <code className="rounded bg-amber-100 px-1 text-xs">npm run dev:lan:https</code>, откройте{" "}
-              <code className="rounded bg-amber-100 px-1 text-xs">https://ВАШ_IP:ПОРТ</code> и примите
-              самоподписанный сертификат
-            </li>
-            <li>Без камеры: вставьте ссылку или токен из QR в блок ниже</li>
-          </ul>
         </div>
-      ) : null}
+      : null}
       <div id={regionId} className="aspect-square w-full overflow-hidden rounded-xl bg-black/90" />
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       <div className="flex flex-wrap gap-2">
-        {!scanning ? (
+        {!scanning ?
           <button
             type="button"
             onClick={() => void startScanner()}
@@ -162,17 +163,16 @@ export function ScanClient() {
           >
             Включить камеру
           </button>
-        ) : (
-          <button
+        : <button
             type="button"
             onClick={() => void stopScanner()}
             className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-900"
           >
             Остановить
           </button>
-        )}
+        }
       </div>
-      <ManualTokenForm />
+      <ManualTokenForm onSubmitToken={goToTicket} />
     </div>
   );
 }
@@ -213,15 +213,14 @@ function InstallHint() {
   );
 }
 
-function ManualTokenForm() {
-  const router = useRouter();
+function ManualTokenForm({ onSubmitToken }: { onSubmitToken: (raw: string) => void }) {
   const [raw, setRaw] = useState("");
 
-  function submit(e: React.FormEvent) {
+  function submit(e: FormEvent) {
     e.preventDefault();
     const token = parseTicketToken(raw);
     if (token.length < 8) return;
-    router.push(`/staff/quick?t=${encodeURIComponent(token)}`);
+    onSubmitToken(raw);
   }
 
   return (

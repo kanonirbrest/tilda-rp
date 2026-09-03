@@ -1,6 +1,7 @@
 /** Извлекает publicToken из сырой строки QR (URL с ?t= или просто токен). */
 export function parseTicketToken(raw: string): string {
-  const s = raw.trim();
+  // Сканеры часто добавляют CR/LF; иногда BOM или нулевые байты.
+  const s = raw.replace(/^\uFEFF/, "").replace(/[\0\r\n]+/g, "").trim();
   try {
     const u = new URL(s);
     const t = u.searchParams.get("t");

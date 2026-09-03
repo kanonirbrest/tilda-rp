@@ -181,6 +181,11 @@ const ADMIN_TICKET_STOREFRONTS = [
   { href: "/sady-snovideniy-08-09", label: "Сады сновидений (8 сен)" },
 ] as const;
 
+const ADMIN_STAFF_SCANNERS = [
+  { href: "/staff/scan", label: "Сканер телефона" },
+  { href: "/staff/scan/terminal", label: "Сканер терминала" },
+] as const;
+
 type ScheduleKindFilter = "all" | (typeof SLOT_KIND_CHOICES)[number];
 
 /** Подпись витрины / канала продажи для списка сеансов. */
@@ -1825,6 +1830,25 @@ export default function AdminDashboard() {
             </summary>
             <div className="admin-summer-menu__panel admin-summer-menu__panel--end">
               {ADMIN_TICKET_STOREFRONTS.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="admin-summer-menu__link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          </details>
+          <details className="admin-summer-menu admin-storefront-menu">
+            <summary className="admin-storefront-menu__summary" aria-label="Открыть сканер билетов">
+              <span className="admin-storefront-menu__label">Сканер</span>
+              <span className="admin-storefront-menu__value">Открыть…</span>
+            </summary>
+            <div className="admin-summer-menu__panel admin-summer-menu__panel--end">
+              {ADMIN_STAFF_SCANNERS.map((item) => (
                 <a
                   key={item.href}
                   href={item.href}
