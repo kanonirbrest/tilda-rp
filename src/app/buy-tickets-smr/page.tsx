@@ -72,9 +72,14 @@ const MONTH_NOMINATIVE = [
   "Декабрь",
 ];
 
+/** Месяцы, которые показывает витрина Небо.Река. */
+const SUMMER_MONTHS = [9, 10, 11] as const;
+
+const SUMMER_MONTHS_TITLE = "сентябрь–ноябрь";
+
 function isSummerMonth(dateKey: string): boolean {
   const m = Number(dateKey.split("-")[1]);
-  return m >= 8 && m <= 10;
+  return SUMMER_MONTHS.some((month) => month === m);
 }
 
 function sortDateKeysAsc(keys: string[]): string[] {
@@ -124,8 +129,6 @@ function ticketsWord(n: number): string {
   if (mod10 >= 2 && mod10 <= 4) return "билета";
   return "билетов";
 }
-
-const SUMMER_MONTHS = [8, 9, 10] as const;
 
 /** Не показывать прошедшие сеансы сегодня и прошлые дни (как на /buy-tickets-summer). */
 const PUBLIC_API_HIDE_PAST = "hidePastTimes=1";
@@ -178,7 +181,7 @@ function buildMonthDayCells(
   return cells;
 }
 
-/** Август–октябрь: все дни месяца; пн/вт без слотов в БД скрыты; остальные — как раньше */
+/** Месяцы витрины: все дни месяца; пн/вт без слотов в БД скрыты; остальные — как раньше */
 function groupSummerDays(
   days: Record<string, { bookable: boolean; hover: string }>,
 ): MonthGroup[] {
@@ -332,7 +335,7 @@ export default function BuyTicketsSmrPage() {
             .map(([dk]) => dk),
         )[0];
         if (!firstBookable) {
-          throw new Error("На август–октябрь пока нет доступных дат.");
+          throw new Error(`На ${SUMMER_MONTHS_TITLE} пока нет доступных дат.`);
         }
         if (!cancelled) {
           setDate(firstBookable);
