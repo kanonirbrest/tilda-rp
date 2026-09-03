@@ -4,7 +4,13 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { parseTicketToken } from "@/lib/parse-qr-token";
 
+/** Защита от двойного скана подряд. */
 const SCAN_DEBOUNCE_MS = 800;
+/**
+ * Сканеры часто шлют символы без Enter. После паузы в наборе считаем скан завершённым.
+ * Wedge обычно печатает очень быстро (<50ms между символами).
+ */
+const IDLE_SUBMIT_MS = 180;
 
 export function TerminalScanClient() {
   const router = useRouter();
@@ -74,6 +80,8 @@ function HardwareWedgePanel({
   const [focused, setFocused] = useState(false);
   const lastScanAtRef = useRef(0);
   const navigatingRef = useRef(false);
+  const idleTimerRef = useRef<number | null>(null);
+  const valueRef = useRef("");
 
   const focusInput = useCallback(() => {
     const el = inputRef.current;
@@ -98,38 +106,68 @@ function HardwareWedgePanel({
     return () => {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
+      if (idleTimerRef.current != null) window.clearTimeout(idleTimerRef.current);
     };
   }, [focusInput]);
 
-  function acceptScan(raw: string) {
-    const trimmed = raw.replace(/[\r\n]+/g, "").trim();
-    if (trimmed.length < 8) {
-      setStatus("Слишком короткий код — отсканируйте ещё раз");
+  const acceptScan = useCallback(
+    (raw: string) => {
+      if (navigatingRef.current) return;
+      const trimmed = raw.replace(/[\r\n]+/g, "").trim();
+      if (trimmed.length < 8) {
+        setStatus("Слишком короткий код — отсканируйте ещё раз");
+        setValue("");
+        valueRef.current = "";
+        focusInput();
+        return;
+      }
+      const now = Date.now();
+      if (now - lastScanAtRef.current < SCAN_DEBOUNCE_MS) {
+        setValue("");
+        valueRef.current = "";
+        focusInput();
+        return;
+      }
+      lastScanAtRef.current = now;
+      navigatingRef.current = true;
+      if (idleTimerRef.current != null) {
+        window.clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = null;
+      }
+      setStatus("Открываем билет…");
       setValue("");
-      focusInput();
-      return;
-    }
-    const now = Date.now();
-    if (now - lastScanAtRef.current < SCAN_DEBOUNCE_MS) {
-      setValue("");
-      focusInput();
-      return;
-    }
-    lastScanAtRef.current = now;
-    navigatingRef.current = true;
-    setStatus("Открываем билет…");
-    setValue("");
-    onScan(trimmed);
+      valueRef.current = "";
+      onScan(trimmed);
+    },
+    [focusInput, onScan],
+  );
+
+  function scheduleIdleSubmit(nextValue: string) {
+    valueRef.current = nextValue;
+    if (idleTimerRef.current != null) window.clearTimeout(idleTimerRef.current);
+    if (nextValue.trim().length < 8) return;
+    idleTimerRef.current = window.setTimeout(() => {
+      idleTimerRef.current = null;
+      acceptScan(valueRef.current);
+    }, IDLE_SUBMIT_MS);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== "Enter") return;
     e.preventDefault();
+    if (idleTimerRef.current != null) {
+      window.clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
     acceptScan(value || e.currentTarget.value);
   }
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (idleTimerRef.current != null) {
+      window.clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
     acceptScan(value);
   }
 
@@ -146,8 +184,8 @@ function HardwareWedgePanel({
           {focused ? "Готов к скану" : "Нажмите в поле ниже — нужен фокус"}
         </p>
         <p className="mt-1 text-sm text-zinc-700">
-          Настройте сканер как клавиатуру (Keyboard Wedge) с суффиксом Enter. Наведите на QR и нажмите
-          триггер.
+          Наведите сканер на QR и нажмите триггер. Страница сама откроет билет. Если код остался в
+          поле — нажмите «Проверить».
         </p>
         <p className="mt-2 text-sm font-medium text-zinc-800">{status}</p>
       </div>
@@ -166,7 +204,12 @@ function HardwareWedgePanel({
           autoCapitalize="off"
           spellCheck={false}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            setValue(next);
+            setStatus(next.trim() ? "Скан получен…" : "Ожидание скана…");
+            scheduleIdleSubmit(next);
+          }}
           onKeyDown={onKeyDown}
           onFocus={() => setFocused(true)}
           onBlur={() => {
@@ -178,15 +221,24 @@ function HardwareWedgePanel({
           aria-describedby="hardware-scan-hint"
         />
         <p id="hardware-scan-hint" className="text-xs text-zinc-500">
-          Можно и вручную вставить ссылку из QR и нажать Enter.
+          После скана откроется карточка билета. Там кнопка «Клиент прошёл».
         </p>
-        <button
-          type="button"
-          onClick={focusInput}
-          className="w-fit rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900"
-        >
-          Вернуть фокус
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="submit"
+            disabled={value.trim().length < 8}
+            className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40"
+          >
+            Проверить
+          </button>
+          <button
+            type="button"
+            onClick={focusInput}
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900"
+          >
+            Вернуть фокус
+          </button>
+        </div>
       </form>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
