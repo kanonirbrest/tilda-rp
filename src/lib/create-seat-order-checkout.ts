@@ -8,6 +8,7 @@ import { getGardensSeatWithOverrides } from "@/lib/gardens-of-dreams/seat-map";
 import {
   ensureGardensSlots,
   gardensSeatMapVariantForSlot,
+  gardensSeatPriceOverridesForSlot,
   gardensSeatSaleOverridesForSlot,
 } from "@/lib/gardens-of-dreams/ensure-slots";
 import { ensureGardensPromos } from "@/lib/gardens-of-dreams/ensure-promo";
@@ -109,8 +110,9 @@ export async function createSeatOrderCheckout(
 
     const seatMapVariant = gardensSeatMapVariantForSlot(slot);
     const overrides = gardensSeatSaleOverridesForSlot(slot);
+    const priceOverrides = gardensSeatPriceOverridesForSlot(slot);
     const seats = uniqueKeys.map((key) => {
-      const seat = getGardensSeatWithOverrides(key, seatMapVariant, overrides);
+      const seat = getGardensSeatWithOverrides(key, seatMapVariant, overrides, priceOverrides);
       if (!seat?.selectable) return null;
       return seat;
     });

@@ -20,6 +20,8 @@ export type GardensScheduleEntry = {
   title?: string;
   /** default — A+B+часть C; ab-only — только сектора A и B (как на первом ивенте). */
   seatMapVariant?: GardensSeatMapVariant;
+  /** Цена отдельных мест в копейках (только этот показ). Место также выставляется в продажу. */
+  seatPriceOverrides?: Record<string, number>;
 };
 
 export const GARDENS_PERFORMANCE_JULY_6: GardensScheduleEntry = {
@@ -84,6 +86,11 @@ export const GARDENS_PERFORMANCE_SEPTEMBER_8: GardensScheduleEntry = {
   entryTime: "18:30",
   showDurationMinutes: 60,
   seatMapVariant: "ab-only",
+  seatPriceOverrides: {
+    "B:1:1": 7_000,
+    "C:2:1": 7_000,
+    "D:1:1": 7_000,
+  },
 };
 
 /** Бывшая дата второго показа — для переноса слота в БД при деплое. */
@@ -119,6 +126,15 @@ export function getGardensSeatMapVariantForSchedule(
   time: string,
 ): GardensSeatMapVariant {
   return findGardensScheduleEntry(date, time)?.seatMapVariant ?? "default";
+}
+
+export function getGardensSeatPriceOverridesForSchedule(
+  date: string,
+  time: string,
+): Record<string, number> | null {
+  const overrides = findGardensScheduleEntry(date, time)?.seatPriceOverrides;
+  if (!overrides || Object.keys(overrides).length === 0) return null;
+  return overrides;
 }
 
 export function getGardensSeatMapVariantForSlot(

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureGardensPromos } from "@/lib/gardens-of-dreams/ensure-promo";
-import { ensureGardensSlots, gardensSeatMapVariantForSlot, gardensSeatSaleOverridesForSlot } from "@/lib/gardens-of-dreams/ensure-slots";
+import { ensureGardensSlots, gardensSeatMapVariantForSlot, gardensSeatPriceOverridesForSlot, gardensSeatSaleOverridesForSlot } from "@/lib/gardens-of-dreams/ensure-slots";
 import { getGardensSeatWithOverrides } from "@/lib/gardens-of-dreams/seat-map";
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
@@ -65,7 +65,8 @@ export async function GET(req: Request) {
 
     const variant = gardensSeatMapVariantForSlot(slot);
     const overrides = gardensSeatSaleOverridesForSlot(slot);
-    const seats = seatKeys.map((key) => getGardensSeatWithOverrides(key, variant, overrides));
+    const priceOverrides = gardensSeatPriceOverridesForSlot(slot);
+    const seats = seatKeys.map((key) => getGardensSeatWithOverrides(key, variant, overrides, priceOverrides));
     if (seats.some((s) => !s?.selectable)) {
       return jsonPublicReadResponse(
         req,

@@ -296,33 +296,63 @@ export function applyGardensSeatSaleOverrides(
   });
 }
 
+/**
+ * Специальные цены на конкретный показ.
+ * Место с оверрайдом выставляется в продажу (даже если сектор закрыт в варианте схемы).
+ */
+export function applyGardensSeatPriceOverrides(
+  seats: GardensSeat[],
+  prices: Record<string, number> | null | undefined,
+): GardensSeat[] {
+  if (!prices || Object.keys(prices).length === 0) return seats;
+  return seats.map((seat) => {
+    const cents = prices[seat.key];
+    if (cents == null || !Number.isFinite(cents) || cents < 0) return seat;
+    const geometry = priceForSeatGeometry(seat.sector, seat.row, seat.seat);
+    if (!geometry) return seat;
+    return {
+      ...seat,
+      selectable: true,
+      priceCents: Math.round(cents),
+      tier: geometry.tier,
+    };
+  });
+}
+
 export function buildGardensSeatMapWithOverrides(
   variant: GardensSeatMapVariant = "default",
   overrides?: Record<string, boolean> | null,
+  priceOverrides?: Record<string, number> | null,
 ): GardensSeat[] {
-  return applyGardensSeatSaleOverrides(buildGardensSeatMap(variant), overrides);
+  return applyGardensSeatPriceOverrides(
+    applyGardensSeatSaleOverrides(buildGardensSeatMap(variant), overrides),
+    priceOverrides,
+  );
 }
 
 export function getGardensSeatWithOverrides(
   key: string,
   variant: GardensSeatMapVariant = "default",
   overrides?: Record<string, boolean> | null,
+  priceOverrides?: Record<string, number> | null,
 ): GardensSeat | undefined {
-  return buildGardensSeatMapWithOverrides(variant, overrides).find((s) => s.key === key);
+  return buildGardensSeatMapWithOverrides(variant, overrides, priceOverrides).find((s) => s.key === key);
 }
 
 export function getSelectableGardensSeatsWithOverrides(
   variant: GardensSeatMapVariant = "default",
   overrides?: Record<string, boolean> | null,
+  priceOverrides?: Record<string, number> | null,
 ): GardensSeat[] {
-  return buildGardensSeatMapWithOverrides(variant, overrides).filter((s) => s.selectable);
+  return buildGardensSeatMapWithOverrides(variant, overrides, priceOverrides).filter((s) => s.selectable);
 }
 
 export function countGardensSelectableSeatsWithOverrides(
   variant: GardensSeatMapVariant = "default",
   overrides?: Record<string, boolean> | null,
+  priceOverrides?: Record<string, number> | null,
 ): number {
-  return getSelectableGardensSeatsWithOverrides(variant, overrides).length;
+  return getSelectableGardensSeatsWithOverrides(variant, overrides, priceOverrides).length;
 }
 
 export function formatGardensPrice(cents: number): string {

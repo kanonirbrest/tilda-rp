@@ -5,6 +5,7 @@ import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
 import {
   findGardensOccupiedSeatKeys,
   gardensSeatMapVariantForSlot,
+  gardensSeatPriceOverridesForSlot,
   gardensSeatSaleOverridesForSlot,
 } from "@/lib/gardens-of-dreams/ensure-slots";
 import {
@@ -57,7 +58,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   const variant = gardensSeatMapVariantForSlot(slot);
   const overrides = gardensSeatSaleOverridesForSlot(slot);
-  const seats = buildGardensSeatMapWithOverrides(variant, overrides);
+  const priceOverrides = gardensSeatPriceOverridesForSlot(slot);
+  const seats = buildGardensSeatMapWithOverrides(variant, overrides, priceOverrides);
   /** Все занятые места (не только сейчас selectable) — чтобы админ видел бронь. */
   const occupied = await findGardensOccupiedSeatKeys(slot.id);
   const onSaleCount = seats.filter((s) => s.selectable).length;
@@ -155,7 +157,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   await prisma.slot.update({ where: { id }, data });
 
-  const seats = buildGardensSeatMapWithOverrides(variant, overrides);
+  const seats = buildGardensSeatMapWithOverrides(variant, overrides, gardensSeatPriceOverridesForSlot(slot));
   const occupiedNow = await findGardensOccupiedSeatKeys(slot.id);
 
   return jsonWithCors(req, {
@@ -194,7 +196,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   });
 
   const variant = gardensSeatMapVariantForSlot(slot);
-  const seats = buildGardensSeatMap(variant);
+  const seats = buildGardensSeatMapWithOverrides(variant, null, gardensSeatPriceOverridesForSlot(slot));
   const occupied = await findGardensOccupiedSeatKeys(slot.id);
 
   return jsonWithCors(req, {
