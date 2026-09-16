@@ -25,6 +25,7 @@ export type CheckInStatsResult = {
   timezone: string;
   date: string;
   slotId: string | null;
+  slotKind: string | null;
   status: CheckInStatsStatus;
   ticketsTotal: number;
   ticketsCheckedIn: number;
@@ -84,6 +85,7 @@ function accumulateSlot(
 export async function queryCheckInStats(params: {
   dateYmd: string;
   slotId?: string | null;
+  slotKind?: string | null;
   status?: CheckInStatsStatus;
 }): Promise<CheckInStatsResult | { error: "INVALID_DATE" }> {
   const tz = getExhibitionTimezone();
@@ -92,7 +94,8 @@ export async function queryCheckInStats(params: {
 
   const status: CheckInStatsStatus = params.status ?? "all";
   const slotId = params.slotId?.trim() || null;
-  const baseWhere = paidActiveTicketsWhereForDay(range, slotId);
+  const slotKind = params.slotKind?.trim() || null;
+  const baseWhere = paidActiveTicketsWhereForDay(range, slotId, slotKind);
 
   const tickets = await prisma.ticket.findMany({
     where: baseWhere,
@@ -156,6 +159,7 @@ export async function queryCheckInStats(params: {
     timezone: tz,
     date: params.dateYmd,
     slotId,
+    slotKind,
     status,
     ticketsTotal,
     ticketsCheckedIn,

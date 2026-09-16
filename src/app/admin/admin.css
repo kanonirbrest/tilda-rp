@@ -1212,6 +1212,22 @@
   font-weight: 500;
 }
 
+.admin-root .admin-stats-report th.num {
+  text-align: right;
+}
+
+.admin-root .admin-stats-report__promo td.admin-stats-row-title {
+  padding-left: 1.5rem;
+  color: var(--admin-muted);
+  font-weight: 400;
+}
+
+.admin-root .admin-stats-report__total td {
+  border-top: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+  font-weight: 600;
+}
+
 .admin-root .admin-date-chips {
   display: flex;
   flex-wrap: wrap;

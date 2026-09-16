@@ -123,6 +123,7 @@ type CheckInStatsResponse = {
   timezone: string;
   date: string;
   slotId: string | null;
+  slotKind: string | null;
   status: CheckInStatsStatus;
   ticketsTotal: number;
   ticketsCheckedIn: number;
@@ -154,13 +155,68 @@ type SalesStatsBySlot = {
   total: number;
 };
 
+type SalesReportRow = {
+  key: string;
+  label: string;
+  kind: "tier" | "promo";
+  quota: number | null;
+  reserved: number | null;
+  sold: number;
+  refunded: number | null;
+};
+
+type SalesReport = {
+  rows: SalesReportRow[];
+  totals: {
+    quota: number | null;
+    quotaHasUnlimited: boolean;
+    reserved: number | null;
+    sold: number;
+    refunded: number | null;
+  };
+};
+
 type SalesStatsResponse = {
   timezone: string;
   date: string;
   slotId: string | null;
+  slotKind: string | null;
   sold: TierSoldCounts;
   bySlot: SalesStatsBySlot[];
+  /** Нет в ответе старого API (в dev админка проксируется на прод до деплоя). */
+  report?: SalesReport;
 };
+
+/** Квота в отчёте: у типов билета отдельного лимита нет. */
+function salesQuotaCell(quota: number | null, hasUnlimited = false): string {
+  if (quota == null) return hasUnlimited ? "∞" : "—";
+  return hasUnlimited ? `${quota} + ∞` : String(quota);
+}
+
+function salesNumCell(value: number | null): string {
+  return value == null ? "—" : String(value);
+}
+
+/** Ответ API без report: показываем продажи по типам, остальные столбцы неизвестны. */
+function salesReportFromSold(sold: TierSoldCounts): SalesReport {
+  const rows: SalesReportRow[] = [
+    { key: "tier:ADULT", label: "Взрослый", sold: sold.adult },
+    { key: "tier:CHILD", label: "Детский", sold: sold.child },
+    { key: "tier:CONCESSION", label: "Льготный", sold: sold.concession },
+    ...(sold.unknown > 0 ? [{ key: "tier:UNKNOWN", label: "Без типа", sold: sold.unknown }] : []),
+  ].map((r) => ({ ...r, kind: "tier" as const, quota: null, reserved: null, refunded: null }));
+
+  return {
+    rows,
+    totals: {
+      quota: null,
+      quotaHasUnlimited: false,
+      reserved: null,
+      sold: sold.total,
+      refunded: null,
+    },
+  };
+}
 const SLOT_KIND_CHOICES = SLOT_KIND_OPTIONS;
 const DATE_CHIPS_VISIBLE_LIMIT = 15;
 
@@ -998,6 +1054,7 @@ export default function AdminDashboard() {
   const [selectedDate, setSelectedDate] = useState(todayDateKey);
   const [scheduleKindFilter, setScheduleKindFilter] = useState<ScheduleKindFilter>("all");
   const [statsVisitFilter, setStatsVisitFilter] = useState<CheckInStatsStatus>("all");
+  const [statsKindFilter, setStatsKindFilter] = useState<ScheduleKindFilter>("all");
   const [statsSlotId, setStatsSlotId] = useState("");
   const [checkInStats, setCheckInStats] = useState<CheckInStatsResponse | null>(null);
   const [salesStats, setSalesStats] = useState<SalesStatsResponse | null>(null);
@@ -1095,6 +1152,7 @@ export default function AdminDashboard() {
     setStatsLoading(true);
     try {
       const baseQ = new URLSearchParams({ date: selectedDate });
+      if (statsKindFilter !== "all") baseQ.set("kind", statsKindFilter);
       if (statsSlotId) baseQ.set("slotId", statsSlotId);
       const checkInQ = new URLSearchParams(baseQ);
       checkInQ.set("status", statsVisitFilter);
@@ -1111,7 +1169,12 @@ export default function AdminDashboard() {
     } finally {
       setStatsLoading(false);
     }
-  }, [selectedDate, statsSlotId, statsVisitFilter]);
+  }, [selectedDate, statsKindFilter, statsSlotId, statsVisitFilter]);
+
+  const salesReport = useMemo(
+    () => (salesStats ? salesStats.report ?? salesReportFromSold(salesStats.sold) : null),
+    [salesStats],
+  );
 
   useEffect(() => {
     if (!authed || (tab !== "schedule" && tab !== "stats")) return;
@@ -1699,11 +1762,17 @@ export default function AdminDashboard() {
     return slotsForSelectedDate.filter((s) => s.kind === scheduleKindFilter);
   }, [slotsForSelectedDate, scheduleKindFilter]);
 
+  /** Сеансы выбранного дня, относящиеся к выбранному событию. */
+  const statsSlotOptions = useMemo(() => {
+    if (statsKindFilter === "all") return slotsForSelectedDate;
+    return slotsForSelectedDate.filter((s) => s.kind === statsKindFilter);
+  }, [slotsForSelectedDate, statsKindFilter]);
+
   useEffect(() => {
     if (!statsSlotId || !slotsData) return;
-    const ok = slotsForSelectedDate.some((s) => s.id === statsSlotId);
+    const ok = statsSlotOptions.some((s) => s.id === statsSlotId);
     if (!ok) setStatsSlotId("");
-  }, [selectedDate, slotsData, slotsForSelectedDate, statsSlotId]);
+  }, [selectedDate, slotsData, statsSlotOptions, statsSlotId]);
 
   function statsCountForSlotRow(row: CheckInStatsBySlot): number {
     if (statsVisitFilter === "checked_in") return row.peopleCheckedIn;
@@ -1716,12 +1785,6 @@ export default function AdminDashboard() {
     if (statsVisitFilter === "not_checked_in") return "Человек ещё не прошло";
     return "Человек по оплаченным билетам (всего)";
   }
-
-  const dateOptions = useMemo(() => {
-    if (!slotsData) return [];
-    const keys = new Set(slotsData.slots.map((s) => s.dateKey));
-    return [...keys].sort();
-  }, [slotsData]);
 
   /** Даты для вкладки «Сеансы» — только дни с сеансами выбранного канала. */
   const scheduleDateOptions = useMemo(() => {
@@ -1740,6 +1803,24 @@ export default function AdminDashboard() {
     const upcoming = scheduleDateOptions.find((d) => d >= today);
     setSelectedDate(upcoming ?? scheduleDateOptions[scheduleDateOptions.length - 1]!);
   }, [tab, scheduleDateOptions, selectedDate]);
+
+  /** Даты для вкладки «Статистика» — только дни с сеансами выбранного события. */
+  const statsDateOptions = useMemo(() => {
+    if (!slotsData) return [];
+    const slots =
+      statsKindFilter === "all" ?
+        slotsData.slots
+      : slotsData.slots.filter((s) => s.kind === statsKindFilter);
+    return [...new Set(slots.map((s) => s.dateKey))].sort();
+  }, [slotsData, statsKindFilter]);
+
+  useEffect(() => {
+    if (tab !== "stats" || statsKindFilter === "all" || statsDateOptions.length === 0) return;
+    if (statsDateOptions.includes(selectedDate)) return;
+    const today = todayDateKey();
+    const upcoming = statsDateOptions.find((d) => d >= today);
+    setSelectedDate(upcoming ?? statsDateOptions[statsDateOptions.length - 1]!);
+  }, [tab, statsKindFilter, statsDateOptions, selectedDate]);
 
   const deleteSlotsForSelectedDate = useCallback(async () => {
     if (!slotsData) return;
@@ -2350,6 +2431,7 @@ export default function AdminDashboard() {
               {checkInStats && salesStats ? (
                 <span className="admin-hint">
                   Обновление каждые 20 с · {checkInStats.timezone} · PAID, без возвратов
+                  {statsKindFilter === "all" ? "" : ` · ${slotSalesChannelLabel(statsKindFilter)}`}
                 </span>
               ) : (
                 <span className="admin-hint">Загрузка…</span>
@@ -2376,15 +2458,33 @@ export default function AdminDashboard() {
                   Сегодня
                 </button>
               </div>
-              {dateOptions.length > 0 ? (
+              {statsDateOptions.length > 0 ? (
                 <AdminDateChips
-                  dates={dateOptions}
+                  dates={statsDateOptions}
                   selectedDate={selectedDate}
                   onSelectDate={setSelectedDate}
                 />
               ) : null}
             </div>
             <div className="admin-order-filters">
+              <label>
+                Событие
+                <select
+                  value={statsKindFilter}
+                  onChange={(e) => {
+                    setStatsKindFilter(e.target.value as ScheduleKindFilter);
+                    setStatsSlotId("");
+                  }}
+                  aria-label="Фильтр по событию"
+                >
+                  <option value="all">Все события</option>
+                  {SLOT_KIND_CHOICES.map((k) => (
+                    <option key={k} value={k}>
+                      {slotSalesChannelLabel(k)}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label>
                 Сеанс
                 <select
@@ -2394,7 +2494,7 @@ export default function AdminDashboard() {
                   disabled={!slotsData}
                 >
                   <option value="">Все сеансы за день</option>
-                  {slotsForSelectedDate.map((s) => (
+                  {statsSlotOptions.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.timeKey} — {truncateText(s.title, 36)} ({slotSalesChannelLabel(s.kind)})
                     </option>
@@ -2416,35 +2516,57 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {!checkInStats || !salesStats ? (
+          {!checkInStats || !salesStats || !salesReport ? (
             <div className="admin-empty admin-empty--compact">{statsLoading ? "Загрузка…" : "Нет данных"}</div>
           ) : (
             <div className="admin-stats-panel">
               <section className="admin-stats-section" aria-label="Продажи за день">
-                <h3 className="admin-stats-section__title">Продано за день</h3>
+                <h3 className="admin-stats-section__title">Отчёт о продажах за день</h3>
                 <p className="admin-stats-section__hint">
-                  Оплаченные билеты без возврата · по типу (взрослый / детский / льготный)
+                  Бронь — неоплаченные заявки (PENDING) · Продано — оплаченные билеты без возврата ·
+                  Возврат — билеты с возвратом. Промокоды — разрез тех же продаж, а не отдельные
+                  билеты.
                 </p>
-                <div className="admin-stats-kpi">
-                  <div className="admin-stats-kpi__card admin-stats-kpi__card--primary">
-                    <div className="admin-stats-kpi__value">{salesStats.sold.adult}</div>
-                    <div className="admin-stats-kpi__label">Взрослый</div>
-                  </div>
-                  <div className="admin-stats-kpi__card">
-                    <div className="admin-stats-kpi__value">{salesStats.sold.child}</div>
-                    <div className="admin-stats-kpi__label">Детский</div>
-                  </div>
-                  <div className="admin-stats-kpi__card">
-                    <div className="admin-stats-kpi__value">{salesStats.sold.concession}</div>
-                    <div className="admin-stats-kpi__label">Льготный</div>
-                  </div>
-                  <div className="admin-stats-kpi__card">
-                    <div className="admin-stats-kpi__value">{salesStats.sold.total}</div>
-                    <div className="admin-stats-kpi__label">Всего билетов</div>
-                    {salesStats.sold.unknown > 0 ? (
-                      <div className="admin-stats-kpi__sub mono">без типа: {salesStats.sold.unknown}</div>
-                    ) : null}
-                  </div>
+                <div className="admin-stats-by-slot admin-stats-report">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Наименование</th>
+                        <th className="num">Квота, шт</th>
+                        <th className="num">Бронь, шт</th>
+                        <th className="num">Продано, шт</th>
+                        <th className="num">Возврат, шт</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {salesReport.rows.map((row) => (
+                        <tr
+                          key={row.key}
+                          className={row.kind === "promo" ? "admin-stats-report__promo" : undefined}
+                        >
+                          <td className="admin-stats-row-title">
+                            {row.kind === "promo" ? `Промокод ${row.label}` : row.label}
+                          </td>
+                          <td className="num">{salesQuotaCell(row.quota)}</td>
+                          <td className="num">{salesNumCell(row.reserved)}</td>
+                          <td className="num">{row.sold}</td>
+                          <td className="num">{salesNumCell(row.refunded)}</td>
+                        </tr>
+                      ))}
+                      <tr className="admin-stats-report__total">
+                        <td className="admin-stats-row-title">Итого билетов</td>
+                        <td className="num">
+                          {salesQuotaCell(
+                            salesReport.totals.quota,
+                            salesReport.totals.quotaHasUnlimited,
+                          )}
+                        </td>
+                        <td className="num">{salesNumCell(salesReport.totals.reserved)}</td>
+                        <td className="num">{salesReport.totals.sold}</td>
+                        <td className="num">{salesNumCell(salesReport.totals.refunded)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
                 {!statsSlotId && salesStats.bySlot.length > 0 ? (
                   <div className="admin-stats-by-slot">

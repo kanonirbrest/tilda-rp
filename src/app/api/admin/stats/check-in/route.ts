@@ -3,6 +3,7 @@ import {
   type CheckInStatsStatus,
   queryCheckInStats,
 } from "@/lib/admin-check-in-stats";
+import { parseOptionalSlotKind } from "@/lib/slot-kind";
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
@@ -36,7 +37,8 @@ export async function GET(req: Request) {
   }
 
   const slotId = url.searchParams.get("slotId")?.trim() || null;
-  const result = await queryCheckInStats({ dateYmd: date, slotId, status });
+  const slotKind = parseOptionalSlotKind(url.searchParams.get("kind"));
+  const result = await queryCheckInStats({ dateYmd: date, slotId, slotKind, status });
   if ("error" in result) {
     return jsonWithCors(req, { error: "BAD_REQUEST", message: "Некорректная дата" }, { status: 400 });
   }

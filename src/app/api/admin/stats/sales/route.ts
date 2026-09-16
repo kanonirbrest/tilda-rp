@@ -1,5 +1,6 @@
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
 import { querySalesStats } from "@/lib/admin-sales-stats";
+import { parseOptionalSlotKind } from "@/lib/slot-kind";
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
@@ -16,7 +17,8 @@ export async function GET(req: Request) {
   }
 
   const slotId = url.searchParams.get("slotId")?.trim() || null;
-  const result = await querySalesStats({ dateYmd: date, slotId });
+  const slotKind = parseOptionalSlotKind(url.searchParams.get("kind"));
+  const result = await querySalesStats({ dateYmd: date, slotId, slotKind });
   if ("error" in result) {
     return jsonWithCors(req, { error: "BAD_REQUEST", message: "Некорректная дата" }, { status: 400 });
   }
