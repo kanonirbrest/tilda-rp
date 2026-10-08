@@ -1,7 +1,10 @@
-import type { OrderStatus, TicketTier } from "@prisma/client";
+import { type OrderStatus, type TicketTier } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { reportTicketsWhereForDay } from "@/lib/admin-day-ticket-filter";
-import { getExhibitionTimezone, timeKeyInTz, wallDayUtcRange } from "@/lib/exhibition-time";
+import { dateKeyInTz, getExhibitionTimezone, timeKeyInTz, wallDaysUtcRange } from "@/lib/exhibition-time";
+
+/** Верхняя граница отчёта, чтобы не выгружать всю историю одним запросом. */
+const STATS_RANGE_MAX_DAYS = 366;
 
 export type TierSoldCounts = {
   adult: number;
@@ -15,6 +18,8 @@ export type TierSoldCounts = {
 export type SalesStatsBySlot = {
   slotId: string;
   title: string;
+  /** Календарный день сеанса в поясе выставки. */
+  dateKey: string;
   timeKey: string;
   adult: number;
   child: number;
@@ -49,14 +54,29 @@ export type SalesReport = {
   };
 };
 
+/** Деньги по оплаченным заказам периода. Считается по заказу, а не по строке типа билета. */
+export type SalesRevenue = {
+  currency: string;
+  /** Сумма оплат (PAID и REFUNDED), до вычета возвратов. */
+  paidCents: number;
+  /** Уже возвращено покупателям. */
+  refundedCents: number;
+  /** paidCents − refundedCents: сколько осталось с продаж. */
+  netCents: number;
+};
+
 export type SalesStatsResult = {
   timezone: string;
+  /** Начало периода. Совпадает с dateFrom. */
   date: string;
+  dateFrom: string;
+  dateTo: string;
   slotId: string | null;
   slotKind: string | null;
   sold: TierSoldCounts;
   bySlot: SalesStatsBySlot[];
   report: SalesReport;
+  revenue: SalesRevenue[];
 };
 
 function emptyTierCounts(): TierSoldCounts {
@@ -89,6 +109,7 @@ function accumulateSalesSlot(
     row = {
       slotId: sid,
       title: t.order.slot.title,
+      dateKey: "",
       timeKey: "",
       startsAt: t.order.slot.startsAt,
       adult: 0,
@@ -129,18 +150,34 @@ function tierKey(tier: TicketTier | null): string {
 }
 
 export async function querySalesStats(params: {
-  dateYmd: string;
+  /** Один день. Используется, если не заданы fromYmd/toYmd. */
+  dateYmd?: string | null;
+  fromYmd?: string | null;
+  toYmd?: string | null;
   slotId?: string | null;
   slotKind?: string | null;
-}): Promise<SalesStatsResult | { error: "INVALID_DATE" }> {
+}): Promise<SalesStatsResult | { error: "INVALID_DATE" | "RANGE_TOO_LONG" }> {
   const tz = getExhibitionTimezone();
-  const range = wallDayUtcRange(params.dateYmd, tz);
+  const fromYmd = params.fromYmd?.trim() || params.dateYmd?.trim() || "";
+  const toYmd = params.toYmd?.trim() || fromYmd;
+  const range = fromYmd ? wallDaysUtcRange(fromYmd, toYmd, tz) : null;
   if (!range) return { error: "INVALID_DATE" };
+  if (range.dayCount > STATS_RANGE_MAX_DAYS) return { error: "RANGE_TOO_LONG" };
 
   const slotId = params.slotId?.trim() || null;
   const slotKind = params.slotKind?.trim() || null;
 
-  const [tickets, slots] = await Promise.all([
+  const paidStatuses: OrderStatus[] = ["PAID", "REFUNDED"];
+  const orderWhere = {
+    status: { in: paidStatuses },
+    slot: {
+      startsAt: { gte: range.start, lte: range.end },
+      ...(slotKind ? { kind: slotKind } : {}),
+      ...(slotId ? { id: slotId } : {}),
+    },
+  };
+
+  const [tickets, slots, paidOrders] = await Promise.all([
     prisma.ticket.findMany({
       where: reportTicketsWhereForDay(range, slotId, slotKind),
       select: {
@@ -164,6 +201,10 @@ export async function querySalesStats(params: {
         ...(slotId ? { id: slotId } : {}),
       },
       select: { capacity: true },
+    }),
+    prisma.order.findMany({
+      where: orderWhere,
+      select: { amountCents: true, refundedCents: true, currency: true },
     }),
   ]);
 
@@ -209,6 +250,7 @@ export async function querySalesStats(params: {
     .map((row) => ({
       slotId: row.slotId,
       title: row.title,
+      dateKey: dateKeyInTz(row.startsAt, tz),
       timeKey: timeKeyInTz(row.startsAt, tz),
       adult: row.adult,
       child: row.child,
@@ -269,13 +311,36 @@ export async function querySalesStats(params: {
       { reserved: 0, sold: 0, refunded: 0 },
     );
 
+  const revenueByCurrency = new Map<string, { paidCents: number; refundedCents: number }>();
+  for (const order of paidOrders) {
+    const currency = order.currency?.trim() || "BYN";
+    const bucket = revenueByCurrency.get(currency) ?? { paidCents: 0, refundedCents: 0 };
+    bucket.paidCents += order.amountCents;
+    bucket.refundedCents += Math.max(0, order.refundedCents);
+    revenueByCurrency.set(currency, bucket);
+  }
+  const revenue: SalesRevenue[] =
+    revenueByCurrency.size > 0 ?
+      [...revenueByCurrency.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([currency, bucket]) => ({
+          currency,
+          paidCents: bucket.paidCents,
+          refundedCents: bucket.refundedCents,
+          netCents: Math.max(0, bucket.paidCents - bucket.refundedCents),
+        }))
+    : [{ currency: "BYN", paidCents: 0, refundedCents: 0, netCents: 0 }];
+
   return {
     timezone: tz,
-    date: params.dateYmd,
+    date: range.from,
+    dateFrom: range.from,
+    dateTo: range.to,
     slotId,
     slotKind,
     sold,
     bySlot,
+    revenue,
     report: {
       rows,
       totals: {

@@ -22,9 +22,15 @@ export async function GET(req: Request) {
   if (deny) return deny;
 
   const url = new URL(req.url);
-  const date = url.searchParams.get("date")?.trim() ?? "";
-  if (!date) {
-    return jsonWithCors(req, { error: "BAD_REQUEST", message: "Укажите date=YYYY-MM-DD" }, { status: 400 });
+  const date = url.searchParams.get("date")?.trim() || null;
+  const from = url.searchParams.get("from")?.trim() || null;
+  const to = url.searchParams.get("to")?.trim() || null;
+  if (!date && !from) {
+    return jsonWithCors(
+      req,
+      { error: "BAD_REQUEST", message: "Укажите date=YYYY-MM-DD или from и to" },
+      { status: 400 },
+    );
   }
 
   const status = parseStatus(url.searchParams.get("status"));
@@ -38,9 +44,18 @@ export async function GET(req: Request) {
 
   const slotId = url.searchParams.get("slotId")?.trim() || null;
   const slotKind = parseOptionalSlotKind(url.searchParams.get("kind"));
-  const result = await queryCheckInStats({ dateYmd: date, slotId, slotKind, status });
+  const result = await queryCheckInStats({
+    dateYmd: date,
+    fromYmd: from,
+    toYmd: to,
+    slotId,
+    slotKind,
+    status,
+  });
   if ("error" in result) {
-    return jsonWithCors(req, { error: "BAD_REQUEST", message: "Некорректная дата" }, { status: 400 });
+    const message =
+      result.error === "RANGE_TOO_LONG" ? "Период не длиннее 366 дней" : "Некорректная дата";
+    return jsonWithCors(req, { error: "BAD_REQUEST", message }, { status: 400 });
   }
 
   return jsonWithCors(req, result);

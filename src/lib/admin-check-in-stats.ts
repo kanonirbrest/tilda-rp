@@ -4,14 +4,17 @@ import {
   dateKeyInTz,
   getExhibitionTimezone,
   timeKeyInTz,
-  wallDayUtcRange,
+  wallDaysUtcRange,
 } from "@/lib/exhibition-time";
+
+const STATS_RANGE_MAX_DAYS = 366;
 
 export type CheckInStatsStatus = "all" | "checked_in" | "not_checked_in";
 
 export type CheckInStatsBySlot = {
   slotId: string;
   title: string;
+  dateKey: string;
   timeKey: string;
   ticketsTotal: number;
   ticketsCheckedIn: number;
@@ -23,7 +26,10 @@ export type CheckInStatsBySlot = {
 
 export type CheckInStatsResult = {
   timezone: string;
+  /** Начало периода. Совпадает с dateFrom. */
   date: string;
+  dateFrom: string;
+  dateTo: string;
   slotId: string | null;
   slotKind: string | null;
   status: CheckInStatsStatus;
@@ -60,6 +66,7 @@ function accumulateSlot(
     row = {
       slotId: sid,
       title: t.order.slot.title,
+      dateKey: "",
       timeKey: "",
       startsAt: t.order.slot.startsAt,
       ticketsTotal: 0,
@@ -83,14 +90,20 @@ function accumulateSlot(
 }
 
 export async function queryCheckInStats(params: {
-  dateYmd: string;
+  /** Один день. Используется, если не заданы fromYmd/toYmd. */
+  dateYmd?: string | null;
+  fromYmd?: string | null;
+  toYmd?: string | null;
   slotId?: string | null;
   slotKind?: string | null;
   status?: CheckInStatsStatus;
-}): Promise<CheckInStatsResult | { error: "INVALID_DATE" }> {
+}): Promise<CheckInStatsResult | { error: "INVALID_DATE" | "RANGE_TOO_LONG" }> {
   const tz = getExhibitionTimezone();
-  const range = wallDayUtcRange(params.dateYmd, tz);
+  const fromYmd = params.fromYmd?.trim() || params.dateYmd?.trim() || "";
+  const toYmd = params.toYmd?.trim() || fromYmd;
+  const range = fromYmd ? wallDaysUtcRange(fromYmd, toYmd, tz) : null;
   if (!range) return { error: "INVALID_DATE" };
+  if (range.dayCount > STATS_RANGE_MAX_DAYS) return { error: "RANGE_TOO_LONG" };
 
   const status: CheckInStatsStatus = params.status ?? "all";
   const slotId = params.slotId?.trim() || null;
@@ -146,6 +159,7 @@ export async function queryCheckInStats(params: {
     .map((row) => ({
       slotId: row.slotId,
       title: row.title,
+      dateKey: dateKeyInTz(row.startsAt, tz),
       timeKey: timeKeyInTz(row.startsAt, tz),
       ticketsTotal: row.ticketsTotal,
       ticketsCheckedIn: row.ticketsCheckedIn,
@@ -157,7 +171,9 @@ export async function queryCheckInStats(params: {
 
   return {
     timezone: tz,
-    date: params.dateYmd,
+    date: range.from,
+    dateFrom: range.from,
+    dateTo: range.to,
     slotId,
     slotKind,
     status,

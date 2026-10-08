@@ -1157,6 +1157,11 @@
   color: var(--admin-text);
 }
 
+.admin-root .admin-stats-kpi__value--money {
+  font-size: 1.65rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .admin-root .admin-stats-kpi__label {
   margin-top: 0.35rem;
   font-size: 0.8rem;
@@ -1233,6 +1238,37 @@
   flex-wrap: wrap;
   gap: 0.35rem;
   margin-top: 0.65rem;
+}
+
+.admin-root .admin-date-chips--flush {
+  margin-top: 0.35rem;
+}
+
+.admin-root .admin-field-caption {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--admin-muted);
+  margin-bottom: 0.35rem;
+}
+
+.admin-root .admin-period-bound {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 11rem;
+  margin-bottom: 0;
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--admin-muted);
+}
+
+.admin-root .admin-period-day-label {
+  margin-top: 0.75rem;
 }
 
 .admin-root .admin-chip {

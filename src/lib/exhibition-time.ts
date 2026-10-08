@@ -44,6 +44,15 @@ export function wallDateAndTimeToUtc(dateYmd: string, timeHhMm: string, timeZone
   return dt.toJSDate();
 }
 
+export type WallDaysRange = {
+  start: Date;
+  end: Date;
+  from: string;
+  to: string;
+  /** Включительно, по календарным датам, без учёта перевода часов. */
+  dayCount: number;
+};
+
 /** UTC-интервал [start, end], покрывающий календарные сутки dateYmd в timeZone (для выборки слотов за день). */
 export function wallDayUtcRange(dateYmd: string, timeZone: string): { start: Date; end: Date } | null {
   const dm = dateYmd.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -60,6 +69,30 @@ export function wallDayUtcRange(dateYmd: string, timeZone: string): { start: Dat
   const start = base.startOf("day").toUTC();
   const end = base.endOf("day").toUTC();
   return { start: start.toJSDate(), end: end.toJSDate() };
+}
+
+/**
+ * UTC-интервал от начала календарного дня fromYmd до конца toYmd в timeZone.
+ * fromYmd должен быть не позже toYmd. Некорректная или перевёрнутая пара — null.
+ */
+export function wallDaysUtcRange(
+  fromYmd: string,
+  toYmd: string,
+  timeZone: string,
+): WallDaysRange | null {
+  const fromKey = fromYmd.trim();
+  const toKey = toYmd.trim();
+  if (!/^(\d{4})-(\d{2})-(\d{2})$/.test(fromKey) || !/^(\d{4})-(\d{2})-(\d{2})$/.test(toKey)) {
+    return null;
+  }
+  if (fromKey > toKey) return null;
+  const from = wallDayUtcRange(fromKey, timeZone);
+  const to = wallDayUtcRange(toKey, timeZone);
+  if (!from || !to) return null;
+  const [fy, fm, fd] = fromKey.split("-").map(Number);
+  const [ty, tm, td] = toKey.split("-").map(Number);
+  const dayCount = Math.round((Date.UTC(ty!, tm! - 1, td!) - Date.UTC(fy!, fm! - 1, fd!)) / 86_400_000) + 1;
+  return { start: from.start, end: to.end, from: fromKey, to: toKey, dayCount };
 }
 
 export function dateKeyInTz(iso: Date, tz: string): string {

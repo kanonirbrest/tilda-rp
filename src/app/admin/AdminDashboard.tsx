@@ -110,6 +110,7 @@ type CheckInStatsStatus = "all" | "checked_in" | "not_checked_in";
 type CheckInStatsBySlot = {
   slotId: string;
   title: string;
+  dateKey?: string;
   timeKey: string;
   ticketsTotal: number;
   ticketsCheckedIn: number;
@@ -122,6 +123,8 @@ type CheckInStatsBySlot = {
 type CheckInStatsResponse = {
   timezone: string;
   date: string;
+  dateFrom?: string;
+  dateTo?: string;
   slotId: string | null;
   slotKind: string | null;
   status: CheckInStatsStatus;
@@ -147,6 +150,7 @@ type TierSoldCounts = {
 type SalesStatsBySlot = {
   slotId: string;
   title: string;
+  dateKey?: string;
   timeKey: string;
   adult: number;
   child: number;
@@ -176,15 +180,26 @@ type SalesReport = {
   };
 };
 
+type SalesRevenue = {
+  currency: string;
+  paidCents: number;
+  refundedCents: number;
+  netCents: number;
+};
+
 type SalesStatsResponse = {
   timezone: string;
   date: string;
+  dateFrom?: string;
+  dateTo?: string;
   slotId: string | null;
   slotKind: string | null;
   sold: TierSoldCounts;
   bySlot: SalesStatsBySlot[];
   /** Нет в ответе старого API (в dev админка проксируется на прод до деплоя). */
   report?: SalesReport;
+  /** Деньги по оплаченным заказам. Нет в ответе старого API. */
+  revenue?: SalesRevenue[];
 };
 
 /** Квота в отчёте: у типов билета отдельного лимита нет. */
@@ -329,11 +344,31 @@ function visibleDateChipOptions(
   return [...new Set(near)].sort();
 }
 
+function formatStatsRangeLabel(from: string, to: string): string {
+  if (from === to) return formatDateKeyShort(from);
+  return `${formatDateKeyShort(from)} — ${formatDateKeyShort(to)}`;
+}
+
+function statsWhenLabel(dateKey: string | undefined, timeKey: string, singleDay: boolean): string {
+  if (singleDay || !dateKey) return timeKey;
+  return `${formatDateKeyShort(dateKey)} ${timeKey}`;
+}
+
 function dateKeyDayIndex(dateKey: string): number {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
   if (!m) return 0;
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86_400_000;
 }
+
+function shiftDateKey(dateKey: string, deltaDays: number): string {
+  const dt = new Date((dateKeyDayIndex(dateKey) + deltaDays) * 86_400_000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${dt.getUTCFullYear()}-${p(dt.getUTCMonth() + 1)}-${p(dt.getUTCDate())}`;
+}
+
+type StatsPeriod = "day" | "week" | "custom";
+
+const STATS_RANGE_MAX_DAYS = 366;
 
 function AdminDateChips({
   dates,
@@ -1055,6 +1090,9 @@ export default function AdminDashboard() {
   const [scheduleKindFilter, setScheduleKindFilter] = useState<ScheduleKindFilter>("all");
   const [statsVisitFilter, setStatsVisitFilter] = useState<CheckInStatsStatus>("all");
   const [statsKindFilter, setStatsKindFilter] = useState<ScheduleKindFilter>("all");
+  const [statsPeriod, setStatsPeriod] = useState<StatsPeriod>("day");
+  const [statsFrom, setStatsFrom] = useState(() => shiftDateKey(todayDateKey(), -6));
+  const [statsTo, setStatsTo] = useState(todayDateKey);
   const [statsSlotId, setStatsSlotId] = useState("");
   const [checkInStats, setCheckInStats] = useState<CheckInStatsResponse | null>(null);
   const [salesStats, setSalesStats] = useState<SalesStatsResponse | null>(null);
@@ -1146,12 +1184,39 @@ export default function AdminDashboard() {
     void loadOrders();
   }, [authChecked, authed, loadOrders]);
 
+  const statsQueryRange = useMemo(() => {
+    if (statsPeriod === "week") {
+      const to = todayDateKey();
+      return { from: shiftDateKey(to, -6), to };
+    }
+    if (statsPeriod === "custom") {
+      if (!statsFrom || !statsTo) return null;
+      if (statsFrom <= statsTo) return { from: statsFrom, to: statsTo };
+      return { from: statsTo, to: statsFrom };
+    }
+    if (!selectedDate) return null;
+    return { from: selectedDate, to: selectedDate };
+  }, [statsPeriod, statsFrom, statsTo, selectedDate]);
+
+  const statsRangeIsSingleDay = statsQueryRange != null && statsQueryRange.from === statsQueryRange.to;
+
   const loadDayStats = useCallback(async () => {
-    if (!selectedDate) return;
+    if (!statsQueryRange) return;
+    const span = dateKeyDayIndex(statsQueryRange.to) - dateKeyDayIndex(statsQueryRange.from) + 1;
+    if (span > STATS_RANGE_MAX_DAYS) {
+      setErrMsg("Период не длиннее 366 дней");
+      setCheckInStats(null);
+      setSalesStats(null);
+      return;
+    }
     setErrMsg("");
     setStatsLoading(true);
     try {
-      const baseQ = new URLSearchParams({ date: selectedDate });
+      const baseQ = new URLSearchParams(
+        statsQueryRange.from === statsQueryRange.to ?
+          { date: statsQueryRange.from }
+        : { from: statsQueryRange.from, to: statsQueryRange.to },
+      );
       if (statsKindFilter !== "all") baseQ.set("kind", statsKindFilter);
       if (statsSlotId) baseQ.set("slotId", statsSlotId);
       const checkInQ = new URLSearchParams(baseQ);
@@ -1169,7 +1234,7 @@ export default function AdminDashboard() {
     } finally {
       setStatsLoading(false);
     }
-  }, [selectedDate, statsKindFilter, statsSlotId, statsVisitFilter]);
+  }, [statsQueryRange, statsKindFilter, statsSlotId, statsVisitFilter]);
 
   const salesReport = useMemo(
     () => (salesStats ? salesStats.report ?? salesReportFromSold(salesStats.sold) : null),
@@ -1762,17 +1827,20 @@ export default function AdminDashboard() {
     return slotsForSelectedDate.filter((s) => s.kind === scheduleKindFilter);
   }, [slotsForSelectedDate, scheduleKindFilter]);
 
-  /** Сеансы выбранного дня, относящиеся к выбранному событию. */
+  /** Сеансы выбранного периода, относящиеся к выбранному событию. */
   const statsSlotOptions = useMemo(() => {
-    if (statsKindFilter === "all") return slotsForSelectedDate;
-    return slotsForSelectedDate.filter((s) => s.kind === statsKindFilter);
-  }, [slotsForSelectedDate, statsKindFilter]);
+    if (!slotsData || !statsQueryRange) return [];
+    return slotsData.slots
+      .filter((s) => s.dateKey >= statsQueryRange.from && s.dateKey <= statsQueryRange.to)
+      .filter((s) => statsKindFilter === "all" || s.kind === statsKindFilter)
+      .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  }, [slotsData, statsQueryRange, statsKindFilter]);
 
   useEffect(() => {
     if (!statsSlotId || !slotsData) return;
     const ok = statsSlotOptions.some((s) => s.id === statsSlotId);
     if (!ok) setStatsSlotId("");
-  }, [selectedDate, slotsData, statsSlotOptions, statsSlotId]);
+  }, [slotsData, statsSlotOptions, statsSlotId]);
 
   function statsCountForSlotRow(row: CheckInStatsBySlot): number {
     if (statsVisitFilter === "checked_in") return row.peopleCheckedIn;
@@ -1815,12 +1883,14 @@ export default function AdminDashboard() {
   }, [slotsData, statsKindFilter]);
 
   useEffect(() => {
-    if (tab !== "stats" || statsKindFilter === "all" || statsDateOptions.length === 0) return;
+    if (tab !== "stats" || statsPeriod !== "day" || statsKindFilter === "all" || statsDateOptions.length === 0) {
+      return;
+    }
     if (statsDateOptions.includes(selectedDate)) return;
     const today = todayDateKey();
     const upcoming = statsDateOptions.find((d) => d >= today);
     setSelectedDate(upcoming ?? statsDateOptions[statsDateOptions.length - 1]!);
-  }, [tab, statsKindFilter, statsDateOptions, selectedDate]);
+  }, [tab, statsPeriod, statsKindFilter, statsDateOptions, selectedDate]);
 
   const deleteSlotsForSelectedDate = useCallback(async () => {
     if (!slotsData) return;
@@ -2417,7 +2487,7 @@ export default function AdminDashboard() {
       ) : null}
 
       {tab === "stats" ? (
-        <section className="admin-panel admin-panel--tight" id="tab-stats" aria-label="Статистика за день">
+        <section className="admin-panel admin-panel--tight" id="tab-stats" aria-label="Статистика за период">
           <div className="admin-panel-head admin-panel-head--stack admin-panel-head--tight">
             <div className="admin-toolbar-row">
               <button
@@ -2430,7 +2500,8 @@ export default function AdminDashboard() {
               </button>
               {checkInStats && salesStats ? (
                 <span className="admin-hint">
-                  Обновление каждые 20 с · {checkInStats.timezone} · PAID, без возвратов
+                  Обновление каждые 20 с · {checkInStats.timezone} · по дате сеанса
+                  {statsQueryRange ? ` · ${formatStatsRangeLabel(statsQueryRange.from, statsQueryRange.to)}` : ""}
                   {statsKindFilter === "all" ? "" : ` · ${slotSalesChannelLabel(statsKindFilter)}`}
                 </span>
               ) : (
@@ -2438,33 +2509,102 @@ export default function AdminDashboard() {
               )}
             </div>
             <p className="admin-hint admin-hint--inline">
-              Продажи по типам билета и проход на входе за выбранный день. Данные обновляются автоматически.
+              Продажи по типам билета и проход на входе за день, последние 7 дней или свой период.
+              Считается по дате сеанса.
             </p>
             <div className="admin-field admin-field--dateblock">
-              <label htmlFor="stats-date">Дата сеансов</label>
-              <div className="admin-date-row">
-                <input
-                  id="stats-date"
-                  className="admin-date-input"
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                />
+              <span className="admin-field-caption">Период</span>
+              <div className="admin-date-chips admin-date-chips--flush">
                 <button
                   type="button"
-                  className="btn btn-secondary btn-compact"
-                  onClick={() => setSelectedDate(todayDateKey())}
+                  className={`admin-chip ${statsPeriod === "day" ? "admin-chip--on" : ""}`}
+                  onClick={() => {
+                    setStatsPeriod("day");
+                    setStatsSlotId("");
+                  }}
                 >
-                  Сегодня
+                  День
+                </button>
+                <button
+                  type="button"
+                  className={`admin-chip ${statsPeriod === "week" ? "admin-chip--on" : ""}`}
+                  onClick={() => {
+                    setStatsPeriod("week");
+                    setStatsSlotId("");
+                  }}
+                >
+                  7 дней
+                </button>
+                <button
+                  type="button"
+                  className={`admin-chip ${statsPeriod === "custom" ? "admin-chip--on" : ""}`}
+                  onClick={() => {
+                    setStatsPeriod("custom");
+                    setStatsSlotId("");
+                  }}
+                >
+                  Свой период
                 </button>
               </div>
-              {statsDateOptions.length > 0 ? (
-                <AdminDateChips
-                  dates={statsDateOptions}
-                  selectedDate={selectedDate}
-                  onSelectDate={setSelectedDate}
-                />
-              ) : null}
+              {statsPeriod === "day" ? (
+                <>
+                  <label htmlFor="stats-date" className="admin-period-day-label">
+                    Дата сеансов
+                  </label>
+                  <div className="admin-date-row">
+                    <input
+                      id="stats-date"
+                      className="admin-date-input"
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-compact"
+                      onClick={() => setSelectedDate(todayDateKey())}
+                    >
+                      Сегодня
+                    </button>
+                  </div>
+                  {statsDateOptions.length > 0 ? (
+                    <AdminDateChips
+                      dates={statsDateOptions}
+                      selectedDate={selectedDate}
+                      onSelectDate={setSelectedDate}
+                    />
+                  ) : null}
+                </>
+              ) : statsPeriod === "week" ? (
+                <p className="admin-hint admin-hint--tight">
+                  {statsQueryRange ?
+                    `Последние 7 дней: ${formatStatsRangeLabel(statsQueryRange.from, statsQueryRange.to)}, включая сегодня`
+                  : ""}
+                </p>
+              ) : (
+                <div className="admin-date-row">
+                  <label className="admin-period-bound">
+                    С
+                    <input
+                      className="admin-date-input"
+                      type="date"
+                      value={statsFrom}
+                      onChange={(e) => setStatsFrom(e.target.value)}
+                      aria-label="Начало периода"
+                    />
+                  </label>
+                  <label className="admin-period-bound">
+                    По
+                    <input
+                      className="admin-date-input"
+                      type="date"
+                      value={statsTo}
+                      onChange={(e) => setStatsTo(e.target.value)}
+                      aria-label="Конец периода"
+                    />
+                  </label>
+                </div>
+              )}
             </div>
             <div className="admin-order-filters">
               <label>
@@ -2493,10 +2633,10 @@ export default function AdminDashboard() {
                   aria-label="Фильтр по сеансу"
                   disabled={!slotsData}
                 >
-                  <option value="">Все сеансы за день</option>
+                  <option value="">{statsRangeIsSingleDay ? "Все сеансы за день" : "Все сеансы за период"}</option>
                   {statsSlotOptions.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.timeKey} — {truncateText(s.title, 36)} ({slotSalesChannelLabel(s.kind)})
+                      {statsWhenLabel(s.dateKey, s.timeKey, statsRangeIsSingleDay)} — {truncateText(s.title, 36)} ({slotSalesChannelLabel(s.kind)})
                     </option>
                   ))}
                 </select>
@@ -2520,10 +2660,35 @@ export default function AdminDashboard() {
             <div className="admin-empty admin-empty--compact">{statsLoading ? "Загрузка…" : "Нет данных"}</div>
           ) : (
             <div className="admin-stats-panel">
-              <section className="admin-stats-section" aria-label="Продажи за день">
-                <h3 className="admin-stats-section__title">Отчёт о продажах за день</h3>
+              <section className="admin-stats-section" aria-label="Продажи за период">
+                <h3 className="admin-stats-section__title">
+                  Отчёт о продажах
+                  {statsQueryRange ? ` · ${formatStatsRangeLabel(statsQueryRange.from, statsQueryRange.to)}` : ""}
+                </h3>
+                {salesStats.revenue && salesStats.revenue.length > 0 ? (
+                  <div className="admin-stats-kpi">
+                    {salesStats.revenue.map((rev) => (
+                      <div
+                        key={rev.currency}
+                        className="admin-stats-kpi__card admin-stats-kpi__card--primary"
+                      >
+                        <div className="admin-stats-kpi__value admin-stats-kpi__value--money">
+                          {formatMinorUnits(rev.netCents, rev.currency)}
+                        </div>
+                        <div className="admin-stats-kpi__label">Сумма продаж</div>
+                        <div className="admin-stats-kpi__sub mono">
+                          оплачено {formatMinorUnits(rev.paidCents, rev.currency)}
+                          {rev.refundedCents > 0 ?
+                            ` · возвраты ${formatMinorUnits(rev.refundedCents, rev.currency)}`
+                          : ""}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <p className="admin-stats-section__hint">
-                  Бронь — неоплаченные заявки (PENDING) · Продано — оплаченные билеты без возврата ·
+                  Сумма продаж — деньги по оплаченным заказам за вычетом возвратов. Бронь —
+                  неоплаченные заявки (PENDING) · Продано — оплаченные билеты без возврата ·
                   Возврат — билеты с возвратом. Промокоды — разрез тех же продаж, а не отдельные
                   билеты.
                 </p>
@@ -2573,7 +2738,7 @@ export default function AdminDashboard() {
                     <table>
                       <thead>
                         <tr>
-                          <th>Время</th>
+                          <th>{statsRangeIsSingleDay ? "Время" : "Дата и время"}</th>
                           <th>Сеанс</th>
                           <th className="num">Взр.</th>
                           <th className="num">Дет.</th>
@@ -2597,7 +2762,7 @@ export default function AdminDashboard() {
                               }
                             }}
                           >
-                            <td className="mono">{row.timeKey}</td>
+                            <td className="mono">{statsWhenLabel(row.dateKey, row.timeKey, statsRangeIsSingleDay)}</td>
                             <td className="admin-stats-row-title">{truncateText(row.title, 48)}</td>
                             <td className="num">{row.adult}</td>
                             <td className="num">{row.child}</td>
@@ -2642,7 +2807,7 @@ export default function AdminDashboard() {
                     <div className="admin-stats-kpi__label">{statsKpiLabel()}</div>
                     <div className="admin-stats-kpi__sub mono">
                       билетов {checkInStats.countTickets}
-                      {statsSlotId ? "" : ` · из ${checkInStats.peopleTotal} чел. за день`}
+                      {statsSlotId ? "" : ` · из ${checkInStats.peopleTotal} чел. ${statsRangeIsSingleDay ? "за день" : "за период"}`}
                     </div>
                   </div>
                 </div>
@@ -2652,8 +2817,8 @@ export default function AdminDashboard() {
                 <div className="admin-stats-by-slot">
                   <table>
                     <thead>
-                      <tr>
-                        <th>Время</th>
+                        <tr>
+                        <th>{statsRangeIsSingleDay ? "Время" : "Дата и время"}</th>
                         <th>Сеанс</th>
                         <th className="num">
                           {statsVisitFilter === "checked_in" ?
@@ -2683,7 +2848,7 @@ export default function AdminDashboard() {
                             }
                           }}
                         >
-                          <td className="mono">{row.timeKey}</td>
+                          <td className="mono">{statsWhenLabel(row.dateKey, row.timeKey, statsRangeIsSingleDay)}</td>
                           <td className="admin-stats-row-title">{truncateText(row.title, 48)}</td>
                           <td className="num">{statsCountForSlotRow(row)}</td>
                           <td className="num">{row.peopleCheckedIn}</td>
