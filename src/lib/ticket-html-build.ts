@@ -12,6 +12,7 @@ import {
   GARDENS_OF_DREAMS_SLOT_KIND,
   isEventSessionSlotKind,
   NEBO_REKA_SLOT_KIND,
+  VIVALDI_CONCERT_SLOT_KIND,
 } from "@/lib/slot-kind";
 
 export type TicketPdfInput = {
@@ -236,6 +237,7 @@ function qrRasterWidthPx(): number {
 
 export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
   const isGardens = opts.slotKind === GARDENS_OF_DREAMS_SLOT_KIND;
+  const isVivaldi = opts.slotKind === VIVALDI_CONCERT_SLOT_KIND;
   const qrPx = qrRasterWidthPx();
   const qrDataUrl = await QRCode.toDataURL(opts.qrUrl, {
     type: "image/png",
@@ -303,7 +305,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
 
   const typeDisplay = tierAndOrdinal.trim();
   const tierBlock =
-    !isGardens && typeDisplay ?
+    !isGardens && !isVivaldi && typeDisplay ?
       `<section class="field-block">
           <div class="field-label">Тип билета</div>
           <div class="field-value value-wide">${escapeHtml(typeDisplay.toUpperCase())}</div>
@@ -323,8 +325,21 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
       </section>`;
   })();
 
+  const vivaldiSeatBlock = (() => {
+    if (!isVivaldi) return "";
+    const seatLine = formatGardensSeatLabelPdf(opts.ticketTierLabel ?? "");
+    if (!seatLine) return "";
+    return `<section class="field-block">
+        <div class="field-label">Адрес места</div>
+        <div class="field-value value-wide value-when-stacked">
+          <span class="when-stacked-line">${escapeHtml(seatLine)}</span>
+          <span class="when-stacked-line when-stacked-line--price">${escapeHtml(priceStr)}</span>
+        </div>
+      </section>`;
+  })();
+
   const priceBlock =
-    isGardens || giftOpenDate ? ""
+    isGardens || isVivaldi || giftOpenDate ? ""
     : `<section class="field-block">
         <div class="field-label">Стоимость</div>
         <div class="field-value value-wide">${escapeHtml(priceStr)}</div>
@@ -336,7 +351,9 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     .filter(Boolean)
     .join(" ");
   const compactSheetClass =
-    " ticket-sheet--compact" + (isBelyeNochi ? " ticket-sheet--belye" : "");
+    " ticket-sheet--compact" +
+    (isBelyeNochi ? " ticket-sheet--belye" : "") +
+    (isVivaldi ? " ticket-sheet--vivaldi" : "");
   const bodyPageClass =
     hasBg ?
       isGardens ? "ticket-page--gardens"
@@ -361,6 +378,8 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
   const eyebrowSoftHtml =
     isGardens ?
       `<div class="eyebrow-soft">Иммерсивная танцевальная мистерия</div>`
+    : isVivaldi ?
+      `<div class="eyebrow-soft">Антонио Вивальди</div>`
     : opts.slotKind === BELYE_NOCHI_18_SLOT_KIND ?
       `<div class="eyebrow-soft">${escapeHtml("Белые ночи 18+")}</div>`
     : `<div class="eyebrow-soft">На иммерсивную медиа-выставку</div>`;
@@ -374,6 +393,9 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
         </div>`;
       }
       return `<h1 class="brand-title">${escapeHtml("Сады сновидений")}</h1>`;
+    }
+    if (isVivaldi) {
+      return `<h1 class="brand-title">${escapeHtml("Времена года")}</h1>`;
     }
     const neboRekaSvg = resolveNeboRekaTitleSvgDataUrl();
     if (neboRekaSvg) {
@@ -844,6 +866,26 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
     .sheet.ticket-sheet--belye .razman-footer {
       margin-top: 59px;
     }
+
+    /* «Времена года»: место + цена в одном блоке, поля плотнее, чтобы влезть в одну A4 */
+    .sheet.ticket-sheet--vivaldi .blocks {
+      gap: calc(2.2mm + 8px);
+      padding-top: 8px;
+    }
+    .sheet.ticket-sheet--vivaldi .blocks + .rule.star-right,
+    .sheet.ticket-sheet--vivaldi .blocks + .rule.rule--svg-end {
+      margin-top: 14px;
+    }
+    .sheet.ticket-sheet--vivaldi .venue-wrap {
+      margin: 10px 0;
+    }
+    .sheet.ticket-sheet--vivaldi .fine-print {
+      padding-top: calc(3mm + 8px);
+      padding-bottom: 0;
+    }
+    .sheet.ticket-sheet--vivaldi .razman-footer {
+      margin-top: 28px;
+    }
   </style>
 </head>
 <body class="ticket-page ${bodyPageClass}">
@@ -872,6 +914,7 @@ export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
         ${whenValueHtml}
       </section>
       ${gardensSeatBlock}
+      ${vivaldiSeatBlock}
       ${tierBlock}
       ${priceBlock}
       <section class="field-block">

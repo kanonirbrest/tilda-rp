@@ -33,6 +33,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/nightofmuseums", label: "Ночь музеев" },
       { href: "/belye-nochi-18", label: "Белые ночи 18+" },
+      { href: "/koncert-vivaldi", label: "Времена года. Антонио Вивальди", hint: "13 октября, 20:00" },
+      { href: "/koncert-vivaldi/26-10", label: "Времена года. Антонио Вивальди", hint: "26 октября, 20:00" },
     ],
   },
   {

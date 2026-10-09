@@ -7,7 +7,11 @@ import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orde
 import { resolvePromoForQuote } from "@/lib/resolve-order-promo";
 import { expireStalePendingOrdersAndReleaseSeats } from "@/lib/expire-pending-orders";
 import { prisma } from "@/lib/prisma";
-import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
+import { GARDENS_OF_DREAMS_SLOT_KIND, VIVALDI_CONCERT_SLOT_KIND } from "@/lib/slot-kind";
+import { ensureVivaldiSlots } from "@/lib/vivaldi/ensure-slots";
+import { vivaldiVolumeDiscountCents, vivaldiVolumeDiscountHint } from "@/lib/vivaldi/pricing";
+import { vivaldiDateForStartsAt, vivaldiVolumeDiscountApplies } from "@/lib/vivaldi/schedule";
+import { getVivaldiSeat } from "@/lib/vivaldi/seat-map";
 
 function formatTotal(cents: number, currency: string): string {
   const amount = cents / 100;
@@ -54,19 +58,26 @@ export async function GET(req: Request) {
   try {
     await ensureGardensSlots();
     await ensureGardensPromos();
+    await ensureVivaldiSlots();
     await expireStalePendingOrdersAndReleaseSeats();
 
     const slot = await prisma.slot.findFirst({
-      where: { id: slotId, active: true, kind: GARDENS_OF_DREAMS_SLOT_KIND },
+      where: { id: slotId, active: true },
     });
-    if (!slot) {
+    if (!slot || (slot.kind !== GARDENS_OF_DREAMS_SLOT_KIND && slot.kind !== VIVALDI_CONCERT_SLOT_KIND)) {
       return jsonPublicReadResponse(req, { error: "SLOT_NOT_FOUND", hint: "Сеанс не найден" }, 404);
     }
 
-    const variant = gardensSeatMapVariantForSlot(slot);
-    const overrides = gardensSeatSaleOverridesForSlot(slot);
-    const priceOverrides = gardensSeatPriceOverridesForSlot(slot);
-    const seats = seatKeys.map((key) => getGardensSeatWithOverrides(key, variant, overrides, priceOverrides));
+    const variant = slot.kind === GARDENS_OF_DREAMS_SLOT_KIND ? gardensSeatMapVariantForSlot(slot) : null;
+    const overrides = slot.kind === GARDENS_OF_DREAMS_SLOT_KIND ? gardensSeatSaleOverridesForSlot(slot) : null;
+    const priceOverrides =
+      slot.kind === GARDENS_OF_DREAMS_SLOT_KIND ? gardensSeatPriceOverridesForSlot(slot) : null;
+    const vivaldiDate = slot.kind === VIVALDI_CONCERT_SLOT_KIND ? vivaldiDateForStartsAt(slot.startsAt) : "";
+    const seats = seatKeys.map((key) =>
+      slot.kind === VIVALDI_CONCERT_SLOT_KIND
+        ? getVivaldiSeat(key, vivaldiDate)
+        : getGardensSeatWithOverrides(key, variant ?? "default", overrides, priceOverrides),
+    );
     if (seats.some((s) => !s?.selectable)) {
       return jsonPublicReadResponse(
         req,
@@ -76,6 +87,11 @@ export async function GET(req: Request) {
     }
 
     const subtotalCents = seats.reduce((sum, s) => sum + (s?.priceCents ?? 0), 0);
+    const volumeOn = slot.kind === VIVALDI_CONCERT_SLOT_KIND && vivaldiVolumeDiscountApplies(vivaldiDate);
+    const volumeDiscountCents = volumeOn
+      ? vivaldiVolumeDiscountCents(seats.length, subtotalCents)
+      : 0;
+    const pricedSubtotalCents = subtotalCents - volumeDiscountCents;
     const currency = slot.currency || "BYN";
 
     type PromoOk = {
@@ -89,7 +105,7 @@ export async function GET(req: Request) {
     let promo: PromoOk | PromoErr | null = null;
 
     if (promoRaw) {
-      const resolved = await resolvePromoForQuote(promoRaw, subtotalCents, slot);
+      const resolved = await resolvePromoForQuote(promoRaw, pricedSubtotalCents, slot);
       if (!resolved) {
         promo = { applied: false, error: "INVALID_PROMO", hint: "Промокод не найден" };
       } else if (!resolved.applied) {
@@ -105,12 +121,15 @@ export async function GET(req: Request) {
       }
     }
 
-    const amountCents = promo?.applied === true ? promo.amountCents : subtotalCents;
+    const amountCents = promo?.applied === true ? promo.amountCents : pricedSubtotalCents;
+    const volumeHint = volumeOn ? vivaldiVolumeDiscountHint(seats.length) : null;
 
     return jsonPublicReadResponse(
       req,
       {
         subtotalCents,
+        volumeDiscountCents,
+        ...(volumeHint ? { volumeDiscountHint: volumeHint } : {}),
         totalCents: amountCents,
         currency,
         formattedSubtotal: formatTotal(subtotalCents, currency),

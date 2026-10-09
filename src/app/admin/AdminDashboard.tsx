@@ -12,6 +12,7 @@ import {
   BELYE_NOCHI_18_SLOT_KIND,
   GARDENS_OF_DREAMS_SLOT_KIND,
   NEBO_REKA_SLOT_KIND,
+  VIVALDI_CONCERT_SLOT_KIND,
   NIGHT_OF_MUSEUMS_SLOT_KIND,
   SLOT_KIND_OPTIONS,
 } from "@/lib/slot-kind";
@@ -240,6 +241,8 @@ const ADMIN_TICKET_STOREFRONTS = [
   { href: "/buy-tickets", label: "Купить билет" },
   { href: "/nightofmuseums", label: "Ночь музеев" },
   { href: "/belye-nochi-18", label: "Белые ночи 18+" },
+  { href: "/koncert-vivaldi", label: "Времена года (13 окт)" },
+  { href: "/koncert-vivaldi/26-10", label: "Времена года (26 окт)" },
   { href: "/buy-tickets-summer", label: "Лето (Tilda)" },
   { href: "/buy-tickets-smr", label: "Лето v2" },
   { href: "/sady-snovideniy", label: "Сады сновидений (6 июл)" },
@@ -266,6 +269,7 @@ function slotSalesChannelLabel(kind: string): string {
   if (kind === NIGHT_OF_MUSEUMS_SLOT_KIND) return "Ночь музеев";
   if (kind === BELYE_NOCHI_18_SLOT_KIND) return "Белые ночи 18+";
   if (kind === GARDENS_OF_DREAMS_SLOT_KIND) return "Сады сновидений";
+  if (kind === VIVALDI_CONCERT_SLOT_KIND) return "Времена года. Антонио Вивальди";
   return kind;
 }
 
@@ -2325,6 +2329,22 @@ export default function AdminDashboard() {
               >
                 + Группа на день
               </button>
+              <a
+                href="/koncert-vivaldi"
+                className="btn btn-secondary"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Времена года (13 окт)
+              </a>
+              <a
+                href="/koncert-vivaldi/26-10"
+                className="btn btn-secondary"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Времена года (26 окт)
+              </a>
               <a
                 href="/sady-snovideniy"
                 className="btn btn-secondary"

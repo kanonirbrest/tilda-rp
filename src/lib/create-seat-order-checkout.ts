@@ -4,6 +4,7 @@ import { createPublicTicketToken } from "@/lib/ticket-token";
 import { createBepaidPayment } from "@/lib/bepaid";
 import { fulfillPaidOrder } from "@/lib/fulfill-order";
 import { applyPromoAtCheckout } from "@/lib/resolve-order-promo";
+import type { Slot } from "@prisma/client";
 import { getGardensSeatWithOverrides } from "@/lib/gardens-of-dreams/seat-map";
 import {
   ensureGardensSlots,
@@ -12,7 +13,11 @@ import {
   gardensSeatSaleOverridesForSlot,
 } from "@/lib/gardens-of-dreams/ensure-slots";
 import { ensureGardensPromos } from "@/lib/gardens-of-dreams/ensure-promo";
-import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
+import { GARDENS_OF_DREAMS_SLOT_KIND, VIVALDI_CONCERT_SLOT_KIND } from "@/lib/slot-kind";
+import { ensureVivaldiSlots } from "@/lib/vivaldi/ensure-slots";
+import { vivaldiVolumeDiscountCents } from "@/lib/vivaldi/pricing";
+import { vivaldiDateForStartsAt, vivaldiVolumeDiscountApplies } from "@/lib/vivaldi/schedule";
+import { getVivaldiSeat } from "@/lib/vivaldi/seat-map";
 import {
   expireStalePendingOrdersAndReleaseSeats,
 } from "@/lib/expire-pending-orders";
@@ -84,6 +89,35 @@ async function createSeatReservations(
   }
 }
 
+function resolveSeatsForSlot(
+  slot: Slot,
+  uniqueKeys: string[],
+): { key: string; label: string; priceCents: number }[] | null {
+  if (slot.kind === VIVALDI_CONCERT_SLOT_KIND) {
+    const date = vivaldiDateForStartsAt(slot.startsAt);
+    const seats = uniqueKeys.map((key) => {
+      const seat = getVivaldiSeat(key, date);
+      if (!seat?.selectable) return null;
+      return { key: seat.key, label: seat.label, priceCents: seat.priceCents };
+    });
+    if (seats.some((s) => s == null)) return null;
+    return seats as { key: string; label: string; priceCents: number }[];
+  }
+
+  if (slot.kind !== GARDENS_OF_DREAMS_SLOT_KIND) return null;
+
+  const seatMapVariant = gardensSeatMapVariantForSlot(slot);
+  const overrides = gardensSeatSaleOverridesForSlot(slot);
+  const priceOverrides = gardensSeatPriceOverridesForSlot(slot);
+  const seats = uniqueKeys.map((key) => {
+    const seat = getGardensSeatWithOverrides(key, seatMapVariant, overrides, priceOverrides);
+    if (!seat?.selectable) return null;
+    return { key: seat.key, label: seat.label, priceCents: seat.priceCents };
+  });
+  if (seats.some((s) => s == null)) return null;
+  return seats as { key: string; label: string; priceCents: number }[];
+}
+
 export async function createSeatOrderCheckout(
   input: CreateSeatOrderCheckoutInput,
   publicBaseUrl: string,
@@ -100,29 +134,28 @@ export async function createSeatOrderCheckout(
     await expireStalePendingOrdersAndReleaseSeats();
     await ensureGardensSlots();
     await ensureGardensPromos();
+    await ensureVivaldiSlots();
 
     const slot = await prisma.slot.findFirst({
-      where: { id: input.slotId, active: true, kind: GARDENS_OF_DREAMS_SLOT_KIND },
+      where: { id: input.slotId, active: true },
     });
-    if (!slot) {
+    if (!slot || (slot.kind !== GARDENS_OF_DREAMS_SLOT_KIND && slot.kind !== VIVALDI_CONCERT_SLOT_KIND)) {
       return { ok: false, status: 404, message: "Сеанс не найден" };
     }
 
-    const seatMapVariant = gardensSeatMapVariantForSlot(slot);
-    const overrides = gardensSeatSaleOverridesForSlot(slot);
-    const priceOverrides = gardensSeatPriceOverridesForSlot(slot);
-    const seats = uniqueKeys.map((key) => {
-      const seat = getGardensSeatWithOverrides(key, seatMapVariant, overrides, priceOverrides);
-      if (!seat?.selectable) return null;
-      return seat;
-    });
-    if (seats.some((s) => s == null)) {
+    const resolvedSeats = resolveSeatsForSlot(slot, uniqueKeys);
+    if (!resolvedSeats) {
       return { ok: false, status: 400, message: "Некорректный выбор мест" };
     }
-    const resolvedSeats = seats as NonNullable<(typeof seats)[number]>[];
     const subtotalCents = resolvedSeats.reduce((sum, s) => sum + s.priceCents, 0);
+    const volumeDiscountCents =
+      slot.kind === VIVALDI_CONCERT_SLOT_KIND &&
+      vivaldiVolumeDiscountApplies(vivaldiDateForStartsAt(slot.startsAt))
+        ? vivaldiVolumeDiscountCents(resolvedSeats.length, subtotalCents)
+        : 0;
+    const pricedSubtotalCents = subtotalCents - volumeDiscountCents;
 
-    let chargedAmountCents = subtotalCents;
+    let chargedAmountCents = pricedSubtotalCents;
 
     const orderId = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw(Prisma.sql`SELECT id FROM "Slot" WHERE id = ${slot.id} FOR UPDATE`);
@@ -140,20 +173,21 @@ export async function createSeatOrderCheckout(
       const promoApplied = rawPromo
         ? await applyPromoAtCheckout(tx, {
             promoRaw: rawPromo,
-            subtotalCents,
+            subtotalCents: pricedSubtotalCents,
             slot,
             skipPayment,
           })
         : {
             discountCents: 0,
-            amountCents: subtotalCents,
+            amountCents: pricedSubtotalCents,
             promoCodeId: null,
             clubPromoCode: null,
             clubPromoTelegramUserId: null,
           };
 
-      const { discountCents, amountCents, promoCodeId, clubPromoCode, clubPromoTelegramUserId } =
-        promoApplied;
+      const amountCents = promoApplied.amountCents;
+      const discountCents = subtotalCents - amountCents;
+      const { promoCodeId, clubPromoCode, clubPromoTelegramUserId } = promoApplied;
       chargedAmountCents = amountCents;
 
       const customer = await findOrCreateCustomerByEmail(tx, {

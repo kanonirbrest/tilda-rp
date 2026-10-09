@@ -1,0 +1,115 @@
+.vv-map-scroll {
+  overflow-x: auto;
+  padding-bottom: 8px;
+  background: #d5d5d5;
+}
+
+.vv-hall {
+  position: relative;
+  width: 100%;
+  min-width: 880px;
+  aspect-ratio: 1024 / 677;
+  background: #d5d5d5 url("/vivaldi/hall-scheme.jpg") 0 0 / 100% 100% no-repeat;
+}
+
+.vv-stage {
+  position: absolute;
+  left: 52.3%;
+  top: 27.8%;
+  width: 21.1%;
+  height: 44.9%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: #3a3a3a;
+  font-size: clamp(14px, 2.1vw, 22px);
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.vv-hot {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.vv-hot--free {
+  background: rgba(46, 168, 82, 0.62);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.vv-hot--free:hover:not(:disabled) {
+  background: rgba(46, 168, 82, 0.82);
+}
+
+.vv-hot--selected {
+  background: rgba(255, 196, 64, 0.88);
+  box-shadow: inset 0 0 0 2px #fff;
+}
+
+.vv-hot--sold {
+  background: rgba(196, 48, 48, 0.7);
+  cursor: not-allowed;
+}
+
+.vv-hot--ticketpro,
+.vv-hot--reserved {
+  background: rgba(120, 120, 120, 0.58);
+  cursor: not-allowed;
+}
+
+.vv-hot--reserved {
+  background: rgba(70, 70, 70, 0.5);
+}
+
+.vv-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: 14px 0 0;
+  font-size: 13px;
+  font-weight: 300;
+  opacity: 0.85;
+}
+
+.vv-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vv-legend i {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+}
+
+.vv-legend i.vv-swatch-free { background: rgba(46, 168, 82, 0.85); }
+.vv-legend i.vv-swatch-sold { background: rgba(196, 48, 48, 0.85); }
+.vv-legend i.vv-swatch-off { background: rgba(120, 120, 120, 0.75); }
+.vv-legend i.vv-swatch-pick { background: rgba(255, 196, 64, 0.95); }
+
+.dei-policy-consent {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 16px 0;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.4;
+}
+
+.dei-policy-consent input[type="checkbox"] {
+  margin-top: 3px;
+}
+
+.dei-policy-consent__text a {
+  color: inherit;
+}

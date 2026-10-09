@@ -13,7 +13,10 @@ import {
 } from "@/lib/gardens-of-dreams/seat-map";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
 import { expireStalePendingOrdersAndReleaseSeats } from "@/lib/expire-pending-orders";
-import { GARDENS_OF_DREAMS_SLOT_KIND } from "@/lib/slot-kind";
+import { GARDENS_OF_DREAMS_SLOT_KIND, VIVALDI_CONCERT_SLOT_KIND } from "@/lib/slot-kind";
+import { ensureVivaldiSlots, findVivaldiOccupiedSeatKeys } from "@/lib/vivaldi/ensure-slots";
+import { buildVivaldiSeatMap } from "@/lib/vivaldi/seat-map";
+import { vivaldiDateForStartsAt } from "@/lib/vivaldi/schedule";
 
 export async function OPTIONS(req: Request) {
   return new NextResponse(null, { status: 204, headers: publicReadCorsHeaders(req) });
@@ -31,13 +34,14 @@ export async function GET(req: Request) {
 
   try {
     await ensureGardensSlots();
+    await ensureVivaldiSlots();
     await expireStalePendingOrdersAndReleaseSeats();
 
     const resolved = await resolveCheckoutSlot({
       slotId: slotId || null,
       date: date || null,
       time: time || null,
-      slotKind: GARDENS_OF_DREAMS_SLOT_KIND,
+      slotKind: slotId ? null : GARDENS_OF_DREAMS_SLOT_KIND,
     });
     if (!resolved.ok) {
       const code = resolved.code;
@@ -53,6 +57,28 @@ export async function GET(req: Request) {
     }
 
     const slot = resolved.slot;
+    if (slot.kind === VIVALDI_CONCERT_SLOT_KIND) {
+      const date = vivaldiDateForStartsAt(slot.startsAt);
+      const occupied = [...(await findVivaldiOccupiedSeatKeys(slot.id, date))];
+      return jsonPublicReadResponse(
+        req,
+        {
+          slotId: slot.id,
+          title: slot.title,
+          startsAt: slot.startsAt.toISOString(),
+          currency: slot.currency,
+          seats: buildVivaldiSeatMap(date),
+          occupied,
+          prices: {
+            rowB1: 14_000,
+            row130: 13_000,
+            row120: 12_000,
+          },
+        },
+        200,
+      );
+    }
+
     if (slot.kind !== GARDENS_OF_DREAMS_SLOT_KIND) {
       return jsonPublicReadResponse(req, { error: "WRONG_SLOT_KIND" }, 400);
     }
