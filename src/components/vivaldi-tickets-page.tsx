@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PhoneCountryField } from "@/components/phone-country-field";
 import { PolicyConsentField } from "@/components/policy-consent-field";
+import { GardensSchemePanzoom } from "@/components/gardens-scheme-panzoom";
 import { VivaldiSeatMap } from "@/components/vivaldi-seat-map";
 import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
 import { DEI_POLICY_CONSENT_ERROR } from "@/lib/policy-consent";
@@ -385,22 +386,24 @@ export function VivaldiTicketsPage({
 
       {seats.length > 0 ? (
         <>
-          <div className="vv-map-scroll">
-            <VivaldiSeatMap
-              seats={seats}
-              occupied={occupied}
-              selected={selected}
-              onToggle={toggleSeat}
-              disabled={busy || session?.bookable === false}
-            />
-          </div>
-          <p className="vv-legend">
+          <p className="vv-legend" aria-label="Состояние мест">
             <span><i className="vv-swatch-free" /> Свободно</span>
             <span><i className="vv-swatch-pick" /> Выбрано</span>
             <span><i className="vv-swatch-sold" /> Занято</span>
             <span><i className="vv-swatch-off" /> Недоступно</span>
             {volumeDiscount ? <span>От 3 билетов — скидка 10%</span> : null}
           </p>
+          <div className="god-map-scroll">
+            <GardensSchemePanzoom>
+              <VivaldiSeatMap
+                seats={seats}
+                occupied={occupied}
+                selected={selected}
+                onToggle={toggleSeat}
+                disabled={busy || session?.bookable === false}
+              />
+            </GardensSchemePanzoom>
+          </div>
 
           <div className="god-checkout">
             <section className="god-panel" aria-labelledby="vv-selected-label">

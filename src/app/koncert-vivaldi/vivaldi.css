@@ -1,87 +1,18 @@
-.vv-map-scroll {
-  overflow-x: auto;
-  padding-bottom: 8px;
-  background: #d5d5d5;
-}
-
-.vv-hall {
-  position: relative;
+.vv-map {
   width: 100%;
-  min-width: 880px;
-  aspect-ratio: 1024 / 677;
-  background: #d5d5d5 url("/vivaldi/hall-scheme.jpg") 0 0 / 100% 100% no-repeat;
-}
-
-.vv-stage {
-  position: absolute;
-  left: 52.3%;
-  top: 27.8%;
-  width: 21.1%;
-  height: 44.9%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  color: #3a3a3a;
-  font-size: clamp(14px, 2.1vw, 22px);
-  font-weight: 600;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-}
-
-.vv-hot {
-  position: absolute;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 2px;
-  background: transparent;
-  cursor: pointer;
-}
-
-.vv-hot--free {
-  background: rgba(46, 168, 82, 0.62);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
-}
-
-.vv-hot--free:hover:not(:disabled) {
-  background: rgba(46, 168, 82, 0.82);
-}
-
-.vv-hot--selected {
-  background: rgba(255, 196, 64, 0.88);
-  box-shadow: inset 0 0 0 2px #fff;
-}
-
-.vv-hot--sold {
-  background: rgba(196, 48, 48, 0.7);
-  cursor: not-allowed;
-}
-
-.vv-hot--ticketpro,
-.vv-hot--reserved {
-  background: rgba(120, 120, 120, 0.58);
-  cursor: not-allowed;
-}
-
-.vv-hot--reserved {
-  background: rgba(70, 70, 70, 0.5);
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .vv-legend {
   display: flex;
   flex-wrap: wrap;
   gap: 10px 18px;
-  margin: 14px 0 0;
+  justify-content: center;
+  margin: 0 0 14px;
   font-size: 13px;
   font-weight: 300;
   opacity: 0.85;
-}
-
-.vv-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .vv-legend i {
@@ -95,6 +26,248 @@
 .vv-legend i.vv-swatch-sold { background: rgba(196, 48, 48, 0.85); }
 .vv-legend i.vv-swatch-off { background: rgba(120, 120, 120, 0.75); }
 .vv-legend i.vv-swatch-pick { background: rgba(255, 196, 64, 0.95); }
+
+.vv-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Холст 1024×677 — те же пропорции, что hall-scheme.jpg */
+.vv-map__board {
+  --vv-cell: 1.5625cqw;
+  --vv-gap: 0.0977cqw;
+  --vv-col-gap: 1.2695cqw;
+  --vv-row-gap: 1.5625cqw;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1024 / 677;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #d5d5d5;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  container-type: inline-size;
+}
+
+.vv-scallops {
+  position: absolute;
+  left: 5.5%;
+  right: 0.8%;
+  height: 2.4%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.vv-scallops--top {
+  top: 4.8%;
+  background:
+    radial-gradient(circle at 50% 0, transparent 42%, #c4c4c4 43%) 0 0 / 1.7% 100% repeat-x;
+}
+
+.vv-scallops--bottom {
+  bottom: 4.4%;
+  background:
+    radial-gradient(circle at 50% 100%, transparent 42%, #c4c4c4 43%) 0 0 / 1.7% 100% repeat-x;
+}
+
+.vv-floor {
+  position: absolute;
+  left: 31.64%;
+  top: 20.68%;
+  width: 68.16%;
+  height: 59.08%;
+  background: #aed7ee;
+  border: 1px dashed rgba(90, 140, 170, 0.35);
+  box-sizing: border-box;
+}
+
+.vv-floor__a,
+.vv-floor__b,
+.vv-floor__c {
+  position: absolute;
+  font-size: 1.7cqw;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #3d5a6e;
+  pointer-events: none;
+}
+
+.vv-floor__a {
+  top: 5%;
+  left: 16%;
+}
+
+.vv-floor__c {
+  bottom: 5%;
+  left: 16%;
+}
+
+.vv-floor__b {
+  top: 50%;
+  left: 1.6%;
+  writing-mode: vertical-rl;
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.vv-stage {
+  position: absolute;
+  left: 52.25%;
+  top: 29.25%;
+  width: 21.2%;
+  height: 42.84%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.vv-stage__body {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #d8d8d8;
+  color: #3a3a3a;
+  font-size: 2cqw;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.vv-stage__ramp {
+  position: absolute;
+  left: 100%;
+  top: 19%;
+  width: 105%;
+  height: 62%;
+  background-color: #d4d6d8;
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.72) 0,
+    rgba(255, 255, 255, 0.72) 0.55cqw,
+    transparent 0.55cqw,
+    transparent 1.35cqw
+  );
+}
+
+.vv-cluster {
+  position: absolute;
+  z-index: 2;
+}
+
+.vv-cluster--b {
+  left: 7.13%;
+  top: 16%;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--vv-col-gap);
+}
+
+.vv-b-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--vv-gap);
+}
+
+.vv-cluster--a {
+  left: 30.47%;
+  top: 10.2%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--vv-row-gap);
+}
+
+.vv-cluster--c {
+  left: 30.47%;
+  top: 83.75%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--vv-row-gap);
+}
+
+.vv-h-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--vv-gap);
+}
+
+.vv-seat {
+  flex: 0 0 var(--vv-cell);
+  width: var(--vv-cell);
+  height: var(--vv-cell);
+  min-width: var(--vv-cell);
+  min-height: var(--vv-cell);
+  max-width: var(--vv-cell);
+  max-height: var(--vv-cell);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 1px;
+  box-sizing: border-box;
+  overflow: hidden;
+  font-size: 0.85cqw;
+  font-weight: 600;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.95);
+  cursor: pointer;
+  outline: none;
+}
+
+.vv-seat:focus,
+.vv-seat:focus-visible {
+  outline: none;
+}
+
+.vv-seat--free {
+  background: rgba(46, 168, 82, 0.78);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.vv-seat--free:hover:not(:disabled) {
+  background: rgba(46, 168, 82, 0.94);
+}
+
+.vv-seat--selected {
+  background: rgba(255, 196, 64, 0.95);
+  color: #1a1a1a;
+  box-shadow: inset 0 0 0 2px #fff;
+}
+
+.vv-seat--sold {
+  background: rgba(196, 48, 48, 0.78);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: not-allowed;
+}
+
+.vv-seat--ticketpro,
+.vv-seat--reserved {
+  background: #6e6e6e;
+  color: rgba(255, 255, 255, 0.82);
+  cursor: not-allowed;
+}
+
+.vv-seat--reserved {
+  background: #5a5a5a;
+}
+
+.vv-row-badge {
+  flex: 0 0 var(--vv-cell);
+  width: var(--vv-cell);
+  height: var(--vv-cell);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #3a3a3a;
+  color: #fff;
+  font-size: 0.85cqw;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
 
 .dei-policy-consent {
   display: flex;
@@ -112,4 +285,22 @@
 
 .dei-policy-consent__text a {
   color: inherit;
+}
+
+@media (max-width: 767px) {
+  .god-scheme-panzoom:has(.vv-map) {
+    height: clamp(240px, calc(70vh - 120px), 520px);
+  }
+
+  .god-scheme-panzoom .vv-map {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .god-scheme-panzoom .vv-map__board {
+    width: 1024px;
+    min-width: 1024px;
+    height: 677px;
+    aspect-ratio: auto;
+  }
 }

@@ -23,6 +23,10 @@ function allowedDevOriginsFromEnv(): string[] {
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  /** Иначе Turbopack берёт родительский lockfile и не находит CSS-зависимости. */
+  turbopack: {
+    root: process.cwd(),
+  },
   allowedDevOrigins: allowedDevOriginsFromEnv(),
   /** В `next dev` не показывать меню в углу (Route / Bundler / Preferences). На прод не влияет. */
   devIndicators: false,

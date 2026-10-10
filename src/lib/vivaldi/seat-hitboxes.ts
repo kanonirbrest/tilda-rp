@@ -1,6 +1,50 @@
 /** Пиксели на hall-scheme.jpg 1024×677. */
 export const VIVALDI_HALL_SIZE = { width: 1024, height: 677 } as const;
 
+/** Одинаковые квадраты и шаг — без дрожания 15/16/17px с растра. */
+export const VIVALDI_SEAT_CELL = 16;
+/** 16px клетка + 1px одинаковый зазор. */
+const VIVALDI_SEAT_STEP = 17;
+const VIVALDI_B_COL_STEP = 29;
+const VIVALDI_AC_X0 = 333;
+const VIVALDI_A_Y2 = 69;
+const VIVALDI_A_Y1 = 69 + VIVALDI_SEAT_CELL + 16;
+const VIVALDI_C_Y1 = 567;
+const VIVALDI_C_Y2 = 567 + VIVALDI_SEAT_CELL + 16;
+const VIVALDI_B_X0 = 73;
+const VIVALDI_B_Y0 = 130;
+
+export function vivaldiUniformBox(
+  sector: "A" | "B" | "C",
+  row: number,
+  seat: number,
+): { x: number; y: number; w: number; h: number } {
+  const w = VIVALDI_SEAT_CELL;
+  const h = VIVALDI_SEAT_CELL;
+  if (sector === "A") {
+    return {
+      x: VIVALDI_AC_X0 + (seat - 1) * VIVALDI_SEAT_STEP,
+      y: row === 2 ? VIVALDI_A_Y2 : VIVALDI_A_Y1,
+      w,
+      h,
+    };
+  }
+  if (sector === "C") {
+    return {
+      x: VIVALDI_AC_X0 + (seat - 1) * VIVALDI_SEAT_STEP,
+      y: row === 1 ? VIVALDI_C_Y1 : VIVALDI_C_Y2,
+      w,
+      h,
+    };
+  }
+  return {
+    x: VIVALDI_B_X0 + (8 - row) * VIVALDI_B_COL_STEP,
+    y: VIVALDI_B_Y0 + (seat - 1) * VIVALDI_SEAT_STEP,
+    w,
+    h,
+  };
+}
+
 export type VivaldiHitbox = {
   key: string;
   sector: "A" | "B" | "C";

@@ -1,4 +1,4 @@
-import { VIVALDI_HITBOXES } from "@/lib/vivaldi/seat-hitboxes";
+import { VIVALDI_HITBOXES, vivaldiUniformBox } from "@/lib/vivaldi/seat-hitboxes";
 import {
   VIVALDI_PERFORMANCE,
   VIVALDI_PERFORMANCE_OCTOBER_13,
@@ -144,6 +144,7 @@ export function buildVivaldiSeatMap(date: string = VIVALDI_PERFORMANCE.date): Vi
   if (cached) return cached;
   const seats = VIVALDI_HITBOXES.map((box) => {
     const offer = vivaldiOffer(date, box.sector, box.row, box.seat);
+    const geo = vivaldiUniformBox(box.sector, box.row, box.seat);
     return {
       key: box.key,
       sector: box.sector,
@@ -153,10 +154,10 @@ export function buildVivaldiSeatMap(date: string = VIVALDI_PERFORMANCE.date): Vi
       selectable: offer.availability === "sale",
       availability: offer.availability,
       label: seatLabel(box.sector, box.row, box.seat),
-      x: box.x,
-      y: box.y,
-      w: box.w,
-      h: box.h,
+      x: geo.x,
+      y: geo.y,
+      w: geo.w,
+      h: geo.h,
     };
   });
   SEAT_MAPS.set(date, seats);
