@@ -288,8 +288,9 @@
 }
 
 @media (max-width: 767px) {
+  /* Свайп по схеме не прокручивает страницу — под ней должна оставаться видна корзина. */
   .god-scheme-panzoom:has(.vv-map) {
-    height: clamp(240px, calc(70vh - 120px), 520px);
+    height: min(calc((100vw - 24px) * 677 / 1024), 300px, 45vh);
   }
 
   .god-scheme-panzoom .vv-map {
