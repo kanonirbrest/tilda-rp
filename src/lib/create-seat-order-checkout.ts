@@ -15,6 +15,7 @@ import {
 import { ensureGardensPromos } from "@/lib/gardens-of-dreams/ensure-promo";
 import { GARDENS_OF_DREAMS_SLOT_KIND, VIVALDI_CONCERT_SLOT_KIND } from "@/lib/slot-kind";
 import { ensureVivaldiSlots } from "@/lib/vivaldi/ensure-slots";
+import { ensureVivaldiComplimentaryPromo } from "@/lib/vivaldi/ensure-promo";
 import { vivaldiVolumeDiscountCents } from "@/lib/vivaldi/pricing";
 import { vivaldiDateForStartsAt, vivaldiVolumeDiscountApplies } from "@/lib/vivaldi/schedule";
 import { getVivaldiSeat } from "@/lib/vivaldi/seat-map";
@@ -135,6 +136,7 @@ export async function createSeatOrderCheckout(
     await ensureGardensSlots();
     await ensureGardensPromos();
     await ensureVivaldiSlots();
+    await ensureVivaldiComplimentaryPromo();
 
     const slot = await prisma.slot.findFirst({
       where: { id: input.slotId, active: true },

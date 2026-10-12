@@ -9,6 +9,7 @@ import { expireStalePendingOrdersAndReleaseSeats } from "@/lib/expire-pending-or
 import { prisma } from "@/lib/prisma";
 import { GARDENS_OF_DREAMS_SLOT_KIND, VIVALDI_CONCERT_SLOT_KIND } from "@/lib/slot-kind";
 import { ensureVivaldiSlots } from "@/lib/vivaldi/ensure-slots";
+import { ensureVivaldiComplimentaryPromo } from "@/lib/vivaldi/ensure-promo";
 import { vivaldiVolumeDiscountCents, vivaldiVolumeDiscountHint } from "@/lib/vivaldi/pricing";
 import { vivaldiDateForStartsAt, vivaldiVolumeDiscountApplies } from "@/lib/vivaldi/schedule";
 import { getVivaldiSeat } from "@/lib/vivaldi/seat-map";
@@ -59,6 +60,7 @@ export async function GET(req: Request) {
     await ensureGardensSlots();
     await ensureGardensPromos();
     await ensureVivaldiSlots();
+    await ensureVivaldiComplimentaryPromo();
     await expireStalePendingOrdersAndReleaseSeats();
 
     const slot = await prisma.slot.findFirst({
