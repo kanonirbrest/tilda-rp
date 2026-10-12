@@ -550,6 +550,26 @@
   color: var(--god-muted);
 }
 
+/* globals.css задаёт input белый фон сильнее, чем .god-promo-input.
+   Плейсхолдер при этом остаётся светлым — белое на белом. */
+.god-root .god-checkout .god-panel .god-promo-input,
+.god-root .god-checkout .god-panel .god-promo-input:disabled {
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.98);
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.98);
+  caret-color: rgba(255, 255, 255, 0.98);
+  opacity: 1;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.god-root .god-checkout .god-panel .god-promo-input::placeholder,
+.god-root .god-checkout .god-panel .god-promo-input::-webkit-input-placeholder {
+  color: rgba(255, 255, 255, 0.55);
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.55);
+  opacity: 1;
+}
+
 .god-promo-apply {
   flex: 0 0 auto;
   min-height: 44px;
