@@ -24,6 +24,7 @@
 
 .vv-legend i.vv-swatch-free { background: rgba(46, 168, 82, 0.85); }
 .vv-legend i.vv-swatch-sold { background: rgba(196, 48, 48, 0.85); }
+.vv-legend i.vv-swatch-complimentary { background: #3b82c4; }
 .vv-legend i.vv-swatch-off { background: rgba(120, 120, 120, 0.75); }
 .vv-legend i.vv-swatch-pick { background: rgba(255, 196, 64, 0.95); }
 
@@ -236,21 +237,27 @@
   box-shadow: inset 0 0 0 2px #fff;
 }
 
+.vv-seat--complimentary {
+  background: #3b82c4;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  cursor: not-allowed;
+}
+
+.vv-seat--bought,
 .vv-seat--sold {
   background: rgba(196, 48, 48, 0.78);
   color: rgba(255, 255, 255, 0.7);
   cursor: not-allowed;
 }
 
+.vv-seat--unavailable,
+.vv-seat--held,
 .vv-seat--ticketpro,
 .vv-seat--reserved {
   background: #6e6e6e;
   color: rgba(255, 255, 255, 0.82);
   cursor: not-allowed;
-}
-
-.vv-seat--reserved {
-  background: #5a5a5a;
 }
 
 .vv-row-badge {

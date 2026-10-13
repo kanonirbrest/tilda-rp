@@ -110,6 +110,8 @@ model Order {
   /// NR-XXXXXXXX из Telegram-бота DEI (после POST /api/promo/redeem).
   clubPromoCode            String?
   clubPromoTelegramUserId  String?
+  /// Пригласительный из админки: билет выдан без оплаты.
+  complimentary Boolean @default(false)
   tickets      Ticket[]
   lines        OrderLine[]
   seatReservations SeatReservation[]

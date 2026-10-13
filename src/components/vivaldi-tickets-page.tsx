@@ -389,7 +389,6 @@ export function VivaldiTicketsPage({
           <p className="vv-legend" aria-label="Состояние мест">
             <span><i className="vv-swatch-free" /> Свободно</span>
             <span><i className="vv-swatch-pick" /> Выбрано</span>
-            <span><i className="vv-swatch-sold" /> Занято</span>
             <span><i className="vv-swatch-off" /> Недоступно</span>
             {volumeDiscount ? <span>От 3 билетов — скидка 10%</span> : null}
           </p>

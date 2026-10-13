@@ -138,6 +138,7 @@ export async function GET(req: Request) {
       refundedCents: o.refundedCents,
       currency: o.currency,
       promoCode: o.promoCode?.code ?? o.clubPromoCode ?? null,
+      complimentary: o.complimentary,
       clubPromoTelegramUserId: o.clubPromoTelegramUserId ?? null,
       visitState,
       visitedAt,

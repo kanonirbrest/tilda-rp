@@ -6,13 +6,18 @@ import type { VivaldiSeat } from "@/lib/vivaldi/seat-map";
 type VivaldiSeatMapProps = {
   seats: VivaldiSeat[];
   occupied: Set<string>;
+  /** Пригласительные. Покупателю эти места приходят внутри occupied. */
+  complimentary?: Set<string>;
   selected: Set<string>;
   onToggle: (key: string) => void;
   disabled?: boolean;
+  /** buy — покупателю: свободно или недоступно. staff — куплено, пригласительный, занято, свободно. */
+  mode?: "buy" | "staff";
 };
 
-type SeatState = "sold" | "ticketpro" | "reserved" | "selected" | "free";
+type SeatState = "unavailable" | "bought" | "complimentary" | "held" | "selected" | "free";
 
+const EMPTY_COMPLIMENTARY = new Set<string>();
 const B_ROWS = [8, 7, 6, 5, 4, 3, 2, 1] as const;
 const B_SEAT_COUNT = 25;
 const AC_SEAT_COUNT = 15;
@@ -20,19 +25,35 @@ const AC_SEAT_COUNT = 15;
 function seatState(
   seat: VivaldiSeat,
   occupied: Set<string>,
+  complimentary: Set<string>,
   selected: Set<string>,
+  mode: "buy" | "staff",
 ): SeatState {
-  if (occupied.has(seat.key)) return "sold";
-  if (seat.availability === "ticketpro") return "ticketpro";
-  if (seat.availability === "reserved" || !seat.selectable) return "reserved";
+  const blocked =
+    occupied.has(seat.key) ||
+    complimentary.has(seat.key) ||
+    seat.availability !== "sale" ||
+    !seat.selectable;
+  if (mode === "buy") {
+    if (blocked) return "unavailable";
+    if (selected.has(seat.key)) return "selected";
+    return "free";
+  }
+  if (complimentary.has(seat.key)) return "complimentary";
+  if (occupied.has(seat.key)) return "bought";
+  if (seat.availability !== "sale" || !seat.selectable) return "held";
   if (selected.has(seat.key)) return "selected";
   return "free";
 }
 
-function seatTitle(seat: VivaldiSeat, state: SeatState): string {
-  if (state === "sold") return `${seat.label} — занято`;
-  if (state === "ticketpro") return `${seat.label} — недоступно`;
-  if (state === "reserved") return `${seat.label} — не в продаже`;
+function seatTitle(seat: VivaldiSeat, state: SeatState, mode: "buy" | "staff"): string {
+  if (state === "unavailable") return `${seat.label} — недоступно`;
+  if (state === "bought") return `${seat.label} — куплено`;
+  if (state === "complimentary") return `${seat.label} — пригласительный`;
+  if (state === "held") return `${seat.label} — занято`;
+  if (state === "free" && mode === "staff") {
+    return `${seat.label} — свободно, нажмите, чтобы выдать пригласительный`;
+  }
   return `${seat.label} — ${seat.priceCents / 100} BYN`;
 }
 
@@ -43,18 +64,26 @@ function RowBadge({ n }: { n: number }) {
 function SeatButton({
   seat,
   occupied,
+  complimentary,
   selected,
   onToggle,
   disabled,
+  mode,
 }: {
   seat: VivaldiSeat;
   occupied: Set<string>;
+  complimentary: Set<string>;
   selected: Set<string>;
   onToggle: (key: string) => void;
   disabled?: boolean;
+  mode: "buy" | "staff";
 }) {
-  const state = seatState(seat, occupied, selected);
-  const clickDisabled = Boolean(disabled || occupied.has(seat.key) || !seat.selectable);
+  const state = seatState(seat, occupied, complimentary, selected, mode);
+  const staffClickable = state === "free";
+  const clickDisabled = Boolean(
+    disabled ||
+      (mode === "staff" ? !staffClickable : occupied.has(seat.key) || complimentary.has(seat.key) || !seat.selectable),
+  );
 
   return (
     <button
@@ -63,7 +92,7 @@ function SeatButton({
       aria-label={seat.label}
       aria-pressed={state === "selected"}
       disabled={clickDisabled}
-      title={seatTitle(seat, state)}
+      title={seatTitle(seat, state, mode)}
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => onToggle(seat.key)}
     >
@@ -75,17 +104,21 @@ function SeatButton({
 function HorizontalRow({
   byKey,
   occupied,
+  complimentary,
   selected,
   onToggle,
   disabled,
+  mode,
   sector,
   row,
 }: {
   byKey: Map<string, VivaldiSeat>;
   occupied: Set<string>;
+  complimentary: Set<string>;
   selected: Set<string>;
   onToggle: (key: string) => void;
   disabled?: boolean;
+  mode: "buy" | "staff";
   sector: "A" | "C";
   row: number;
 }) {
@@ -100,9 +133,11 @@ function HorizontalRow({
             key={seat.key}
             seat={seat}
             occupied={occupied}
+            complimentary={complimentary}
             selected={selected}
             onToggle={onToggle}
             disabled={disabled}
+            mode={mode}
           />
         );
       })}
@@ -113,9 +148,11 @@ function HorizontalRow({
 export function VivaldiSeatMap({
   seats,
   occupied,
+  complimentary = EMPTY_COMPLIMENTARY,
   selected,
   onToggle,
   disabled,
+  mode = "buy",
 }: VivaldiSeatMapProps) {
   const byKey = useMemo(() => new Map(seats.map((seat) => [seat.key, seat])), [seats]);
 
@@ -146,9 +183,11 @@ export function VivaldiSeatMap({
                     key={seat.key}
                     seat={seat}
                     occupied={occupied}
+                    complimentary={complimentary}
                     selected={selected}
                     onToggle={onToggle}
                     disabled={disabled}
+                    mode={mode}
                   />
                 );
               })}
@@ -160,18 +199,22 @@ export function VivaldiSeatMap({
           <HorizontalRow
             byKey={byKey}
             occupied={occupied}
+            complimentary={complimentary}
             selected={selected}
             onToggle={onToggle}
             disabled={disabled}
+            mode={mode}
             sector="A"
             row={2}
           />
           <HorizontalRow
             byKey={byKey}
             occupied={occupied}
+            complimentary={complimentary}
             selected={selected}
             onToggle={onToggle}
             disabled={disabled}
+            mode={mode}
             sector="A"
             row={1}
           />
@@ -181,18 +224,22 @@ export function VivaldiSeatMap({
           <HorizontalRow
             byKey={byKey}
             occupied={occupied}
+            complimentary={complimentary}
             selected={selected}
             onToggle={onToggle}
             disabled={disabled}
+            mode={mode}
             sector="C"
             row={1}
           />
           <HorizontalRow
             byKey={byKey}
             occupied={occupied}
+            complimentary={complimentary}
             selected={selected}
             onToggle={onToggle}
             disabled={disabled}
+            mode={mode}
             sector="C"
             row={2}
           />

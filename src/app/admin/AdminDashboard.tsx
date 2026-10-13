@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GardensSeatSalesEditor } from "@/components/gardens-seat-sales-editor";
+import { VivaldiSeatStaff } from "@/components/vivaldi-seat-staff";
 import {
   formatMinorUnits,
   minorToMajorNumber,
@@ -61,6 +62,7 @@ type OrderRow = {
   refundedCents: number;
   currency: string;
   promoCode: string | null;
+  complimentary?: boolean;
   visitState: OrderVisitState;
   visitedAt: string | null;
   tickets: {
@@ -282,6 +284,7 @@ type AdminModal =
   | { type: "slot-bulk" }
   | { type: "slot-edit"; slot: SlotRow }
   | { type: "gardens-seat-sales"; slot: SlotRow }
+  | { type: "vivaldi-seats"; slot: SlotRow }
   | { type: "promo-new" }
   | { type: "promo-edit"; promo: PromoRow };
 
@@ -1007,6 +1010,12 @@ function OrderModalBody({
             <span className="mono">−{formatMinorUnits(o.discountCents, o.currency)}</span>
           </div>
         </>
+      ) : null}
+      {o.complimentary ? (
+        <div className="admin-detail__row">
+          <span className="admin-detail__k">Тип</span>
+          <span>Пригласительный</span>
+        </div>
       ) : null}
       {o.promoCode ? (
         <div className="admin-detail__row">
@@ -2202,6 +2211,7 @@ export default function AdminDashboard() {
                       <span className="mono admin-order-row__time">{createdShort}</span>
                       <div className="admin-order-row__pills">
                         <span className={`pill ${pillClass}`}>{o.status}</span>
+                        {o.complimentary ? <span className="pill pending">Пригласительный</span> : null}
                         {visitPill ? <span className={`pill ${visitPill.cls}`}>{visitPill.label}</span> : null}
                       </div>
                     </div>
@@ -3541,6 +3551,22 @@ export default function AdminDashboard() {
                     </p>
                   </div>
                 ) : null}
+                {s.kind === VIVALDI_CONCERT_SLOT_KIND ? (
+                  <div className="admin-field admin-field--full" style={{ marginTop: "0.5rem" }}>
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      style={{ width: "100%" }}
+                      onClick={() => setModal({ type: "vivaldi-seats", slot: s })}
+                    >
+                      Схема зала — куплено, пригласительные, занято
+                    </button>
+                    <p className="admin-hint admin-hint--tight" style={{ marginTop: "0.35rem" }}>
+                      Выдать пригласительный: билет уходит на почту без оплаты, место снимается с продажи.
+                      Покупатель видит только свободно и недоступно.
+                    </p>
+                  </div>
+                ) : null}
                 <div className="admin-modal-actions admin-modal-actions--split">
                   <button
                     type="button"
@@ -3562,6 +3588,20 @@ export default function AdminDashboard() {
               </form>
             );
           })()}
+        </AdminModalFrame>
+      ) : null}
+
+      {modal.type === "vivaldi-seats" ? (
+        <AdminModalFrame
+          size="wide"
+          title="Времена года — схема зала"
+          onClose={() => setModal({ type: "none" })}
+        >
+          <VivaldiSeatStaff
+            slotId={modal.slot.id}
+            slotTitle={modal.slot.title}
+            onClose={() => setModal({ type: "none" })}
+          />
         </AdminModalFrame>
       ) : null}
 
