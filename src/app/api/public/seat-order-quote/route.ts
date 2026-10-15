@@ -8,11 +8,11 @@ import { resolvePromoForQuote } from "@/lib/resolve-order-promo";
 import { expireStalePendingOrdersAndReleaseSeats } from "@/lib/expire-pending-orders";
 import { prisma } from "@/lib/prisma";
 import { GARDENS_OF_DREAMS_SLOT_KIND, VIVALDI_CONCERT_SLOT_KIND } from "@/lib/slot-kind";
-import { ensureVivaldiSlots } from "@/lib/vivaldi/ensure-slots";
+import { ensureVivaldiSlots, vivaldiSeatSaleOverridesForSlot } from "@/lib/vivaldi/ensure-slots";
 import { ensureVivaldiComplimentaryPromo } from "@/lib/vivaldi/ensure-promo";
 import { vivaldiVolumeDiscountCents, vivaldiVolumeDiscountHint } from "@/lib/vivaldi/pricing";
 import { vivaldiDateForStartsAt, vivaldiVolumeDiscountApplies } from "@/lib/vivaldi/schedule";
-import { getVivaldiSeat } from "@/lib/vivaldi/seat-map";
+import { getVivaldiSeatWithOverrides } from "@/lib/vivaldi/seat-map";
 
 function formatTotal(cents: number, currency: string): string {
   const amount = cents / 100;
@@ -75,9 +75,10 @@ export async function GET(req: Request) {
     const priceOverrides =
       slot.kind === GARDENS_OF_DREAMS_SLOT_KIND ? gardensSeatPriceOverridesForSlot(slot) : null;
     const vivaldiDate = slot.kind === VIVALDI_CONCERT_SLOT_KIND ? vivaldiDateForStartsAt(slot.startsAt) : "";
+    const vivaldiOverrides = slot.kind === VIVALDI_CONCERT_SLOT_KIND ? vivaldiSeatSaleOverridesForSlot(slot) : null;
     const seats = seatKeys.map((key) =>
       slot.kind === VIVALDI_CONCERT_SLOT_KIND
-        ? getVivaldiSeat(key, vivaldiDate)
+        ? getVivaldiSeatWithOverrides(key, vivaldiDate, vivaldiOverrides)
         : getGardensSeatWithOverrides(key, variant ?? "default", overrides, priceOverrides),
     );
     if (seats.some((s) => !s?.selectable)) {

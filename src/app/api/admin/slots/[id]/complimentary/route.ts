@@ -3,28 +3,30 @@ import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
 import { prisma } from "@/lib/prisma";
 import { SeatUnavailableError } from "@/lib/seat-checkout-errors";
 import { VIVALDI_CONCERT_SLOT_KIND } from "@/lib/slot-kind";
-import { findVivaldiOccupiedSeatKeys } from "@/lib/vivaldi/ensure-slots";
+import { findVivaldiOccupiedSeatKeys, vivaldiSeatSaleOverridesForSlot } from "@/lib/vivaldi/ensure-slots";
 import {
   findVivaldiComplimentarySeatKeys,
   issueVivaldiComplimentarySeat,
 } from "@/lib/vivaldi/issue-complimentary";
-import { buildVivaldiSeatMap } from "@/lib/vivaldi/seat-map";
+import { buildVivaldiSeatMapWithOverrides } from "@/lib/vivaldi/seat-map";
 import { vivaldiDateForStartsAt } from "@/lib/vivaldi/schedule";
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
 }
 
-async function loadMap(slotId: string, startsAt: Date) {
-  const date = vivaldiDateForStartsAt(startsAt);
+async function loadMap(slot: { id: string; startsAt: Date; seatSaleOverrides: import("@prisma/client").Prisma.JsonValue | null }) {
+  const date = vivaldiDateForStartsAt(slot.startsAt);
+  const overrides = vivaldiSeatSaleOverridesForSlot(slot);
   const [occupied, complimentary] = await Promise.all([
-    findVivaldiOccupiedSeatKeys(slotId, date),
-    findVivaldiComplimentarySeatKeys(slotId),
+    findVivaldiOccupiedSeatKeys(slot.id),
+    findVivaldiComplimentarySeatKeys(slot.id),
   ]);
   return {
-    seats: buildVivaldiSeatMap(date),
+    seats: buildVivaldiSeatMapWithOverrides(date, overrides),
     occupied,
     complimentary,
+    overrides,
   };
 }
 
@@ -45,7 +47,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     );
   }
 
-  const map = await loadMap(slot.id, slot.startsAt);
+  const map = await loadMap(slot);
   return jsonWithCors(req, { slotId: slot.id, title: slot.title, ...map });
 }
 
@@ -94,7 +96,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   try {
     const issued = await issueVivaldiComplimentarySeat(slot.id, parsed.data.seatKey, parsed.data);
-    const map = await loadMap(slot.id, slot.startsAt);
+    const map = await loadMap(slot);
     return jsonWithCors(req, {
       slotId: slot.id,
       title: slot.title,

@@ -284,7 +284,7 @@ type AdminModal =
   | { type: "slot-bulk" }
   | { type: "slot-edit"; slot: SlotRow }
   | { type: "gardens-seat-sales"; slot: SlotRow }
-  | { type: "vivaldi-seats"; slot: SlotRow }
+  | { type: "vivaldi-seats"; slot: SlotRow; mode: "invite" | "sale" }
   | { type: "promo-new" }
   | { type: "promo-edit"; promo: PromoRow };
 
@@ -1161,7 +1161,7 @@ export default function AdminDashboard() {
     [showInactive],
   );
 
-  function openVivaldiInvites(dateKey: string) {
+  function openVivaldiHall(dateKey: string, mode: "invite" | "sale") {
     const slot = slotsData?.slots.find(
       (item) => item.kind === VIVALDI_CONCERT_SLOT_KIND && item.dateKey === dateKey,
     );
@@ -1170,7 +1170,7 @@ export default function AdminDashboard() {
       return;
     }
     setErrMsg("");
-    setModal({ type: "vivaldi-seats", slot });
+    setModal({ type: "vivaldi-seats", slot, mode });
   }
 
   const loadOrders = useCallback(async () => {
@@ -2351,10 +2351,16 @@ export default function AdminDashboard() {
               >
                 + Группа на день
               </button>
-              <button type="button" className="btn" onClick={() => openVivaldiInvites("2026-10-13")}>
+              <button type="button" className="btn" onClick={() => openVivaldiHall("2026-10-13", "sale")}>
+                Открыть места · 13 окт
+              </button>
+              <button type="button" className="btn" onClick={() => openVivaldiHall("2026-10-26", "sale")}>
+                Открыть места · 26 окт
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => openVivaldiHall("2026-10-13", "invite")}>
                 Пригласительные · 13 окт
               </button>
-              <button type="button" className="btn" onClick={() => openVivaldiInvites("2026-10-26")}>
+              <button type="button" className="btn btn-secondary" onClick={() => openVivaldiHall("2026-10-26", "invite")}>
                 Пригласительные · 26 окт
               </button>
               <a
@@ -3461,9 +3467,17 @@ export default function AdminDashboard() {
                       type="button"
                       className="btn btn-success"
                       style={{ width: "100%" }}
-                      onClick={() => setModal({ type: "vivaldi-seats", slot: s })}
+                      onClick={() => setModal({ type: "vivaldi-seats", slot: s, mode: "invite" })}
                     >
                       Выдать пригласительный
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ width: "100%", marginTop: "0.5rem" }}
+                      onClick={() => setModal({ type: "vivaldi-seats", slot: s, mode: "sale" })}
+                    >
+                      Открыть или закрыть места
                     </button>
                     <p className="admin-hint admin-hint--tight" style={{ marginTop: "0.35rem" }}>
                       Открывает схему зала. Билет можно сохранить на компьютер или отправить на почту. Оплаты нет, место снимается с продажи.
@@ -3617,6 +3631,7 @@ export default function AdminDashboard() {
           <VivaldiSeatStaff
             slotId={modal.slot.id}
             slotTitle={modal.slot.title}
+            initialMode={modal.mode}
             onClose={() => setModal({ type: "none" })}
           />
         </AdminModalFrame>

@@ -9,10 +9,14 @@ import { prisma } from "@/lib/prisma";
 import { seatReservationStillHoldsSeat } from "@/lib/seat-reservation-lock";
 import { VIVALDI_CONCERT_SLOT_KIND } from "@/lib/slot-kind";
 import {
-  countVivaldiSelectableSeats,
-  getSelectableVivaldiSeats,
+  countVivaldiSelectableSeatsWithOverrides,
+  getVivaldiSeatWithOverrides,
   VIVALDI_PRICE_CENTS,
 } from "@/lib/vivaldi/seat-map";
+import {
+  parseVivaldiSeatSaleOverrides,
+  type VivaldiSeatSaleOverrides,
+} from "@/lib/vivaldi/seat-sale-overrides";
 import {
   formatVivaldiPerformanceTitle,
   VIVALDI_PERFORMANCE,
@@ -23,6 +27,12 @@ import {
 } from "@/lib/vivaldi/schedule";
 
 const MATCH_WINDOW_MS = 90_000;
+
+export function vivaldiSeatSaleOverridesForSlot(
+  slot: Pick<Slot, "seatSaleOverrides">,
+): VivaldiSeatSaleOverrides {
+  return parseVivaldiSeatSaleOverrides(slot.seatSaleOverrides);
+}
 
 async function findVivaldiSlotByStartsAt(startsAt: Date): Promise<Slot | null> {
   const t = startsAt.getTime();
@@ -50,8 +60,11 @@ async function ensureVivaldiPerformance(entry: VivaldiPerformance): Promise<Slot
   if (!startsAt) return null;
 
   const title = formatVivaldiPerformanceTitle(entry);
-  const capacity = countVivaldiSelectableSeats(entry.date);
   const existing = await findVivaldiSlotByStartsAt(startsAt);
+  const capacity = countVivaldiSelectableSeatsWithOverrides(
+    entry.date,
+    existing ? vivaldiSeatSaleOverridesForSlot(existing) : null,
+  );
   if (existing) {
     if (
       existing.title !== title ||
@@ -103,7 +116,7 @@ export async function ensureVivaldiSlot(
   return slots.find((slot) => vivaldiDateForStartsAt(slot.startsAt) === entry.date) ?? null;
 }
 
-export async function findVivaldiOccupiedSeatKeys(slotId: string, date: string): Promise<string[]> {
+export async function findVivaldiOccupiedSeatKeys(slotId: string): Promise<string[]> {
   const rows = await prisma.seatReservation.findMany({
     where: {
       slotId,
@@ -118,11 +131,7 @@ export async function findVivaldiOccupiedSeatKeys(slotId: string, date: string):
       },
     },
   });
-  const selectable = new Set(getSelectableVivaldiSeats(date).map((s) => s.key));
-  return rows
-    .filter(seatReservationStillHoldsSeat)
-    .map((r) => r.seatKey)
-    .filter((k) => selectable.has(k));
+  return rows.filter(seatReservationStillHoldsSeat).map((row) => row.seatKey);
 }
 
 export type VivaldiSessionPublic = {
@@ -143,8 +152,12 @@ export async function getVivaldiSessionPublic(date: string = VIVALDI_PERFORMANCE
   const slot = entry ? await ensureVivaldiSlot(entry.date) : null;
   if (!slot || !entry) return { timezone: tz, session: null };
 
-  const occupied = await findVivaldiOccupiedSeatKeys(slot.id, entry.date);
-  const freeSeats = Math.max(0, countVivaldiSelectableSeats(entry.date) - occupied.length);
+  const overrides = vivaldiSeatSaleOverridesForSlot(slot);
+  const occupied = await findVivaldiOccupiedSeatKeys(slot.id);
+  const taken = occupied.filter(
+    (key) => getVivaldiSeatWithOverrides(key, entry.date, overrides)?.selectable,
+  ).length;
+  const freeSeats = Math.max(0, countVivaldiSelectableSeatsWithOverrides(entry.date, overrides) - taken);
   return {
     timezone: tz,
     session: {

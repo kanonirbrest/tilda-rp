@@ -14,11 +14,11 @@ import {
 } from "@/lib/gardens-of-dreams/ensure-slots";
 import { ensureGardensPromos } from "@/lib/gardens-of-dreams/ensure-promo";
 import { GARDENS_OF_DREAMS_SLOT_KIND, VIVALDI_CONCERT_SLOT_KIND } from "@/lib/slot-kind";
-import { ensureVivaldiSlots } from "@/lib/vivaldi/ensure-slots";
+import { ensureVivaldiSlots, vivaldiSeatSaleOverridesForSlot } from "@/lib/vivaldi/ensure-slots";
 import { ensureVivaldiComplimentaryPromo } from "@/lib/vivaldi/ensure-promo";
 import { vivaldiVolumeDiscountCents } from "@/lib/vivaldi/pricing";
 import { vivaldiDateForStartsAt, vivaldiVolumeDiscountApplies } from "@/lib/vivaldi/schedule";
-import { getVivaldiSeat } from "@/lib/vivaldi/seat-map";
+import { getVivaldiSeatWithOverrides } from "@/lib/vivaldi/seat-map";
 import {
   expireStalePendingOrdersAndReleaseSeats,
 } from "@/lib/expire-pending-orders";
@@ -96,8 +96,9 @@ function resolveSeatsForSlot(
 ): { key: string; label: string; priceCents: number }[] | null {
   if (slot.kind === VIVALDI_CONCERT_SLOT_KIND) {
     const date = vivaldiDateForStartsAt(slot.startsAt);
+    const saleOverrides = vivaldiSeatSaleOverridesForSlot(slot);
     const seats = uniqueKeys.map((key) => {
-      const seat = getVivaldiSeat(key, date);
+      const seat = getVivaldiSeatWithOverrides(key, date, saleOverrides);
       if (!seat?.selectable) return null;
       return { key: seat.key, label: seat.label, priceCents: seat.priceCents };
     });

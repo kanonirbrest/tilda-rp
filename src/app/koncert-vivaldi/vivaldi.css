@@ -260,6 +260,10 @@
   cursor: not-allowed;
 }
 
+.vv-seat--held:not(:disabled) {
+  cursor: pointer;
+}
+
 .vv-row-badge {
   flex: 0 0 var(--vv-cell);
   width: var(--vv-cell);

@@ -9,7 +9,8 @@ import {
 } from "@/lib/seat-reservation-lock";
 import { createPublicTicketToken } from "@/lib/ticket-token";
 import { VIVALDI_CONCERT_SLOT_KIND } from "@/lib/slot-kind";
-import { getVivaldiSeat } from "@/lib/vivaldi/seat-map";
+import { getVivaldiSeatWithOverrides } from "@/lib/vivaldi/seat-map";
+import { vivaldiSeatSaleOverridesForSlot } from "@/lib/vivaldi/ensure-slots";
 import { vivaldiDateForStartsAt } from "@/lib/vivaldi/schedule";
 
 export type ComplimentaryContact = {
@@ -54,7 +55,7 @@ export async function issueVivaldiComplimentarySeat(
   }
 
   const date = vivaldiDateForStartsAt(slot.startsAt);
-  const seat = getVivaldiSeat(seatKey, date);
+  const seat = getVivaldiSeatWithOverrides(seatKey, date, vivaldiSeatSaleOverridesForSlot(slot));
   if (!seat?.selectable) {
     throw new Error("Это место нельзя выдать");
   }

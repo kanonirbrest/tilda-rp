@@ -12,15 +12,19 @@ type SeatStaffResponse = {
   seats: VivaldiSeat[];
   occupied: string[];
   complimentary: string[];
+  overrides?: Record<string, boolean>;
   message?: string;
   error?: string;
   issued?: { orderId: string; seatLabel: string; publicToken: string };
 };
 
+type HallMode = "invite" | "sale";
+
 type VivaldiSeatStaffProps = {
   slotId: string;
   slotTitle: string;
   onClose: () => void;
+  initialMode?: HallMode;
 };
 
 async function adminJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -50,9 +54,15 @@ async function adminJson<T>(path: string, init?: RequestInit): Promise<T> {
   return json as T;
 }
 
-export function VivaldiSeatStaff({ slotId, slotTitle, onClose }: VivaldiSeatStaffProps) {
+export function VivaldiSeatStaff({
+  slotId,
+  slotTitle,
+  onClose,
+  initialMode = "invite",
+}: VivaldiSeatStaffProps) {
+  const [hallMode, setHallMode] = useState<HallMode>(initialMode);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"email" | "download" | null>(null);
+  const [busy, setBusy] = useState<"email" | "download" | "sale" | null>(null);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [title, setTitle] = useState(slotTitle);
@@ -63,16 +73,18 @@ export function VivaldiSeatStaff({ slotId, slotTitle, onClose }: VivaldiSeatStaf
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [overrideCount, setOverrideCount] = useState(0);
 
   const apply = useCallback((body: SeatStaffResponse) => {
     setTitle(body.title || slotTitle);
     setSeats(body.seats);
     setOccupiedKeys(body.occupied);
     setComplimentaryKeys(body.complimentary);
+    setOverrideCount(Object.keys(body.overrides ?? {}).length);
   }, [slotTitle]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     setError("");
     try {
       const body = await adminJson<SeatStaffResponse>(
@@ -81,6 +93,7 @@ export function VivaldiSeatStaff({ slotId, slotTitle, onClose }: VivaldiSeatStaf
       apply(body);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось загрузить схему");
+      if (options?.silent) throw e;
     } finally {
       setLoading(false);
     }
@@ -106,7 +119,52 @@ export function VivaldiSeatStaff({ slotId, slotTitle, onClose }: VivaldiSeatStaf
     return { bought, invited, held, free };
   }, [complimentary, occupied, seats]);
 
+  async function toggleSale(key: string) {
+    if (busy || occupied.has(key) || complimentary.has(key)) return;
+    const seat = seats.find((item) => item.key === key);
+    if (!seat) return;
+    const onSale = !(seat.selectable && seat.availability === "sale");
+    setBusy("sale");
+    setError("");
+    setInfo("");
+    try {
+      await adminJson(
+        `/api/admin/slots/${encodeURIComponent(slotId)}/vivaldi-sale`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ toggles: [{ seatKey: key, onSale }] }),
+        },
+      );
+      await load({ silent: true });
+      setInfo(onSale ? `Открыто в продажу: ${seat.label}` : `Снято с продажи: ${seat.label}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось изменить место");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function resetSales() {
+    if (!window.confirm("Сбросить ручные открытия и закрытия? Останется схема из кода.")) return;
+    setBusy("sale");
+    setError("");
+    setInfo("");
+    try {
+      await adminJson(`/api/admin/slots/${encodeURIComponent(slotId)}/vivaldi-sale`, { method: "DELETE" });
+      await load({ silent: true });
+      setInfo("Ручные изменения сброшены.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось сбросить");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function pickSeat(key: string) {
+    if (hallMode === "sale") {
+      void toggleSale(key);
+      return;
+    }
     if (busy || occupied.has(key) || complimentary.has(key)) return;
     const seat = seats.find((item) => item.key === key);
     if (!seat?.selectable) return;
@@ -181,9 +239,42 @@ export function VivaldiSeatStaff({ slotId, slotTitle, onClose }: VivaldiSeatStaf
   return (
     <div className="god-root admin-gardens-seat-sales">
       <p className="admin-hint admin-hint--tight">{title}</p>
+      <div className="admin-modal-actions">
+        <button
+          type="button"
+          className={hallMode === "sale" ? "btn" : "btn btn-secondary"}
+          onClick={() => {
+            setHallMode("sale");
+            setPicked(null);
+          }}
+        >
+          Открыть места
+        </button>
+        <button
+          type="button"
+          className={hallMode === "invite" ? "btn" : "btn btn-secondary"}
+          onClick={() => {
+            setHallMode("invite");
+            setPicked(null);
+          }}
+        >
+          Пригласительный
+        </button>
+        {hallMode === "sale" ? (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy !== null || overrideCount === 0}
+            onClick={() => void resetSales()}
+          >
+            Сбросить ручные
+          </button>
+        ) : null}
+      </div>
       <p className="admin-hint">
-        Клик по свободному месту выдаёт пригласительный без оплаты, место снимается с продажи.
-        «Сохранить на компьютер» скачивает PDF, письмо не отправляется. Синие места уже выданы.
+        {hallMode === "sale" ?
+          "Серое место — открыть продажу. Зелёное свободное — закрыть. Купленные и синие пригласительные не меняются."
+        : "Клик по свободному месту выдаёт пригласительный без оплаты. «Сохранить на компьютер» скачивает PDF без письма."}
       </p>
       {loading ? <p className="admin-hint">Загрузка схемы…</p> : null}
       {error ? <p className="admin-hint" style={{ color: "#f87171" }}>{error}</p> : null}
@@ -245,7 +336,7 @@ export function VivaldiSeatStaff({ slotId, slotTitle, onClose }: VivaldiSeatStaf
                 selected={picked ? new Set([picked.key]) : new Set()}
                 onToggle={pickSeat}
                 disabled={busy !== null}
-                mode="staff"
+                mode={hallMode === "sale" ? "sale" : "staff"}
               />
             </GardensSchemePanzoom>
           </div>

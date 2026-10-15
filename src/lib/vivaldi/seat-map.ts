@@ -168,6 +168,60 @@ export function getVivaldiSeat(key: string, date: string = VIVALDI_PERFORMANCE.d
   return buildVivaldiSeatMap(date).find((seat) => seat.key === key);
 }
 
+/** Цена места, если админ открывает его в продажу. У рядов без своей цены берётся цена другого показа. */
+function priceWhenAdminOpens(seat: VivaldiSeat, date: string): number | null {
+  if (seat.priceCents > 0) return seat.priceCents;
+  const otherDate =
+    date === VIVALDI_PERFORMANCE_OCTOBER_13.date
+      ? VIVALDI_PERFORMANCE_OCTOBER_26.date
+      : VIVALDI_PERFORMANCE_OCTOBER_13.date;
+  const other = vivaldiOffer(otherDate, seat.sector, seat.row, seat.seat);
+  return other.priceCents > 0 ? other.priceCents : null;
+}
+
+/** true — открыть закрытое место, false — снять свободное с продажи. */
+export function applyVivaldiSeatSaleOverrides(
+  seats: VivaldiSeat[],
+  overrides: Record<string, boolean> | null | undefined,
+  date: string,
+): VivaldiSeat[] {
+  if (!overrides || Object.keys(overrides).length === 0) return seats;
+  return seats.map((seat) => {
+    const override = overrides[seat.key];
+    if (override === undefined) return seat;
+    if (override === true) {
+      if (seat.selectable) return seat;
+      const priceCents = priceWhenAdminOpens(seat, date);
+      if (priceCents == null) return seat;
+      return { ...seat, selectable: true, availability: "sale", priceCents };
+    }
+    if (!seat.selectable) return seat;
+    return { ...seat, selectable: false, availability: "reserved" };
+  });
+}
+
+export function buildVivaldiSeatMapWithOverrides(
+  date: string,
+  overrides?: Record<string, boolean> | null,
+): VivaldiSeat[] {
+  return applyVivaldiSeatSaleOverrides(buildVivaldiSeatMap(date), overrides, date);
+}
+
+export function getVivaldiSeatWithOverrides(
+  key: string,
+  date: string,
+  overrides?: Record<string, boolean> | null,
+): VivaldiSeat | undefined {
+  return buildVivaldiSeatMapWithOverrides(date, overrides).find((seat) => seat.key === key);
+}
+
+export function countVivaldiSelectableSeatsWithOverrides(
+  date: string,
+  overrides?: Record<string, boolean> | null,
+): number {
+  return buildVivaldiSeatMapWithOverrides(date, overrides).filter((seat) => seat.selectable).length;
+}
+
 export function getSelectableVivaldiSeats(date: string = VIVALDI_PERFORMANCE.date): VivaldiSeat[] {
   return buildVivaldiSeatMap(date).filter((s) => s.selectable);
 }

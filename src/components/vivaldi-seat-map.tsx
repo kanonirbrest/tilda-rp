@@ -11,9 +11,11 @@ type VivaldiSeatMapProps = {
   selected: Set<string>;
   onToggle: (key: string) => void;
   disabled?: boolean;
-  /** buy — покупателю: свободно или недоступно. staff — куплено, пригласительный, занято, свободно. */
-  mode?: "buy" | "staff";
+  /** buy — покупатель. staff — выдача билета. sale — открыть или закрыть место. */
+  mode?: "buy" | "staff" | "sale";
 };
+
+type SeatMapMode = "buy" | "staff" | "sale";
 
 type SeatState = "unavailable" | "bought" | "complimentary" | "held" | "selected" | "free";
 
@@ -27,7 +29,7 @@ function seatState(
   occupied: Set<string>,
   complimentary: Set<string>,
   selected: Set<string>,
-  mode: "buy" | "staff",
+  mode: SeatMapMode,
 ): SeatState {
   const blocked =
     occupied.has(seat.key) ||
@@ -46,11 +48,17 @@ function seatState(
   return "free";
 }
 
-function seatTitle(seat: VivaldiSeat, state: SeatState, mode: "buy" | "staff"): string {
+function seatTitle(seat: VivaldiSeat, state: SeatState, mode: SeatMapMode): string {
   if (state === "unavailable") return `${seat.label} — недоступно`;
   if (state === "bought") return `${seat.label} — куплено`;
   if (state === "complimentary") return `${seat.label} — пригласительный`;
+  if (state === "held" && mode === "sale") {
+    return `${seat.label} — закрыто, нажмите, чтобы открыть продажу`;
+  }
   if (state === "held") return `${seat.label} — занято`;
+  if (state === "free" && mode === "sale") {
+    return `${seat.label} — в продаже, нажмите, чтобы закрыть`;
+  }
   if (state === "free" && mode === "staff") {
     return `${seat.label} — свободно, нажмите, чтобы выдать пригласительный`;
   }
@@ -76,13 +84,15 @@ function SeatButton({
   selected: Set<string>;
   onToggle: (key: string) => void;
   disabled?: boolean;
-  mode: "buy" | "staff";
+  mode: SeatMapMode;
 }) {
   const state = seatState(seat, occupied, complimentary, selected, mode);
-  const staffClickable = state === "free";
+  const staffClickable = mode === "sale" ? state === "free" || state === "held" : state === "free";
   const clickDisabled = Boolean(
     disabled ||
-      (mode === "staff" ? !staffClickable : occupied.has(seat.key) || complimentary.has(seat.key) || !seat.selectable),
+      (mode === "buy" ?
+        occupied.has(seat.key) || complimentary.has(seat.key) || !seat.selectable
+      : !staffClickable),
   );
 
   return (
@@ -118,7 +128,7 @@ function HorizontalRow({
   selected: Set<string>;
   onToggle: (key: string) => void;
   disabled?: boolean;
-  mode: "buy" | "staff";
+  mode: SeatMapMode;
   sector: "A" | "C";
   row: number;
 }) {

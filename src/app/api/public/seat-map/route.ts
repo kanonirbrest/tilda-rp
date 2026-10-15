@@ -14,8 +14,8 @@ import {
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
 import { expireStalePendingOrdersAndReleaseSeats } from "@/lib/expire-pending-orders";
 import { GARDENS_OF_DREAMS_SLOT_KIND, VIVALDI_CONCERT_SLOT_KIND } from "@/lib/slot-kind";
-import { ensureVivaldiSlots, findVivaldiOccupiedSeatKeys } from "@/lib/vivaldi/ensure-slots";
-import { buildVivaldiSeatMap } from "@/lib/vivaldi/seat-map";
+import { ensureVivaldiSlots, findVivaldiOccupiedSeatKeys, vivaldiSeatSaleOverridesForSlot } from "@/lib/vivaldi/ensure-slots";
+import { buildVivaldiSeatMapWithOverrides } from "@/lib/vivaldi/seat-map";
 import { vivaldiDateForStartsAt } from "@/lib/vivaldi/schedule";
 
 export async function OPTIONS(req: Request) {
@@ -59,7 +59,7 @@ export async function GET(req: Request) {
     const slot = resolved.slot;
     if (slot.kind === VIVALDI_CONCERT_SLOT_KIND) {
       const date = vivaldiDateForStartsAt(slot.startsAt);
-      const occupied = [...(await findVivaldiOccupiedSeatKeys(slot.id, date))];
+      const occupied = [...(await findVivaldiOccupiedSeatKeys(slot.id))];
       return jsonPublicReadResponse(
         req,
         {
@@ -67,7 +67,7 @@ export async function GET(req: Request) {
           title: slot.title,
           startsAt: slot.startsAt.toISOString(),
           currency: slot.currency,
-          seats: buildVivaldiSeatMap(date),
+          seats: buildVivaldiSeatMapWithOverrides(date, vivaldiSeatSaleOverridesForSlot(slot)),
           occupied,
           prices: {
             rowB1: 14_000,
