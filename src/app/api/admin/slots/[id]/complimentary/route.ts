@@ -52,8 +52,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 const bodySchema = z.object({
   seatKey: z.string().min(3).max(16),
   name: z.string().trim().min(2).max(120),
-  email: z.string().trim().email().max(200),
-  phone: z.string().trim().min(5).max(40),
+  email: z.string().trim().max(200).optional().default(""),
+  phone: z.string().trim().max(40).optional().default(""),
+  deliver: z.enum(["email", "download"]),
 });
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -76,7 +77,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!parsed.success) {
     return jsonWithCors(
       req,
-      { error: "BAD_CONTACT", message: "Укажите имя, почту и телефон" },
+      { error: "BAD_CONTACT", message: "Укажите имя. Для письма ещё нужны почта и телефон." },
+      { status: 400 },
+    );
+  }
+  if (
+    parsed.data.deliver === "email" &&
+    (!z.string().email().safeParse(parsed.data.email).success || parsed.data.phone.length < 5)
+  ) {
+    return jsonWithCors(
+      req,
+      { error: "BAD_CONTACT", message: "Для письма укажите почту и телефон" },
       { status: 400 },
     );
   }

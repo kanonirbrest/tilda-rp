@@ -10,7 +10,10 @@ import { BELYE_NOCHI_18_SLOT_KIND } from "./slot-kind";
 import { linesSummaryRu, tierTicketSingularRu } from "./slot-pricing";
 import { isNeboGiftOpenDateSlot } from "./nebo-reka/ensure-gift-slot";
 
-export async function fulfillPaidOrder(orderId: string): Promise<void> {
+export async function fulfillPaidOrder(
+  orderId: string,
+  options?: { notify?: boolean },
+): Promise<void> {
   const transitioned = await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
       where: { id: orderId },
@@ -34,7 +37,7 @@ export async function fulfillPaidOrder(orderId: string): Promise<void> {
     return { alreadyPaid: false as const };
   });
 
-  if (transitioned.alreadyPaid) {
+  if (transitioned.alreadyPaid || options?.notify === false) {
     return;
   }
 

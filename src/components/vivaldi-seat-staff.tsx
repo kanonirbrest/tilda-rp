@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { GardensSchemePanzoom } from "@/components/gardens-scheme-panzoom";
 import { VivaldiSeatMap } from "@/components/vivaldi-seat-map";
 import type { VivaldiSeat } from "@/lib/vivaldi/seat-map";
@@ -14,7 +14,7 @@ type SeatStaffResponse = {
   complimentary: string[];
   message?: string;
   error?: string;
-  issued?: { orderId: string; seatLabel: string };
+  issued?: { orderId: string; seatLabel: string; publicToken: string };
 };
 
 type VivaldiSeatStaffProps = {
@@ -52,7 +52,7 @@ async function adminJson<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function VivaldiSeatStaff({ slotId, slotTitle, onClose }: VivaldiSeatStaffProps) {
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"email" | "download" | null>(null);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [title, setTitle] = useState(slotTitle);
@@ -115,10 +115,33 @@ export function VivaldiSeatStaff({ slotId, slotTitle, onClose }: VivaldiSeatStaf
     setInfo("");
   }
 
-  async function issue(e: FormEvent) {
-    e.preventDefault();
+  async function savePdf(token: string, seatLabel: string) {
+    const r = await fetch(`/api/tickets/${encodeURIComponent(token)}/pdf`);
+    if (!r.ok) throw new Error("Билет выдан, но файл не скачался. Его можно сохранить из заказа.");
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const safe = seatLabel.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
+    link.download = `priglasitelny-${safe || "bilet"}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function issue(deliver: "email" | "download") {
     if (!picked || busy) return;
-    setBusy(true);
+    if (name.trim().length < 2) {
+      setError("Укажите имя");
+      return;
+    }
+    if (deliver === "email" && (!email.trim() || phone.trim().length < 5)) {
+      setError("Для письма укажите почту и телефон");
+      return;
+    }
+    const seat = picked;
+    setBusy(deliver);
     setError("");
     setInfo("");
     try {
@@ -127,23 +150,31 @@ export function VivaldiSeatStaff({ slotId, slotTitle, onClose }: VivaldiSeatStaf
         {
           method: "POST",
           body: JSON.stringify({
-            seatKey: picked.key,
+            seatKey: seat.key,
             name,
             email,
             phone,
+            deliver,
           }),
         },
       );
       apply(body);
-      setInfo(`Пригласительный отправлен: ${picked.label}`);
       setPicked(null);
       setName("");
       setEmail("");
       setPhone("");
+      if (deliver === "download") {
+        const token = body.issued?.publicToken;
+        if (!token) throw new Error("Билет выдан, но файл не скачался. Его можно сохранить из заказа.");
+        await savePdf(token, seat.label);
+        setInfo(`Билет сохранён: ${seat.label}`);
+      } else {
+        setInfo(`Пригласительный отправлен: ${seat.label}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось выдать билет");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -151,14 +182,14 @@ export function VivaldiSeatStaff({ slotId, slotTitle, onClose }: VivaldiSeatStaf
     <div className="god-root admin-gardens-seat-sales">
       <p className="admin-hint admin-hint--tight">{title}</p>
       <p className="admin-hint">
-        Клик по свободному месту выдаёт пригласительный: билет уходит на почту без оплаты, место
-        снимается с продажи. Синие места уже выданы. Покупатель видит их как недоступные.
+        Клик по свободному месту выдаёт пригласительный без оплаты, место снимается с продажи.
+        «Сохранить на компьютер» скачивает PDF, письмо не отправляется. Синие места уже выданы.
       </p>
       {loading ? <p className="admin-hint">Загрузка схемы…</p> : null}
       {error ? <p className="admin-hint" style={{ color: "#f87171" }}>{error}</p> : null}
       {!error && info ? <p className="admin-hint">{info}</p> : null}
       {picked ? (
-        <form className="admin-field admin-field--full" onSubmit={(e) => void issue(e)}>
+        <form className="admin-field admin-field--full" onSubmit={(e) => e.preventDefault()}>
           <p className="admin-hint admin-hint--tight">Пригласительный: {picked.label}</p>
           <label className="admin-field">
             Имя
@@ -170,8 +201,8 @@ export function VivaldiSeatStaff({ slotId, slotTitle, onClose }: VivaldiSeatStaf
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
               autoComplete="email"
+              placeholder="только если отправлять письмом"
             />
           </label>
           <label className="admin-field">
@@ -180,17 +211,19 @@ export function VivaldiSeatStaff({ slotId, slotTitle, onClose }: VivaldiSeatStaf
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              required
-              minLength={5}
               autoComplete="tel"
+              placeholder="только если отправлять письмом"
             />
           </label>
           <div className="admin-modal-actions">
-            <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setPicked(null)}>
+            <button type="button" className="btn btn-secondary" disabled={busy !== null} onClick={() => setPicked(null)}>
               Отмена
             </button>
-            <button type="submit" className="btn" disabled={busy}>
-              {busy ? "Отправка…" : "Выдать и отправить"}
+            <button type="button" className="btn btn-secondary" disabled={busy !== null} onClick={() => void issue("email")}>
+              {busy === "email" ? "Отправка…" : "Отправить на почту"}
+            </button>
+            <button type="button" className="btn" disabled={busy !== null} onClick={() => void issue("download")}>
+              {busy === "download" ? "Сохранение…" : "Сохранить на компьютер"}
             </button>
           </div>
         </form>
@@ -211,7 +244,7 @@ export function VivaldiSeatStaff({ slotId, slotTitle, onClose }: VivaldiSeatStaf
                 complimentary={complimentary}
                 selected={picked ? new Set([picked.key]) : new Set()}
                 onToggle={pickSeat}
-                disabled={busy}
+                disabled={busy !== null}
                 mode="staff"
               />
             </GardensSchemePanzoom>

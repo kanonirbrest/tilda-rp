@@ -14,8 +14,10 @@ import { vivaldiDateForStartsAt } from "@/lib/vivaldi/schedule";
 
 export type ComplimentaryContact = {
   name: string;
-  email: string;
-  phone: string;
+  email?: string;
+  phone?: string;
+  /** download — PDF на компьютер, без письма. email — письмо с билетом. */
+  deliver: "email" | "download";
 };
 
 /** Места с оплаченным пригласительным, билет по которым ещё не возвращён. */
@@ -38,14 +40,14 @@ export async function findVivaldiComplimentarySeatKeys(slotId: string): Promise<
 }
 
 /**
- * Выдаёт пригласительный на одно место: заказ на 0, билет, письмо.
- * Место становится занятым и пропадает из продажи.
+ * Выдаёт пригласительный на одно место: заказ на 0 и билет.
+ * Письмо уходит только если deliver = email. Место снимается с продажи.
  */
 export async function issueVivaldiComplimentarySeat(
   slotId: string,
   seatKey: string,
   contact: ComplimentaryContact,
-): Promise<{ orderId: string; seatLabel: string }> {
+): Promise<{ orderId: string; seatLabel: string; publicToken: string }> {
   const slot = await prisma.slot.findUnique({ where: { id: slotId } });
   if (!slot || slot.kind !== VIVALDI_CONCERT_SLOT_KIND) {
     throw new Error("Сеанс не найден");
@@ -58,8 +60,9 @@ export async function issueVivaldiComplimentarySeat(
   }
 
   const name = contact.name.replace(/\s+/g, " ").trim();
-  const email = contact.email.trim().toLowerCase();
-  const phone = contact.phone.replace(/\s+/g, " ").trim();
+  const email = contact.email?.trim().toLowerCase() ?? "";
+  const phone = contact.phone?.replace(/\s+/g, " ").trim() || "не указан";
+  const sendEmail = contact.deliver === "email";
 
   const orderId = await prisma.$transaction(async (tx) => {
     await lockSeatKeysInTransaction(tx, slot.id, [seat.key]);
@@ -70,15 +73,18 @@ export async function issueVivaldiComplimentarySeat(
       throw new SeatUnavailableError(taken);
     }
 
-    const existing = await tx.customer.findFirst({
-      where: { email: { equals: email, mode: "insensitive" } },
-      orderBy: { createdAt: "asc" },
-      select: { id: true },
-    });
+    const storedEmail = email || `invite.${createPublicTicketToken().slice(0, 12)}@no-mail.invalid`;
+    const existing = email
+      ? await tx.customer.findFirst({
+          where: { email: { equals: email, mode: "insensitive" } },
+          orderBy: { createdAt: "asc" },
+          select: { id: true },
+        })
+      : null;
     const customer =
       existing ??
       (await tx.customer.create({
-        data: { name, email, phone },
+        data: { name, email: storedEmail, phone },
         select: { id: true },
       }));
 
@@ -126,6 +132,11 @@ export async function issueVivaldiComplimentarySeat(
     return order.id;
   });
 
-  await fulfillPaidOrder(orderId);
-  return { orderId, seatLabel: seat.label };
+  await fulfillPaidOrder(orderId, { notify: sendEmail });
+  const ticket = await prisma.ticket.findFirst({
+    where: { orderId },
+    select: { publicToken: true },
+  });
+  if (!ticket) throw new Error("Билет не создан");
+  return { orderId, seatLabel: seat.label, publicToken: ticket.publicToken };
 }
