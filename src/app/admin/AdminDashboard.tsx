@@ -243,8 +243,8 @@ const ADMIN_TICKET_STOREFRONTS = [
   { href: "/buy-tickets", label: "Купить билет" },
   { href: "/nightofmuseums", label: "Ночь музеев" },
   { href: "/belye-nochi-18", label: "Белые ночи 18+" },
-  { href: "/koncert-vivaldi", label: "Времена года (13 окт)" },
-  { href: "/koncert-vivaldi/26-10", label: "Времена года (26 окт)" },
+  { href: "/koncert-vivaldi", label: "Витрина: Времена года (13 окт)" },
+  { href: "/koncert-vivaldi/26-10", label: "Витрина: Времена года (26 окт)" },
   { href: "/buy-tickets-summer", label: "Лето (Tilda)" },
   { href: "/buy-tickets-smr", label: "Лето v2" },
   { href: "/sady-snovideniy", label: "Сады сновидений (6 июл)" },
@@ -1160,6 +1160,18 @@ export default function AdminDashboard() {
     },
     [showInactive],
   );
+
+  function openVivaldiInvites(dateKey: string) {
+    const slot = slotsData?.slots.find(
+      (item) => item.kind === VIVALDI_CONCERT_SLOT_KIND && item.dateKey === dateKey,
+    );
+    if (!slot) {
+      setErrMsg("Сеанс «Времена года» на эту дату не найден. Нажмите «Обновить» в сеансах.");
+      return;
+    }
+    setErrMsg("");
+    setModal({ type: "vivaldi-seats", slot });
+  }
 
   const loadOrders = useCallback(async () => {
     setErrMsg("");
@@ -2339,13 +2351,19 @@ export default function AdminDashboard() {
               >
                 + Группа на день
               </button>
+              <button type="button" className="btn" onClick={() => openVivaldiInvites("2026-10-13")}>
+                Пригласительные · 13 окт
+              </button>
+              <button type="button" className="btn" onClick={() => openVivaldiInvites("2026-10-26")}>
+                Пригласительные · 26 окт
+              </button>
               <a
                 href="/koncert-vivaldi"
                 className="btn btn-secondary"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Времена года (13 окт)
+                Витрина 13 окт
               </a>
               <a
                 href="/koncert-vivaldi/26-10"
@@ -2353,7 +2371,7 @@ export default function AdminDashboard() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Времена года (26 окт)
+                Витрина 26 окт
               </a>
               <a
                 href="/sady-snovideniy"
@@ -3437,6 +3455,21 @@ export default function AdminDashboard() {
                 className="admin-modal-form"
                 onSubmit={(e) => void saveSlotFromForm(e, s.id)}
               >
+                {s.kind === VIVALDI_CONCERT_SLOT_KIND ? (
+                  <div className="admin-field admin-field--full">
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      style={{ width: "100%" }}
+                      onClick={() => setModal({ type: "vivaldi-seats", slot: s })}
+                    >
+                      Выдать пригласительный
+                    </button>
+                    <p className="admin-hint admin-hint--tight" style={{ marginTop: "0.35rem" }}>
+                      Открывает схему зала. Билет уходит на почту без оплаты, место снимается с продажи.
+                    </p>
+                  </div>
+                ) : null}
                 <p className="admin-hint admin-hint--tight mono">id: {s.id}</p>
                 <p className="admin-hint admin-hint--tight mono">kind: {s.kind}</p>
                 <p className="admin-hint admin-hint--tight">Часовой пояс: {slotsData.timezone}</p>
@@ -3548,22 +3581,6 @@ export default function AdminDashboard() {
                     </button>
                     <p className="admin-hint admin-hint--tight" style={{ marginTop: "0.35rem" }}>
                       Выставить или снять места с продажи на схеме (без правки кода).
-                    </p>
-                  </div>
-                ) : null}
-                {s.kind === VIVALDI_CONCERT_SLOT_KIND ? (
-                  <div className="admin-field admin-field--full" style={{ marginTop: "0.5rem" }}>
-                    <button
-                      type="button"
-                      className="btn btn-success"
-                      style={{ width: "100%" }}
-                      onClick={() => setModal({ type: "vivaldi-seats", slot: s })}
-                    >
-                      Схема зала — куплено, пригласительные, занято
-                    </button>
-                    <p className="admin-hint admin-hint--tight" style={{ marginTop: "0.35rem" }}>
-                      Выдать пригласительный: билет уходит на почту без оплаты, место снимается с продажи.
-                      Покупатель видит только свободно и недоступно.
                     </p>
                   </div>
                 ) : null}
