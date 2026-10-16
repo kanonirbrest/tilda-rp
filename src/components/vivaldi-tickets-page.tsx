@@ -146,11 +146,10 @@ export function VivaldiTicketsPage({
         const geo = byKey.get(seat.key);
         return geo
           ? {
-              ...seat,
               ...geo,
-              priceCents: geo.priceCents,
-              selectable: geo.selectable,
-              availability: geo.availability,
+              priceCents: seat.priceCents,
+              selectable: seat.selectable,
+              availability: seat.availability,
             }
           : seat;
       }),
