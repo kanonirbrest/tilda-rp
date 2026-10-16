@@ -243,8 +243,8 @@ const ADMIN_TICKET_STOREFRONTS = [
   { href: "/buy-tickets", label: "Купить билет" },
   { href: "/nightofmuseums", label: "Ночь музеев" },
   { href: "/belye-nochi-18", label: "Белые ночи 18+" },
-  { href: "/koncert-vivaldi", label: "Витрина: Времена года (13 окт)" },
-  { href: "/koncert-vivaldi/26-10", label: "Витрина: Времена года (26 окт)" },
+  { href: "/koncert-vivaldi", label: "Вивальди (13 окт)" },
+  { href: "/koncert-vivaldi/26-10", label: "Вивальди (26 окт)" },
   { href: "/buy-tickets-summer", label: "Лето (Tilda)" },
   { href: "/buy-tickets-smr", label: "Лето v2" },
   { href: "/sady-snovideniy", label: "Сады сновидений (6 июл)" },
@@ -2369,7 +2369,7 @@ export default function AdminDashboard() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Витрина 13 окт
+                Вивальди 13 окт
               </a>
               <a
                 href="/koncert-vivaldi/26-10"
@@ -2377,7 +2377,7 @@ export default function AdminDashboard() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Витрина 26 окт
+                Вивальди 26 окт
               </a>
               <a
                 href="/sady-snovideniy"
