@@ -1161,6 +1161,21 @@ export default function AdminDashboard() {
     [showInactive],
   );
 
+  function openGardensSales(dateKey: string, timeKey: string) {
+    const slot = slotsData?.slots.find(
+      (item) =>
+        item.kind === GARDENS_OF_DREAMS_SLOT_KIND &&
+        item.dateKey === dateKey &&
+        item.timeKey === timeKey,
+    );
+    if (!slot) {
+      setErrMsg("Сеанс «Сады сновидений» на эту дату не найден. Нажмите «Обновить» в сеансах.");
+      return;
+    }
+    setErrMsg("");
+    setModal({ type: "gardens-seat-sales", slot });
+  }
+
   function openVivaldiHall(dateKey: string, mode: "invite" | "sale") {
     const slot = slotsData?.slots.find(
       (item) => item.kind === VIVALDI_CONCERT_SLOT_KIND && item.dateKey === dateKey,
@@ -2351,6 +2366,9 @@ export default function AdminDashboard() {
               >
                 + Группа на день
               </button>
+              <button type="button" className="btn" onClick={() => openGardensSales("2026-10-20", "20:00")}>
+                Открыть места · Сады 20 окт
+              </button>
               <button type="button" className="btn" onClick={() => openVivaldiHall("2026-10-13", "sale")}>
                 Открыть места · 13 окт
               </button>
@@ -3484,6 +3502,21 @@ export default function AdminDashboard() {
                     </p>
                   </div>
                 ) : null}
+                {s.kind === GARDENS_OF_DREAMS_SLOT_KIND ? (
+                  <div className="admin-field admin-field--full">
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      style={{ width: "100%" }}
+                      onClick={() => setModal({ type: "gardens-seat-sales", slot: s })}
+                    >
+                      Открыть места
+                    </button>
+                    <p className="admin-hint admin-hint--tight" style={{ marginTop: "0.35rem" }}>
+                      Серое место сразу открывается в продажу. Цветное свободное можно закрыть. Кнопка «Сохранить» не нужна.
+                    </p>
+                  </div>
+                ) : null}
                 <p className="admin-hint admin-hint--tight mono">id: {s.id}</p>
                 <p className="admin-hint admin-hint--tight mono">kind: {s.kind}</p>
                 <p className="admin-hint admin-hint--tight">Часовой пояс: {slotsData.timezone}</p>
@@ -3583,21 +3616,6 @@ export default function AdminDashboard() {
                     </label>
                   </div>
                 </div>
-                {s.kind === GARDENS_OF_DREAMS_SLOT_KIND ? (
-                  <div className="admin-field admin-field--full" style={{ marginTop: "0.5rem" }}>
-                    <button
-                      type="button"
-                      className="btn btn-success"
-                      style={{ width: "100%" }}
-                      onClick={() => setModal({ type: "gardens-seat-sales", slot: s })}
-                    >
-                      Места в продаже — открыть схему зала
-                    </button>
-                    <p className="admin-hint admin-hint--tight" style={{ marginTop: "0.35rem" }}>
-                      Выставить или снять места с продажи на схеме (без правки кода).
-                    </p>
-                  </div>
-                ) : null}
                 <div className="admin-modal-actions admin-modal-actions--split">
                   <button
                     type="button"

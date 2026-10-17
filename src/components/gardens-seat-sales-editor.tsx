@@ -150,8 +150,8 @@ export function GardensSeatSalesEditor({
     <div className="god-root admin-gardens-seat-sales">
       <p className="admin-hint admin-hint--tight">{slotTitle}</p>
       <p className="admin-hint">
-        Клик по серому месту — выставить в продажу. Клик по цветному свободному — снять с продажи.
-        Занятые места не трогаем.
+        Клик по серому месту сразу открывает его в продажу. Клик по свободному цветному — закрывает.
+        Занятые места не трогаем. Отдельная кнопка «Сохранить» не нужна.
       </p>
       <div className="admin-toolbar-row">
         <button
