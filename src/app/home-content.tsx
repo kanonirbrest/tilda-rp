@@ -49,6 +49,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/sady-snovideniy-07-09", label: "7 сентября", hint: "Вход 18:30 · шоу 20:00" },
       { href: "/sady-snovideniy-08-09", label: "8 сентября", hint: "Вход 18:30 · шоу 20:00" },
       { href: "/sady-snovideniy-20-10", label: "20 октября", hint: "Вход 18:30 · шоу 20:00" },
+      { href: "/sady-snovideniy-07-11", label: "7 ноября", hint: "Вход 18:30 · шоу 20:00" },
     ],
   },
   {

@@ -88,6 +88,27 @@ function SeatButton({
   );
 }
 
+/** На витрине снятый ряд не рисуем, пока админ не вернёт в продажу хотя бы одно место. */
+function columnVisible(
+  seats: GardensSeat[],
+  sector: GardensSeat["sector"],
+  row: number,
+  count: number,
+  mode: "buy" | "admin-sale",
+): boolean {
+  if (mode !== "buy") return true;
+  let anyOffScheme = false;
+  let anySelectable = false;
+  for (let num = 1; num <= count; num++) {
+    const seat = seatByKey(seats, `${sector}:${row}:${num}`);
+    if (!seat) continue;
+    if (seat.offScheme) anyOffScheme = true;
+    if (seat.selectable) anySelectable = true;
+  }
+  if (!anyOffScheme) return true;
+  return anySelectable;
+}
+
 function occupiedSoldLabel(seat: GardensSeat, mode: "buy" | "admin-sale"): string {
   if (seat.selectable) return "занято";
   return mode === "admin-sale" ? "занято" : "продано";
@@ -287,7 +308,9 @@ export function GardensSeatMap({
         <div className="god-map__left god-map__left--top">
           <p className="god-sector-title">Сектор «A»</p>
           <div className="god-sector-vertical">
-            {renderVerticalColumn(seats, occupied, selected, onToggle, "A", 3, 7, "bottom", disabled, mode)}
+            {columnVisible(seats, "A", 3, 7, mode)
+              ? renderVerticalColumn(seats, occupied, selected, onToggle, "A", 3, 7, "bottom", disabled, mode)
+              : null}
             {renderVerticalColumn(seats, occupied, selected, onToggle, "A", 2, 6, "bottom", disabled, mode)}
             {renderVerticalColumn(seats, occupied, selected, onToggle, "A", 1, 6, "bottom", disabled, mode)}
           </div>
@@ -310,7 +333,9 @@ export function GardensSeatMap({
             {sectorDHasSale ? "Сектор «D»" : "Сектор «D» — продано"}
           </p>
           <div className="god-sector-vertical god-sector-vertical--bottom">
-            {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 3, 7, "top", disabled, mode)}
+            {columnVisible(seats, "D", 3, 7, mode)
+              ? renderVerticalColumn(seats, occupied, selected, onToggle, "D", 3, 7, "top", disabled, mode)
+              : null}
             {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 2, 6, "top", disabled, mode)}
             {renderVerticalColumn(seats, occupied, selected, onToggle, "D", 1, 6, "top", disabled, mode)}
           </div>

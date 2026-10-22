@@ -18,7 +18,7 @@ export type GardensScheduleEntry = {
   entryTime?: string;
   showDurationMinutes?: number;
   title?: string;
-  /** default — A+B+часть C; ab-only — только сектора A и B (как на первом ивенте). */
+  /** default — A+B+часть C; ab-only — только A и B; ab-only-no-row3 — как ab-only без 3-го ряда A и D. */
   seatMapVariant?: GardensSeatMapVariant;
   /** Цена отдельных мест в копейках (только этот показ). Место также выставляется в продажу. */
   seatPriceOverrides?: Record<string, number>;
@@ -101,6 +101,15 @@ export const GARDENS_PERFORMANCE_OCTOBER_20: GardensScheduleEntry = {
   seatMapVariant: "ab-only",
 };
 
+/** Как 20 октября: те же цены и сектора A+B, но без 3-го ряда в A и D на витрине. */
+export const GARDENS_PERFORMANCE_NOVEMBER_7: GardensScheduleEntry = {
+  date: "2026-11-07",
+  time: "20:00",
+  entryTime: "18:30",
+  showDurationMinutes: 60,
+  seatMapVariant: "ab-only-no-row3",
+};
+
 /** Бывшая дата второго показа — для переноса слота в БД при деплое. */
 export const GARDENS_LEGACY_JULY_21_DATE = "2026-07-21";
 
@@ -117,6 +126,7 @@ export const GARDENS_PERFORMANCE_SCHEDULE: GardensScheduleEntry[] = [
   GARDENS_PERFORMANCE_SEPTEMBER_7,
   GARDENS_PERFORMANCE_SEPTEMBER_8,
   GARDENS_PERFORMANCE_OCTOBER_20,
+  GARDENS_PERFORMANCE_NOVEMBER_7,
 ];
 
 export function findGardensScheduleEntry(

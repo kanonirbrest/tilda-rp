@@ -256,6 +256,7 @@ const ADMIN_TICKET_STOREFRONTS = [
   { href: "/sady-snovideniy-07-09", label: "Сады сновидений (7 сен)" },
   { href: "/sady-snovideniy-08-09", label: "Сады сновидений (8 сен)" },
   { href: "/sady-snovideniy-20-10", label: "Сады сновидений (20 окт)" },
+  { href: "/sady-snovideniy-07-11", label: "Сады сновидений (7 ноя)" },
 ] as const;
 
 const ADMIN_STAFF_SCANNERS = [
@@ -2369,6 +2370,9 @@ export default function AdminDashboard() {
               <button type="button" className="btn" onClick={() => openGardensSales("2026-10-20", "20:00")}>
                 Открыть места · Сады 20 окт
               </button>
+              <button type="button" className="btn" onClick={() => openGardensSales("2026-11-07", "20:00")}>
+                Открыть места · Сады 7 ноя
+              </button>
               <button type="button" className="btn" onClick={() => openVivaldiHall("2026-10-13", "sale")}>
                 Открыть места · 13 окт
               </button>
@@ -2468,6 +2472,14 @@ export default function AdminDashboard() {
                 rel="noopener noreferrer"
               >
                 Сады (20 окт)
+              </a>
+              <a
+                href="/sady-snovideniy-07-11"
+                className="btn btn-secondary"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Сады (7 ноя)
               </a>
               <details className="admin-summer-menu">
                 <summary className="btn btn-secondary">Купить билет - лето ▾</summary>

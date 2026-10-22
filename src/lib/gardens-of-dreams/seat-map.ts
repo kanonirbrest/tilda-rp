@@ -2,8 +2,12 @@ export const GARDENS_PREMIUM_CENTS = 15_000;
 export const GARDENS_STANDARD_CENTS = 12_000;
 export const GARDENS_ECONOMY_CENTS = 9_000;
 
-/** default — A+B+часть C в продаже; ab-only — только A и B (сектор C «продано»). */
-export type GardensSeatMapVariant = "default" | "ab-only";
+/**
+ * default — A+B+часть C в продаже;
+ * ab-only — только A и B (сектор C «продано»);
+ * ab-only-no-row3 — как ab-only, но 3-й ряд секторов A и D снят со схемы витрины.
+ */
+export type GardensSeatMapVariant = "default" | "ab-only" | "ab-only-no-row3";
 
 export type GardensSeatTier = "premium" | "standard" | "economy" | "sold";
 
@@ -16,6 +20,11 @@ export type GardensSeat = {
   tier: GardensSeatTier;
   /** false — место не в продаже (неактивные C/D и т.п.) */
   selectable: boolean;
+  /**
+   * Ряд снят со схемы витрины. В админке место видно и его можно выставить;
+   * на витрине ряд появляется, только если хотя бы одно место снова в продаже.
+   */
+  offScheme?: boolean;
   label: string;
 };
 
@@ -51,12 +60,21 @@ export const A_ROW1_ON_SALE = new Set([
 /** Места сектора D ряд 1 в продаже (6 июля, default). */
 export const D_ROW1_ON_SALE = new Set(seatRange(1, 4));
 
+function isOffSchemeRow(
+  sector: GardensSeat["sector"],
+  row: number,
+  variant: GardensSeatMapVariant,
+): boolean {
+  return variant === "ab-only-no-row3" && row === 3 && (sector === "A" || sector === "D");
+}
+
 function isGardensSeatOnSale(
   sector: GardensSeat["sector"],
   row: number,
   seat: number,
   variant: GardensSeatMapVariant,
 ): boolean {
+  if (isOffSchemeRow(sector, row, variant)) return false;
   if (sector === "B") return true;
   if (sector === "A" && row === 1 && variant === "default") return A_ROW1_ON_SALE.has(seat);
   if (sector === "A") return true;
@@ -151,6 +169,7 @@ function addSectorRow(
   sectorOpen: boolean,
   variant: GardensSeatMapVariant,
 ) {
+  const offScheme = isOffSchemeRow(sector, row, variant);
   for (const seat of seatNumbers) {
     const selectable = sectorOpen && isGardensSeatOnSale(sector, row, seat, variant);
     if (selectable && (sector === "A" || sector === "B" || sector === "C" || sector === "D")) {
@@ -164,6 +183,7 @@ function addSectorRow(
         priceCents: priced.priceCents,
         tier: priced.tier,
         selectable: true,
+        ...(offScheme ? { offScheme: true } : {}),
         label: seatLabel(sector, row, seat),
       });
       continue;
@@ -176,6 +196,7 @@ function addSectorRow(
       priceCents: 0,
       tier: "sold",
       selectable: false,
+      ...(offScheme ? { offScheme: true } : {}),
       label: seatLabel(sector, row, seat),
     });
   }
@@ -212,7 +233,7 @@ export function buildGardensSeatMap(variant: GardensSeatMapVariant = "default"):
 
 function seatMapsByVariant(): Map<GardensSeatMapVariant, Map<string, GardensSeat>> {
   const out = new Map<GardensSeatMapVariant, Map<string, GardensSeat>>();
-  for (const variant of ["default", "ab-only"] as const) {
+  for (const variant of ["default", "ab-only", "ab-only-no-row3"] as const) {
     out.set(variant, new Map(buildGardensSeatMap(variant).map((s) => [s.key, s])));
   }
   return out;
