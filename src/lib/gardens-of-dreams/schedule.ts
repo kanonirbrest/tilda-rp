@@ -104,11 +104,14 @@ export const GARDENS_PERFORMANCE_OCTOBER_20: GardensScheduleEntry = {
 /** Как 20 октября: те же цены и сектора A+B, но без 3-го ряда в A и D на витрине. */
 export const GARDENS_PERFORMANCE_NOVEMBER_7: GardensScheduleEntry = {
   date: "2026-11-07",
-  time: "20:00",
-  entryTime: "18:30",
+  time: "21:00",
+  entryTime: "20:30",
   showDurationMinutes: 60,
   seatMapVariant: "ab-only-no-row3",
 };
+
+/** Время шоу 7 ноября до переноса на 21:00. Слот в БД сдвигается при деплое. */
+export const GARDENS_LEGACY_NOVEMBER_7_TIME = "20:00";
 
 /** Бывшая дата второго показа — для переноса слота в БД при деплое. */
 export const GARDENS_LEGACY_JULY_21_DATE = "2026-07-21";

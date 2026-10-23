@@ -2370,7 +2370,7 @@ export default function AdminDashboard() {
               <button type="button" className="btn" onClick={() => openGardensSales("2026-10-20", "20:00")}>
                 Открыть места · Сады 20 окт
               </button>
-              <button type="button" className="btn" onClick={() => openGardensSales("2026-11-07", "20:00")}>
+              <button type="button" className="btn" onClick={() => openGardensSales("2026-11-07", "21:00")}>
                 Открыть места · Сады 7 ноя
               </button>
               <button type="button" className="btn" onClick={() => openVivaldiHall("2026-10-13", "sale")}>

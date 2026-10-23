@@ -19,7 +19,9 @@ import {
 import { seatReservationStillHoldsSeat } from "@/lib/seat-reservation-lock";
 import {
   GARDENS_LEGACY_JULY_21_DATE,
+  GARDENS_LEGACY_NOVEMBER_7_TIME,
   GARDENS_PERFORMANCE_JULY_20,
+  GARDENS_PERFORMANCE_NOVEMBER_7,
   GARDENS_PERFORMANCE_SCHEDULE,
   formatGardensPerformanceTitle,
   gardensScheduleMeta,
@@ -95,6 +97,34 @@ async function migrateGardensJuly21SlotToJuly20(
   });
 }
 
+/**
+ * Перенос показа 7 ноября с 20:00 на 21:00: тот же slotId, заказы и билеты сохраняются.
+ * Срабатывает один раз, если слот на новое время ещё не создан.
+ */
+async function migrateGardensNovember7ShowTime(
+  tz: string,
+  newStartsAt: Date,
+  newTitle: string,
+): Promise<Slot | null> {
+  const existingAtNew = await findGardensSlotByStartsAt(newStartsAt);
+  if (existingAtNew) return null;
+
+  const legacyStartsAt = wallDateAndTimeToUtc(
+    GARDENS_PERFORMANCE_NOVEMBER_7.date,
+    GARDENS_LEGACY_NOVEMBER_7_TIME,
+    tz,
+  );
+  if (!legacyStartsAt) return null;
+
+  const legacy = await findGardensSlotByStartsAt(legacyStartsAt);
+  if (!legacy) return null;
+
+  return prisma.slot.update({
+    where: { id: legacy.id },
+    data: { startsAt: newStartsAt, title: newTitle },
+  });
+}
+
 /** Создаёт в БД слоты по GARDENS_PERFORMANCE_SCHEDULE, если их ещё нет. */
 export async function ensureGardensSlots(): Promise<Slot[]> {
   const tz = getExhibitionTimezone();
@@ -108,6 +138,17 @@ export async function ensureGardensSlots(): Promise<Slot[]> {
 
     if (entry.date === GARDENS_PERFORMANCE_JULY_20.date) {
       const migrated = await migrateGardensJuly21SlotToJuly20(tz, startsAt, title);
+      if (migrated) {
+        out.push(migrated);
+        continue;
+      }
+    }
+
+    if (
+      entry.date === GARDENS_PERFORMANCE_NOVEMBER_7.date &&
+      entry.time === GARDENS_PERFORMANCE_NOVEMBER_7.time
+    ) {
+      const migrated = await migrateGardensNovember7ShowTime(tz, startsAt, title);
       if (migrated) {
         out.push(migrated);
         continue;
