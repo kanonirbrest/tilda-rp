@@ -1,14 +1,15 @@
 # Blueprint Render: Web Service (Docker) + PostgreSQL.
 # New → Blueprint → репозиторий с корнем в каталоге приложения (рядом с Dockerfile).
 # Веб и БД в Frankfurt — приватная сеть Render.
-# Планы free — для тестов; для продакшена с bePaid см. README (усыпление веба, лимиты БД).
+# Веб — free (засыпает). БД — basic-256mb, как в панели Render.
+# Blueprint не умеет понижать план: free здесь снова ломает синхронизацию.
 
 databases:
   - name: dei-tickets-db
     databaseName: dei_tickets
     user: dei
     region: frankfurt
-    plan: free
+    plan: basic-256mb
 
 services:
   - type: web
