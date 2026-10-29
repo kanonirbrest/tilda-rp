@@ -163,6 +163,23 @@ function padTime(s: string): string {
   return `${m[1]!.padStart(2, "0")}:${m[2]}`;
 }
 
+/** Календарный ключ YYYY-MM-DD → «1 ноября 2026» (без сдвига пояса). */
+export function formatDateKeyRu(dateYmd: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateYmd.trim());
+  if (!m) return dateYmd.trim();
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d
+    .toLocaleDateString("ru-RU", {
+      timeZone: "UTC",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    })
+    .replace(/\s*г\.?$/u, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Нормализует "14:00", "14:0", "9:30" → HH:mm */
 export function normalizeTimeInput(raw: string): string | null {
   const t = raw.trim();

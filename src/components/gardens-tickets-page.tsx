@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GardensSchemePanzoom } from "@/components/gardens-scheme-panzoom";
+import { PaymentRetryNotice } from "@/components/payment-retry-notice";
 import { GardensSeatMap } from "@/components/gardens-seat-map";
 import { PhoneCountryField } from "@/components/phone-country-field";
 import { PolicyConsentField } from "@/components/policy-consent-field";
@@ -437,6 +438,8 @@ export function GardensTicketsPage({ eventDate, eventTime }: GardensTicketsPageP
           </>
         ) : null}
       </header>
+
+      <PaymentRetryNotice className="god-msg god-msg--error" />
 
       {loading ? <p className="god-msg">Загрузка…</p> : null}
       {!loading && loadError ? <p className="god-msg god-msg--error">{loadError}</p> : null}

@@ -1,12 +1,15 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { PaymentRetryNotice } from "@/components/payment-retry-notice";
 import { PhoneCountryField } from "@/components/phone-country-field";
 import { PolicyConsentField } from "@/components/policy-consent-field";
 import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
 import { DEI_POLICY_CONSENT_ERROR } from "@/lib/policy-consent";
 import { normalizePromoCode } from "@/lib/promo-code";
 import { BELYE_NOCHI_18_SLOT_KIND } from "@/lib/slot-kind";
+import { formatDateKeyRu } from "@/lib/exhibition-time";
+import { slotFromLocation } from "@/lib/storefront-return";
 
 type CalendarResponse = {
   timezone: string;
@@ -122,22 +125,31 @@ export default function BelyeNochi18Page() {
             .map(([dk]) => dk),
         );
         const firstDay = availableDays[0];
-        if (!firstDay) throw new Error("На это мероприятие нет доступных билетов.");
+        const requested = slotFromLocation();
+        if (!requested && !firstDay) throw new Error("На это мероприятие нет доступных билетов.");
+        const day =
+          requested && availableDays.includes(requested.date) ? requested.date
+          : requested ? null
+          : firstDay;
+        if (!day) throw new Error("Этот сеанс недоступен.");
 
         const daySlotsRes = await fetch(
-          `/api/public/day-slots?kind=${encodeURIComponent(BELYE_NOCHI_18_SLOT_KIND)}&date=${encodeURIComponent(firstDay)}`,
+          `/api/public/day-slots?kind=${encodeURIComponent(BELYE_NOCHI_18_SLOT_KIND)}&date=${encodeURIComponent(day)}`,
         );
         const daySlotsJson = (await daySlotsRes.json()) as DaySlotsResponse;
         if (!daySlotsRes.ok) throw new Error(daySlotsJson.error ? String(daySlotsJson.error) : "day-slots");
-        if (!Array.isArray(daySlotsJson.times) || daySlotsJson.times.length < 1) {
-          throw new Error("Для выбранного дня нет доступного времени.");
-        }
+        const times = Array.isArray(daySlotsJson.times) ? daySlotsJson.times : [];
+        const t =
+          requested?.date === day && times.includes(requested.time) ? requested.time
+          : requested ? null
+          : times[0];
+        if (!t) throw new Error("Это время недоступно.");
 
         if (!cancelled) {
-          const t0 = daySlotsJson.times[0]!;
-          setDate(firstDay);
-          setTime(t0);
-          setSessionTimeLabel(daySlotsJson.sessionLabels?.[t0] ?? t0);
+          setDate(day);
+          setTime(t);
+          setSessionTimeLabel(daySlotsJson.sessionLabels?.[t] ?? t);
+          if (requested?.adult) setQty(requested.adult);
         }
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Не удалось загрузить слоты.");
@@ -248,10 +260,10 @@ export default function BelyeNochi18Page() {
   const summaryLine = useMemo(() => {
     if (quoteTotalLabel.startsWith("Не удалось")) return null;
     if (quotePending || quoteTotalCents == null) {
-      return `${qty} ${ticketsWord(qty)} на сумму …`;
+      return `${qty} ${ticketsWord(qty)} · ${formatDateKeyRu(date)} · …`;
     }
-    return `${qty} ${ticketsWord(qty)} на сумму ${quoteTotalLabel}`;
-  }, [qty, quotePending, quoteTotalCents, quoteTotalLabel]);
+    return `${qty} ${ticketsWord(qty)} · ${formatDateKeyRu(date)} · ${quoteTotalLabel}`;
+  }, [qty, quotePending, quoteTotalCents, quoteTotalLabel, date]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -311,6 +323,8 @@ export default function BelyeNochi18Page() {
         <header className="nom-head">
           <h1 className="sv2-head__title">Белые ночи 18+</h1>
         </header>
+
+        <PaymentRetryNotice className="nom-plain-msg" />
 
         {loading ? <p className="nom-plain-msg nom-plain-msg--muted">Загрузка…</p> : null}
         {!loading && error ? <p className="nom-plain-msg">{error}</p> : null}

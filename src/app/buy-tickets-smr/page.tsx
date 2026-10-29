@@ -1,10 +1,12 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PaymentRetryNotice } from "@/components/payment-retry-notice";
 import { PhoneCountryField } from "@/components/phone-country-field";
 import { PolicyConsentField } from "@/components/policy-consent-field";
 import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
 import { readResponseJson } from "@/lib/read-response-json";
+import { formatDateKeyRu, normalizeTimeInput } from "@/lib/exhibition-time";
 import { DEI_POLICY_CONSENT_ERROR } from "@/lib/policy-consent";
 import { normalizePromoCode } from "@/lib/promo-code";
 import { NEBO_REKA_SLOT_KIND } from "@/lib/slot-kind";
@@ -224,6 +226,40 @@ function defaultExpandedMonthKeys(groups: MonthGroup[], timeZone: string): Set<s
   return new Set([next?.key ?? groups[0]!.key]);
 }
 
+function parseCountParam(raw: string | null): number | null {
+  if (raw == null || raw.trim() === "") return null;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0 || n > 30) return null;
+  return n;
+}
+
+/** Ссылка «вернуться к сеансу»: ?date=&time= или ?gift=1, плюс количество билетов. */
+function readQuerySelection(): {
+  gift: boolean;
+  date: string;
+  time: string;
+  adult: number;
+  child: number;
+  concession: number;
+} | null {
+  const sp = new URLSearchParams(window.location.search);
+  const gift = sp.get("gift") === "1";
+  const dateRaw = sp.get("date")?.trim() ?? "";
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(dateRaw) ? dateRaw : "";
+  const adult = parseCountParam(sp.get("adult"));
+  const child = parseCountParam(sp.get("child"));
+  const concession = parseCountParam(sp.get("concession"));
+  if (!gift && !date && adult == null && child == null && concession == null) return null;
+  return {
+    gift,
+    date,
+    time: normalizeTimeInput(sp.get("time") ?? "") ?? "",
+    adult: adult ?? 0,
+    child: child ?? 0,
+    concession: concession ?? 0,
+  };
+}
+
 export default function BuyTicketsSmrPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -233,6 +269,7 @@ export default function BuyTicketsSmrPage() {
   const [calendarTimezone, setCalendarTimezone] = useState(DEFAULT_EXHIBITION_TZ);
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(() => new Set());
   const expandedMonthsInitRef = useRef(false);
+  const queryDateRef = useRef<string | null>(null);
 
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
@@ -277,7 +314,10 @@ export default function BuyTicketsSmrPage() {
 
   useEffect(() => {
     if (expandedMonthsInitRef.current || monthGroups.length === 0) return;
-    setExpandedMonths(defaultExpandedMonthKeys(monthGroups, calendarTimezone));
+    const open = defaultExpandedMonthKeys(monthGroups, calendarTimezone);
+    const queryMonth = queryDateRef.current?.slice(0, 7);
+    if (queryMonth && monthGroups.some((g) => g.key === queryMonth)) open.add(queryMonth);
+    setExpandedMonths(open);
     expandedMonthsInitRef.current = true;
   }, [monthGroups, calendarTimezone]);
 
@@ -313,7 +353,16 @@ export default function BuyTicketsSmrPage() {
       if (!r.ok) throw new Error(j.hint || j.error || "day-slots");
       const list = Array.isArray(j.times) ? j.times : [];
       setTimes(list);
-      setTime((prev) => (list.includes(prev) ? prev : list[0] ?? ""));
+      let missingRequested = false;
+      setTime((prev) => {
+        if (!prev) return list[0] ?? "";
+        if (list.includes(prev)) return prev;
+        missingRequested = true;
+        return "";
+      });
+      if (missingRequested) {
+        setFormError("Это время недоступно. Выберите другое.");
+      }
     } catch {
       setTimes([]);
       setTime("");
@@ -328,7 +377,30 @@ export default function BuyTicketsSmrPage() {
       setLoading(true);
       setLoadError("");
       try {
+        const query = readQuerySelection();
+        queryDateRef.current = query?.date || null;
         const days = await loadCalendar();
+        if (cancelled) return;
+        if (query && query.adult + query.child + query.concession > 0) {
+          setAdult(query.adult);
+          setChild(query.child);
+          setConcession(query.concession);
+        }
+        if (query?.gift) {
+          setGiftOpenDate(true);
+          setDate("");
+          setTime("");
+          return;
+        }
+        if (query?.date) {
+          if (!days[query.date]?.bookable) {
+            setFormError("Этот сеанс недоступен. Выберите другую дату.");
+            return;
+          }
+          setDate(query.date);
+          if (query.time) setTime(query.time);
+          return;
+        }
         const firstBookable = sortDateKeysAsc(
           Object.entries(days)
             .filter(([dk, row]) => isSummerMonth(dk) && row.bookable)
@@ -337,10 +409,7 @@ export default function BuyTicketsSmrPage() {
         if (!firstBookable) {
           throw new Error(`На ${SUMMER_MONTHS_TITLE} пока нет доступных дат.`);
         }
-        if (!cancelled) {
-          setDate(firstBookable);
-          await loadTimesForDate(firstBookable);
-        }
+        setDate(firstBookable);
       } catch (e: unknown) {
         if (!cancelled) {
           setLoadError(e instanceof Error ? e.message : "Не удалось загрузить календарь.");
@@ -352,7 +421,7 @@ export default function BuyTicketsSmrPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadCalendar, loadTimesForDate]);
+  }, [loadCalendar]);
 
   useEffect(() => {
     if (!date) return;
@@ -461,11 +530,15 @@ export default function BuyTicketsSmrPage() {
   const summaryLine = useMemo(() => {
     if (ticketCount < 1) return null;
     if (quoteTotalLabel.startsWith("Не удалось")) return null;
-    if (quotePending || quoteTotalCents == null) {
-      return `${ticketCount} ${ticketsWord(ticketCount)} на сумму …`;
-    }
-    return `${ticketCount} ${ticketsWord(ticketCount)} на сумму ${quoteTotalLabel}`;
-  }, [ticketCount, quotePending, quoteTotalCents, quoteTotalLabel]);
+    const tickets = `${ticketCount} ${ticketsWord(ticketCount)}`;
+    const sum = quotePending || quoteTotalCents == null ? "…" : quoteTotalLabel;
+    const when = giftOpenDate
+      ? "открытая дата"
+      : date && time
+        ? `${formatDateKeyRu(date)}, ${time}`
+        : "";
+    return when ? `${tickets} · ${when} · ${sum}` : `${tickets} на сумму ${sum}`;
+  }, [ticketCount, quotePending, quoteTotalCents, quoteTotalLabel, giftOpenDate, date, time]);
 
   function onSelectDate(dateKey: string, bookable: boolean, hasSlots: boolean) {
     if (!hasSlots || !bookable) return;
@@ -577,6 +650,8 @@ export default function BuyTicketsSmrPage() {
         <header className="nom-head">
           <h1 className="sv2-head__title">{"Купить билеты на\u00A0выставку Небо.Река"}</h1>
         </header>
+
+        <PaymentRetryNotice className="nom-plain-msg" />
 
         {loading ? <p className="nom-plain-msg nom-plain-msg--muted">Загрузка…</p> : null}
         {!loading && loadError ? <p className="nom-plain-msg">{loadError}</p> : null}

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PaymentRetryNotice } from "@/components/payment-retry-notice";
 import { PhoneCountryField } from "@/components/phone-country-field";
 import { PolicyConsentField } from "@/components/policy-consent-field";
 import { GardensSchemePanzoom } from "@/components/gardens-scheme-panzoom";
@@ -379,6 +380,8 @@ export function VivaldiTicketsPage({
           </p>
         ) : null}
       </header>
+
+      <PaymentRetryNotice className="god-msg god-msg--error" />
 
       {loading ? <p className="god-msg">Загрузка занятости мест…</p> : null}
       {!loading && loadError ? <p className="god-msg god-msg--error">{loadError}</p> : null}

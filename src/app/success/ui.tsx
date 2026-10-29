@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatDateKeyRu } from "@/lib/exhibition-time";
+import { paymentRetryHref, storefrontRetryHref, type StorefrontOrder } from "@/lib/storefront-return";
 
 type Status =
   | "loading"
@@ -32,6 +34,17 @@ function gatewayIndicatesFailure(gatewayStatus: string | null): boolean {
   return fail.has(s);
 }
 
+type FailedOrder = StorefrontOrder & {
+  slotTitle?: string;
+};
+
+function sessionLabel(order: FailedOrder | null): string | null {
+  if (!order) return null;
+  if (order.giftOpenDate) return "подарочный билет с открытой датой";
+  if (order.date && order.time) return `${formatDateKeyRu(order.date)}, ${order.time}`;
+  return null;
+}
+
 export function SuccessClient({
   orderId,
   supportEmail,
@@ -50,6 +63,31 @@ export function SuccessClient({
   });
   const [ticketTokens, setTicketTokens] = useState<string[]>([]);
   const [slotTitle, setSlotTitle] = useState<string>("");
+  const [failedOrder, setFailedOrder] = useState<FailedOrder | null>(null);
+
+  useEffect(() => {
+    if (bepaidReturn == null && !gatewayIndicatesFailure(gatewayStatusParam)) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+        const data = (await res.json()) as FailedOrder;
+        if (!cancelled && res.ok) setFailedOrder(data);
+      } catch {
+        /* кнопка повтора необязательна */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId, bepaidReturn, gatewayStatusParam]);
+
+  useEffect(() => {
+    if (status !== "payment_incomplete" || !failedOrder) return;
+    const href = paymentRetryHref(failedOrder);
+    if (!href) return;
+    window.location.replace(href);
+  }, [status, failedOrder]);
 
   useEffect(() => {
     if (bepaidReturn != null || gatewayIndicatesFailure(gatewayStatusParam)) {
@@ -62,7 +100,7 @@ export function SuccessClient({
     async function poll() {
       try {
         const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
-        const data = (await res.json()) as {
+        const data = (await res.json()) as FailedOrder & {
           status?: string;
           ticketToken?: string | null;
           ticketTokens?: string[];
@@ -74,6 +112,7 @@ export function SuccessClient({
           return;
         }
         setSlotTitle(data.slotTitle || "");
+        setFailedOrder(data);
         if (data.status === "PAID") {
           const tokens =
             data.ticketTokens?.length ?
@@ -130,6 +169,7 @@ export function SuccessClient({
             </a>
             .
           </p>
+          <RetrySession order={failedOrder} failed />
         </div>
       ) : null}
 
@@ -151,6 +191,7 @@ export function SuccessClient({
             </a>{" "}
             с номером заказа ниже.
           </p>
+          <RetrySession order={failedOrder} />
         </div>
       ) : null}
 
@@ -229,6 +270,25 @@ export function SuccessClient({
           и укажите номер заказа: <span className="font-mono text-xs">{orderId}</span>
         </p>
       </div>
+    </div>
+  );
+}
+
+function RetrySession({ order, failed }: { order: FailedOrder | null; failed?: boolean }) {
+  const when = sessionLabel(order);
+  const href = order ? (failed ? paymentRetryHref(order) : storefrontRetryHref(order)) : null;
+  if (!when && !href) return null;
+  return (
+    <div className="mt-3">
+      {when ? <p>Сеанс в этой заявке: {when}.</p> : null}
+      {href ? (
+        <a
+          href={href}
+          className="mt-3 inline-flex w-fit items-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+        >
+          Вернуться к этому сеансу
+        </a>
+      ) : null}
     </div>
   );
 }
