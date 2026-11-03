@@ -4,6 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { getStaffFromCookies } from "@/lib/auth-staff";
 import { formatMinorUnits } from "@/lib/money";
 import { formatDisplayDateTime } from "@/lib/format-display-datetime";
+import {
+  dateKeyInTz,
+  formatDateKeyRu,
+  getExhibitionTimezone,
+  sessionDayMismatchMessage,
+} from "@/lib/exhibition-time";
+import { isNeboGiftOpenDateSlot } from "@/lib/nebo-reka/ensure-gift-slot";
+import { isTicketCheckInDayOpen } from "@/lib/ticket-check-in-day";
 
 const schema = z.object({
   token: z.string().min(10).max(200),
@@ -38,12 +46,22 @@ export async function POST(req: Request) {
   }
 
   const paid = ticket.order.status === "PAID" && ticket.refundedAt == null;
+  const giftOpenDate = isNeboGiftOpenDateSlot(ticket.order.slot);
+  const tz = getExhibitionTimezone();
+  const sessionDate = formatDateKeyRu(dateKeyInTz(ticket.order.slot.startsAt, tz));
+  const todayDate = formatDateKeyRu(dateKeyInTz(new Date(), tz));
+  const sessionToday = giftOpenDate || isTicketCheckInDayOpen(ticket.order.slot);
   return NextResponse.json({
     found: true,
     paid,
     refunded: Boolean(ticket.refundedAt) || ticket.order.status === "REFUNDED",
     used: Boolean(ticket.usedAt),
     usedAt: ticket.usedAt != null ? formatDisplayDateTime(ticket.usedAt.toISOString()) : null,
+    giftOpenDate,
+    sessionToday,
+    sessionDate,
+    todayDate,
+    dayError: sessionToday ? null : sessionDayMismatchMessage(sessionDate, todayDate),
     customerName: ticket.order.customer.name,
     email: ticket.order.customer.email,
     phone: ticket.order.customer.phone,

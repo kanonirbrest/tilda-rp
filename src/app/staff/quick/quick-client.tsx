@@ -12,6 +12,15 @@ type VerifyOk = {
   refunded?: boolean;
   used: boolean;
   usedAt: string | null;
+  /** Сеанс сегодня по часам выставки. Подарочный билет с открытой датой — всегда true. */
+  sessionToday?: boolean;
+  /** Календарная дата сеанса, например «8 ноября 2026». */
+  sessionDate?: string;
+  /** Сегодня по часам выставки. */
+  todayDate?: string;
+  /** Готовый текст отказа, если день сеанса не сегодняшний. */
+  dayError?: string | null;
+  giftOpenDate?: boolean;
   customerName: string;
   email: string;
   phone: string;
@@ -75,7 +84,11 @@ export function QuickClient({ token }: { token: string }) {
         credentials: "include",
         body: JSON.stringify({ token }),
       });
-      const json = (await res.json()) as { error?: string; usedAt?: string };
+      const json = (await res.json()) as { error?: string; usedAt?: string; message?: string };
+      if (json.error === "WRONG_DAY") {
+        setError(json.message || "Билет не на сегодня — погасить нельзя.");
+        return;
+      }
       if (res.status === 409) {
         setError(`Уже использован: ${json.usedAt || ""}`);
         await load();
@@ -160,8 +173,18 @@ export function QuickClient({ token }: { token: string }) {
                 Уже прошёл{data.usedAt ? ` · ${data.usedAt}` : ""}
               </span>
             ) : null}
+            {data.paid && !data.used && data.dayError ? (
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-900">
+                Другой день
+              </span>
+            ) : null}
           </div>
-          {data.paid && !data.used ? (
+          {data.paid && !data.used && data.dayError ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm font-medium text-red-800" role="alert">
+              {data.dayError}
+            </p>
+          ) : null}
+          {data.paid && !data.used && data.sessionToday !== false ? (
             <button
               type="button"
               disabled={busy}

@@ -5,6 +5,14 @@ import { getStaffFromCookies } from "@/lib/auth-staff";
 import { sendCrmWebhook } from "@/lib/crm";
 import { formatMinorUnits } from "@/lib/money";
 import { formatDisplayDateTime } from "@/lib/format-display-datetime";
+import {
+  dateKeyInTz,
+  formatDateKeyRu,
+  getExhibitionTimezone,
+  sessionDayMismatchMessage,
+} from "@/lib/exhibition-time";
+import { isNeboGiftOpenDateSlot } from "@/lib/nebo-reka/ensure-gift-slot";
+import { isTicketCheckInDayOpen } from "@/lib/ticket-check-in-day";
 
 const schema = z.object({
   token: z.string().min(10).max(200),
@@ -47,6 +55,16 @@ export async function POST(req: Request) {
         usedAt: formatDisplayDateTime(ticket.usedAt.toISOString()),
       };
     }
+    if (!isNeboGiftOpenDateSlot(ticket.order.slot) && !isTicketCheckInDayOpen(ticket.order.slot)) {
+      const tz = getExhibitionTimezone();
+      const sessionDate = formatDateKeyRu(dateKeyInTz(ticket.order.slot.startsAt, tz));
+      const todayDate = formatDateKeyRu(dateKeyInTz(new Date(), tz));
+      return {
+        type: "WRONG_DAY" as const,
+        sessionDate,
+        message: sessionDayMismatchMessage(sessionDate, todayDate),
+      };
+    }
 
     await tx.ticket.update({
       where: { id: ticket.id },
@@ -70,6 +88,12 @@ export async function POST(req: Request) {
   }
   if (result.type === "ALREADY_USED") {
     return NextResponse.json({ error: "ALREADY_USED", usedAt: result.usedAt }, { status: 409 });
+  }
+  if (result.type === "WRONG_DAY") {
+    return NextResponse.json(
+      { error: "WRONG_DAY", sessionDate: result.sessionDate, message: result.message },
+      { status: 409 },
+    );
   }
 
   const t = result.ticket;

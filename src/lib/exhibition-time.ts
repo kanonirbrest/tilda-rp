@@ -133,6 +133,11 @@ export function isWallCalendarDayBeforeToday(
   return dateYmd.trim() < dateKeyInTz(now, timeZone);
 }
 
+/** Текст отказа, если календарный день сеанса не совпал с сегодняшним. */
+export function sessionDayMismatchMessage(sessionDate: string, todayDate: string): string {
+  return `Билет на ${sessionDate}. Сегодня ${todayDate} — погасить нельзя.`;
+}
+
 /** Дата события для билета/PDF (длинный месяц, верхний регистр снаружи). */
 export function formatWallDateLongRu(d: Date, tz: string): string {
   return d
