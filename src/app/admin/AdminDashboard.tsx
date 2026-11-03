@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GardensSeatSalesEditor } from "@/components/gardens-seat-sales-editor";
 import { VivaldiSeatStaff } from "@/components/vivaldi-seat-staff";
 import {
@@ -317,6 +317,23 @@ function hhMmToMinutes(hhmm: string): number {
 /** Через полночь допустимо (например 21:00–00:00); только нулевая длина интервала — нет. */
 function isValidNightOfMuseumsTimeRange(from: string, to: string): boolean {
   return hhMmToMinutes(from) !== hhMmToMinutes(to);
+}
+
+/** Точное совпадение даты и времени. Если время в базе чуть другое, а показ в этот день один — берём его. */
+function findAdminSlot(
+  slots: SlotRow[],
+  kind: string,
+  dateKey: string,
+  timeKey?: string,
+): SlotRow | undefined {
+  if (timeKey) {
+    const exact = slots.find(
+      (item) => item.kind === kind && item.dateKey === dateKey && item.timeKey === timeKey,
+    );
+    if (exact) return exact;
+  }
+  const sameDay = slots.filter((item) => item.kind === kind && item.dateKey === dateKey);
+  return sameDay.length === 1 ? sameDay[0] : undefined;
 }
 
 /** Подпись кнопки даты: 2026-04-03 → «3 апр.» без сдвига по TZ */
@@ -1111,6 +1128,7 @@ export default function AdminDashboard() {
   const [checkInStats, setCheckInStats] = useState<CheckInStatsResponse | null>(null);
   const [salesStats, setSalesStats] = useState<SalesStatsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const slotsRequestRef = useRef<Promise<SlotsResponse | null> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1148,44 +1166,65 @@ export default function AdminDashboard() {
       const all = options.inactive ?? showInactive;
       setErrMsg("");
       setLoading(true);
-      try {
-        const q = all ? "?active=all" : "";
-        const data = await apiFetch<SlotsResponse>(`/api/admin/slots${q}`);
-        setSlotsData(data);
-      } catch (e: unknown) {
-        setErrMsg(e instanceof Error ? e.message : String(e));
-        setSlotsData(null);
-      } finally {
-        setLoading(false);
-      }
+      const request = (async (): Promise<SlotsResponse | null> => {
+        try {
+          const q = all ? "?active=all" : "";
+          const data = await apiFetch<SlotsResponse>(`/api/admin/slots${q}`);
+          setSlotsData(data);
+          return data;
+        } catch (e: unknown) {
+          setErrMsg(e instanceof Error ? e.message : String(e));
+          setSlotsData(null);
+          return null;
+        } finally {
+          setLoading(false);
+          if (slotsRequestRef.current === request) slotsRequestRef.current = null;
+        }
+      })();
+      slotsRequestRef.current = request;
+      return request;
     },
     [showInactive],
   );
 
-  function openGardensSales(dateKey: string, timeKey: string) {
-    const slot = slotsData?.slots.find(
-      (item) =>
-        item.kind === GARDENS_OF_DREAMS_SLOT_KIND &&
-        item.dateKey === dateKey &&
-        item.timeKey === timeKey,
-    );
+  const slotsReady = useCallback(async (): Promise<SlotRow[] | null> => {
+    const pending = slotsRequestRef.current;
+    if (pending) {
+      const data = await pending;
+      return data?.slots ?? null;
+    }
+    if (slotsData) return slotsData.slots;
+    const data = await loadSlots();
+    return data?.slots ?? null;
+  }, [slotsData, loadSlots]);
+
+  async function openGardensSales(dateKey: string, timeKey: string) {
+    const slots = await slotsReady();
+    if (!slots) return;
+    const slot = findAdminSlot(slots, GARDENS_OF_DREAMS_SLOT_KIND, dateKey, timeKey);
     if (!slot) {
-      setErrMsg("Сеанс «Сады сновидений» на эту дату не найден. Нажмите «Обновить» в сеансах.");
+      setErrMsg(
+        `Сеанс «Сады сновидений» на ${formatDateKeyShort(dateKey)} не найден. Нажмите «Обновить» в сеансах.`,
+      );
       return;
     }
     setErrMsg("");
+    setSelectedDate(slot.dateKey);
     setModal({ type: "gardens-seat-sales", slot });
   }
 
-  function openVivaldiHall(dateKey: string, mode: "invite" | "sale") {
-    const slot = slotsData?.slots.find(
-      (item) => item.kind === VIVALDI_CONCERT_SLOT_KIND && item.dateKey === dateKey,
-    );
+  async function openVivaldiHall(dateKey: string, mode: "invite" | "sale") {
+    const slots = await slotsReady();
+    if (!slots) return;
+    const slot = findAdminSlot(slots, VIVALDI_CONCERT_SLOT_KIND, dateKey);
     if (!slot) {
-      setErrMsg("Сеанс «Времена года» на эту дату не найден. Нажмите «Обновить» в сеансах.");
+      setErrMsg(
+        `Сеанс «Времена года» на ${formatDateKeyShort(dateKey)} не найден. Нажмите «Обновить» в сеансах.`,
+      );
       return;
     }
     setErrMsg("");
+    setSelectedDate(slot.dateKey);
     setModal({ type: "vivaldi-seats", slot, mode });
   }
 
@@ -2346,7 +2385,11 @@ export default function AdminDashboard() {
                   : `Нет сеансов для «${slotSalesChannelLabel(scheduleKindFilter)}».`}
                 </p>
               ) : (
-                <p className="admin-hint admin-hint--tight">Загрузите список — появятся быстрые переходы по датам.</p>
+                <p className="admin-hint admin-hint--tight">
+                  {loading ?
+                    "Загружаем список сеансов…"
+                  : "Загрузите список — появятся быстрые переходы по датам."}
+                </p>
               )}
             </div>
             <div className="admin-schedule-actions">
@@ -2518,7 +2561,9 @@ export default function AdminDashboard() {
             </p>
           </div>
           {!slotsData ? (
-            <div className="admin-empty admin-empty--compact">Загрузка…</div>
+            <div className="admin-empty admin-empty--compact">
+              {loading ? "Загрузка…" : "Список сеансов не загружен."}
+            </div>
           ) : (
             <>
               {slotsForSelectedDate.length === 0 ? (
