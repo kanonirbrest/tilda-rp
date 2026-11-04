@@ -217,9 +217,9 @@ function salesNumCell(value: number | null): string {
 }
 
 /** Ответ API без report: показываем продажи по типам, остальные столбцы неизвестны. */
-function salesReportFromSold(sold: TierSoldCounts): SalesReport {
+function salesReportFromSold(sold: TierSoldCounts, slotKind?: string | null): SalesReport {
   const rows: SalesReportRow[] = [
-    { key: "tier:ADULT", label: "Взрослый", sold: sold.adult },
+    { key: "tier:ADULT", label: slotKind === DOM_ROZHDESTVA_SLOT_KIND ? "Единый" : "Взрослый", sold: sold.adult },
     { key: "tier:CHILD", label: "Детский", sold: sold.child },
     { key: "tier:CONCESSION", label: "Льготный", sold: sold.concession },
     ...(sold.unknown > 0 ? [{ key: "tier:UNKNOWN", label: "Без типа", sold: sold.unknown }] : []),
@@ -244,6 +244,7 @@ const ADMIN_TICKET_STOREFRONTS = [
   { href: "/buy-tickets", label: "Купить билет" },
   { href: "/nightofmuseums", label: "Ночь музеев" },
   { href: "/belye-nochi-18", label: "Белые ночи 18+" },
+  { href: "/dom-rozhdestva", label: "Дом Рождества 2026" },
   { href: "/koncert-vivaldi", label: "Вивальди (13 окт)" },
   { href: "/koncert-vivaldi/26-10", label: "Вивальди (26 окт)" },
   { href: "/buy-tickets-summer", label: "Лето (Tilda)" },
@@ -291,7 +292,8 @@ type AdminModal =
   | { type: "promo-new" }
   | { type: "promo-edit"; promo: PromoRow };
 
-function tierRu(t: string): string {
+function tierRu(t: string, slotKind?: string): string {
+  if (slotKind === DOM_ROZHDESTVA_SLOT_KIND && t === "ADULT") return "един.";
   if (t === "ADULT") return "взр.";
   if (t === "CHILD") return "дет.";
   return "льг.";
@@ -966,7 +968,7 @@ function OrderModalBody({
               const seatPart = seat ? `${seat} · ` : "";
               const tierPart =
                 seat ? ""
-                : t.tier ? `${tierTicketSingularRu(t.tier)} · `
+                : t.tier ? `${tierTicketSingularRu(t.tier, o.slot.kind)} · `
                 : "тип не указан · ";
               const scanPart = t.refundedAt ? `возврат ${formatDisplayDateTime(t.refundedAt)}`
               : t.usedAt ? `отмечен ${formatDisplayDateTime(t.usedAt)}`
@@ -1090,7 +1092,7 @@ function OrderModalBody({
         <ul className="admin-detail-lines">
           {o.lines.map((l, i) => (
             <li key={i}>
-              <span className="mono">{tierRu(l.tier)}</span> ×{l.quantity} ·{" "}
+              <span className="mono">{tierRu(l.tier, o.slot.kind)}</span> ×{l.quantity} ·{" "}
               {formatMinorUnits(l.unitPriceCents, o.currency)} за ед.
             </li>
           ))}
@@ -1321,7 +1323,10 @@ export default function AdminDashboard() {
   }, [statsQueryRange, statsKindFilter, statsSlotId, statsVisitFilter]);
 
   const salesReport = useMemo(
-    () => (salesStats ? salesStats.report ?? salesReportFromSold(salesStats.sold) : null),
+    () =>
+      salesStats ?
+        salesStats.report ?? salesReportFromSold(salesStats.sold, salesStats.slotKind)
+      : null,
     [salesStats],
   );
 
@@ -2873,7 +2878,9 @@ export default function AdminDashboard() {
                         <tr>
                           <th>{statsRangeIsSingleDay ? "Время" : "Дата и время"}</th>
                           <th>Сеанс</th>
-                          <th className="num">Взр.</th>
+                          <th className="num">
+                            {statsKindFilter === DOM_ROZHDESTVA_SLOT_KIND ? "Един." : "Взр."}
+                          </th>
                           <th className="num">Дет.</th>
                           <th className="num">Льг.</th>
                           <th className="num">Всего</th>

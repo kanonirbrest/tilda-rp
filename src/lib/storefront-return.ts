@@ -1,6 +1,7 @@
 import { normalizeTimeInput } from "@/lib/exhibition-time";
 import {
   BELYE_NOCHI_18_SLOT_KIND,
+  DOM_ROZHDESTVA_SLOT_KIND,
   GARDENS_OF_DREAMS_SLOT_KIND,
   NEBO_REKA_SLOT_KIND,
   NIGHT_OF_MUSEUMS_SLOT_KIND,
@@ -63,6 +64,10 @@ export function storefrontRetryHref(order: StorefrontOrder): string | null {
     if (order.giftOpenDate) return withCounts("/buy-tickets-smr", order, { gift: "1" });
     if (!order.date || !order.time) return null;
     return withCounts("/buy-tickets-smr", order, { date: order.date, time: order.time });
+  }
+  if (kind === DOM_ROZHDESTVA_SLOT_KIND) {
+    if (!order.date || !order.time) return null;
+    return withCounts("/dom-rozhdestva", order, { date: order.date, time: order.time });
   }
   if (kind === NIGHT_OF_MUSEUMS_SLOT_KIND || kind === BELYE_NOCHI_18_SLOT_KIND) {
     if (!order.date || !order.time) return null;

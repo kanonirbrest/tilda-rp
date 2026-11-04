@@ -262,7 +262,7 @@ export async function fulfillPaidOrder(
         t.seatLabel ??
         (full.slot.kind === BELYE_NOCHI_18_SLOT_KIND ?
           undefined
-        : t.tier ? tierTicketSingularRu(t.tier) : undefined),
+        : t.tier ? tierTicketSingularRu(t.tier, full.slot.kind) : undefined),
       admissionCount: multiPdf ? 1 : t.admissionCount,
       ticketOrdinal: multiPdf
         ? { index: i + 1, total: tickets.length }
@@ -315,7 +315,7 @@ export async function fulfillPaidOrder(
       slotStartsAt: full.slot.startsAt.toISOString(),
       usedAt: null,
       linesSummary:
-        full.lines.length > 0 ? linesSummaryRu(full.lines) : null,
+        full.lines.length > 0 ? linesSummaryRu(full.lines, full.slot.kind) : null,
       admissionCount: admissionTotal,
     });
   } catch (err) {

@@ -3,6 +3,7 @@
  * в копейках; в bePaid уходит та же сумма в копейках.
  */
 import type { Slot, TicketTier } from "@prisma/client";
+import { DOM_ROZHDESTVA_SLOT_KIND } from "@/lib/slot-kind";
 
 export function unitPriceCents(slot: Slot, tier: TicketTier): number {
   switch (tier) {
@@ -50,7 +51,8 @@ export function expandLineTiers(lines: LineInput[]): TicketTier[] {
   return out;
 }
 
-export function tierTicketSingularRu(tier: TicketTier): string {
+export function tierTicketSingularRu(tier: TicketTier, slotKind?: string | null): string {
+  if (slotKind === DOM_ROZHDESTVA_SLOT_KIND && tier === "ADULT") return "Единый";
   switch (tier) {
     case "ADULT":
       return "Взрослый";
@@ -69,9 +71,16 @@ const TIER_RU: Record<TicketTier, string> = {
   CONCESSION: "льготных",
 };
 
-export function linesSummaryRu(lines: { tier: TicketTier; quantity: number }[]): string {
+export function linesSummaryRu(
+  lines: { tier: TicketTier; quantity: number }[],
+  slotKind?: string | null,
+): string {
   const parts = lines
     .filter((l) => l.quantity > 0)
-    .map((l) => `${TIER_RU[l.tier]}: ${l.quantity}`);
+    .map((l) => {
+      const label =
+        slotKind === DOM_ROZHDESTVA_SLOT_KIND && l.tier === "ADULT" ? "единых" : TIER_RU[l.tier];
+      return `${label}: ${l.quantity}`;
+    });
   return parts.length ? parts.join(", ") : "";
 }

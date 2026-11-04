@@ -2,6 +2,7 @@ import { type OrderStatus, type TicketTier } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { reportTicketsWhereForDay } from "@/lib/admin-day-ticket-filter";
 import { dateKeyInTz, getExhibitionTimezone, timeKeyInTz, wallDaysUtcRange } from "@/lib/exhibition-time";
+import { DOM_ROZHDESTVA_SLOT_KIND } from "@/lib/slot-kind";
 
 /** Верхняя граница отчёта, чтобы не выгружать всю историю одним запросом. */
 const STATS_RANGE_MAX_DAYS = 366;
@@ -261,7 +262,9 @@ export async function querySalesStats(params: {
 
   const rows: SalesReportRow[] = TIER_ROWS.map((r) => {
     const cell = tierCells.get(r.key) ?? emptyCell();
-    return { key: r.key, label: r.label, kind: "tier" as const, quota: null, ...cell };
+    const label =
+      slotKind === DOM_ROZHDESTVA_SLOT_KIND && r.tier === "ADULT" ? "Единый" : r.label;
+    return { key: r.key, label, kind: "tier" as const, quota: null, ...cell };
   });
 
   const unknownCell = tierCells.get("tier:UNKNOWN");
