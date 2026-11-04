@@ -1178,10 +1178,12 @@ export default function AdminDashboard() {
           return null;
         } finally {
           setLoading(false);
-          if (slotsRequestRef.current === request) slotsRequestRef.current = null;
         }
       })();
       slotsRequestRef.current = request;
+      void request.finally(() => {
+        if (slotsRequestRef.current === request) slotsRequestRef.current = null;
+      });
       return request;
     },
     [showInactive],
