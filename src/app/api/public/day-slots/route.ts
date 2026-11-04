@@ -14,7 +14,12 @@ import {
   formatEventSessionRangeForUi,
   parseEventSessionTimeRangeFromTitle,
 } from "@/lib/event-session-title";
-import { isEventSessionSlotKind, normalizeSlotKind } from "@/lib/slot-kind";
+import { ensureDomRozhdestvaSlots } from "@/lib/dom-rozhdestva/ensure-slots";
+import {
+  DOM_ROZHDESTVA_SALES_CLOSED_HINT,
+  isDomRozhdestvaSaleOpen,
+} from "@/lib/dom-rozhdestva/schedule";
+import { DOM_ROZHDESTVA_SLOT_KIND, isEventSessionSlotKind, normalizeSlotKind } from "@/lib/slot-kind";
 import { slotOrderLineStatsMap } from "@/lib/slot-order-line-stats";
 
 export async function OPTIONS(req: Request) {
@@ -43,6 +48,22 @@ export async function GET(req: Request) {
   try {
     await expireStalePendingOrders();
     const tz = getExhibitionTimezone();
+    if (slotKind === DOM_ROZHDESTVA_SLOT_KIND) {
+      await ensureDomRozhdestvaSlots();
+      if (!isDomRozhdestvaSaleOpen(new Date(), tz)) {
+        return jsonPublicReadResponse(
+          req,
+          {
+            timezone: tz,
+            date,
+            kind: slotKind,
+            times: [],
+            hint: DOM_ROZHDESTVA_SALES_CLOSED_HINT,
+          },
+          200,
+        );
+      }
+    }
     const range = wallDayUtcRange(date, tz);
     if (!range) {
       return jsonPublicReadResponse(req, { error: "DATE_INVALID", hint: "Некорректная дата" }, 400);

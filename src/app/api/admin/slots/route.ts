@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
 import { getExhibitionTimezone, dateKeyInTz, timeKeyInTz } from "@/lib/exhibition-time";
 import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
+import { ensureDomRozhdestvaSlots } from "@/lib/dom-rozhdestva/ensure-slots";
 import { ensureGardensSlots } from "@/lib/gardens-of-dreams/ensure-slots";
 import { normalizeSlotKind } from "@/lib/slot-kind";
 
@@ -42,8 +43,9 @@ export async function GET(req: Request) {
   if (deny) return deny;
 
   await expireStalePendingOrders();
-  /** Сеансы «Сады сновидений» из расписания в коде — иначе 19.07 и др. не видны, пока никто не открыл витрину. */
+  /** Сеансы «Сады сновидений» и «Дом Рождества» из расписания в коде — иначе не видны, пока никто не открыл витрину. */
   await ensureGardensSlots();
+  await ensureDomRozhdestvaSlots();
 
   const url = new URL(req.url);
   const activeOnly = url.searchParams.get("active") !== "all";

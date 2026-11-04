@@ -10,7 +10,12 @@ import {
 } from "@/lib/exhibition-time";
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
-import { normalizeSlotKind } from "@/lib/slot-kind";
+import { ensureDomRozhdestvaSlots } from "@/lib/dom-rozhdestva/ensure-slots";
+import {
+  DOM_ROZHDESTVA_SALES_CLOSED_HINT,
+  isDomRozhdestvaSaleOpen,
+} from "@/lib/dom-rozhdestva/schedule";
+import { DOM_ROZHDESTVA_SLOT_KIND, normalizeSlotKind } from "@/lib/slot-kind";
 import { slotOrderLineStatsMap } from "@/lib/slot-order-line-stats";
 
 type DayAgg = {
@@ -33,6 +38,18 @@ export async function GET(req: Request) {
       searchParams.get("hidePastTimes") === "1" ||
       searchParams.get("hidePastTimes")?.toLowerCase() === "true";
     const now = new Date();
+    const tz = getExhibitionTimezone();
+
+    if (slotKind === DOM_ROZHDESTVA_SLOT_KIND) {
+      await ensureDomRozhdestvaSlots();
+      if (!isDomRozhdestvaSaleOpen(now, tz)) {
+        return jsonPublicReadResponse(
+          req,
+          { timezone: tz, kind: slotKind, days: {}, hint: DOM_ROZHDESTVA_SALES_CLOSED_HINT },
+          200,
+        );
+      }
+    }
 
     const slots = await prisma.slot.findMany({
       where: { active: true, kind: slotKind, giftOpenDate: false },
@@ -40,7 +57,6 @@ export async function GET(req: Request) {
       select: { id: true, capacity: true, startsAt: true },
     });
 
-    const tz = getExhibitionTimezone();
     const stats = await slotOrderLineStatsMap(slots.map((s) => s.id));
 
     const byDay = new Map<string, DayAgg>();

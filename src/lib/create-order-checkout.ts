@@ -14,6 +14,11 @@ import {
 } from "@/lib/slot-pricing";
 import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
 import { findOrCreateCustomerByEmail } from "@/lib/customer-upsert";
+import {
+  DOM_ROZHDESTVA_SALES_CLOSED_HINT,
+  isDomRozhdestvaSaleOpen,
+} from "@/lib/dom-rozhdestva/schedule";
+import { DOM_ROZHDESTVA_SLOT_KIND } from "@/lib/slot-kind";
 
 export class CapacityExceededError extends Error {
   constructor() {
@@ -71,6 +76,14 @@ export async function createOrderCheckout(
     });
     if (!slot) {
       return { ok: false, status: 404, message: "Сеанс не найден" };
+    }
+    if (slot.kind === DOM_ROZHDESTVA_SLOT_KIND && !isDomRozhdestvaSaleOpen()) {
+      return {
+        ok: false,
+        status: 400,
+        message: DOM_ROZHDESTVA_SALES_CLOSED_HINT,
+        error: "SALES_NOT_OPEN",
+      };
     }
 
     const subtotalCents = totalCentsForLines(slot, lines);

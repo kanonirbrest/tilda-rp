@@ -11,6 +11,7 @@ import {
 } from "@/lib/money";
 import {
   BELYE_NOCHI_18_SLOT_KIND,
+  DOM_ROZHDESTVA_SLOT_KIND,
   GARDENS_OF_DREAMS_SLOT_KIND,
   NEBO_REKA_SLOT_KIND,
   VIVALDI_CONCERT_SLOT_KIND,
@@ -273,6 +274,7 @@ function slotSalesChannelLabel(kind: string): string {
   if (kind === BELYE_NOCHI_18_SLOT_KIND) return "Белые ночи 18+";
   if (kind === GARDENS_OF_DREAMS_SLOT_KIND) return "Сады сновидений";
   if (kind === VIVALDI_CONCERT_SLOT_KIND) return "Времена года. Антонио Вивальди";
+  if (kind === DOM_ROZHDESTVA_SLOT_KIND) return "Дом Рождества";
   return kind;
 }
 

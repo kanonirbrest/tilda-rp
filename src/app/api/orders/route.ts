@@ -245,7 +245,8 @@ export async function POST(req: Request) {
         result.error === "PROMO_EXHAUSTED" ||
         result.error === "PROMO_ZERO_PAYMENT" ||
         result.error === "PROMO_WRONG_CHANNEL" ||
-        result.error === "PROMO_UNAVAILABLE" ?
+        result.error === "PROMO_UNAVAILABLE" ||
+        result.error === "SALES_NOT_OPEN" ?
           result.error
         : "INVALID_LINES";
       return jsonOrdersResponse(

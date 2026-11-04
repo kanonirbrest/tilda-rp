@@ -5,7 +5,11 @@ import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orde
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
 import { resolvePromoForQuote } from "@/lib/resolve-order-promo";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
-import { normalizeSlotKind } from "@/lib/slot-kind";
+import {
+  DOM_ROZHDESTVA_SALES_CLOSED_HINT,
+  isDomRozhdestvaSaleOpen,
+} from "@/lib/dom-rozhdestva/schedule";
+import { DOM_ROZHDESTVA_SLOT_KIND, normalizeSlotKind } from "@/lib/slot-kind";
 import { buildLinesFromCounts, totalCentsForLines } from "@/lib/slot-pricing";
 import { parseTicketCountParam } from "@/lib/ticket-checkout-params";
 
@@ -89,6 +93,13 @@ export async function GET(req: Request) {
     }
 
     const slot = resolved.slot;
+    if (slot.kind === DOM_ROZHDESTVA_SLOT_KIND && !isDomRozhdestvaSaleOpen()) {
+      return jsonPublicReadResponse(
+        req,
+        { error: "SALES_NOT_OPEN", hint: DOM_ROZHDESTVA_SALES_CLOSED_HINT },
+        400,
+      );
+    }
     const lines = buildLinesFromCounts(slot, { adult, child, concession });
     const totalCents = totalCentsForLines(slot, lines);
     const currency = slot.currency || "BYN";
