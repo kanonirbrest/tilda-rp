@@ -2438,6 +2438,14 @@ export default function AdminDashboard() {
                 Пригласительные · 26 окт
               </button>
               <a
+                href="/dom-rozhdestva"
+                className="btn btn-secondary"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Дом Рождества
+              </a>
+              <a
                 href="/koncert-vivaldi"
                 className="btn btn-secondary"
                 target="_blank"
