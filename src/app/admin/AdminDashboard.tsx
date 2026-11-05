@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GardensSeatSalesEditor } from "@/components/gardens-seat-sales-editor";
 import { VivaldiSeatStaff } from "@/components/vivaldi-seat-staff";
+import { DomRozhdestvaInvite } from "@/components/dom-rozhdestva-invite";
 import {
   formatMinorUnits,
   minorToMajorNumber,
@@ -289,6 +290,7 @@ type AdminModal =
   | { type: "slot-edit"; slot: SlotRow }
   | { type: "gardens-seat-sales"; slot: SlotRow }
   | { type: "vivaldi-seats"; slot: SlotRow; mode: "invite" | "sale" }
+  | { type: "dom-invite"; slot: SlotRow }
   | { type: "promo-new" }
   | { type: "promo-edit"; promo: PromoRow };
 
@@ -3578,6 +3580,21 @@ export default function AdminDashboard() {
                     </p>
                   </div>
                 ) : null}
+                {s.kind === DOM_ROZHDESTVA_SLOT_KIND ? (
+                  <div className="admin-field admin-field--full">
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      style={{ width: "100%" }}
+                      onClick={() => setModal({ type: "dom-invite", slot: s })}
+                    >
+                      Выдать пригласительный
+                    </button>
+                    <p className="admin-hint admin-hint--tight" style={{ marginTop: "0.35rem" }}>
+                      Билет без оплаты. Занимает одно место из лимита сеанса. Письмо или PDF на компьютер.
+                    </p>
+                  </div>
+                ) : null}
                 {s.kind === GARDENS_OF_DREAMS_SLOT_KIND ? (
                   <div className="admin-field admin-field--full">
                     <button
@@ -3726,6 +3743,19 @@ export default function AdminDashboard() {
             slotId={modal.slot.id}
             slotTitle={modal.slot.title}
             initialMode={modal.mode}
+            onClose={() => setModal({ type: "none" })}
+          />
+        </AdminModalFrame>
+      ) : null}
+
+      {modal.type === "dom-invite" ? (
+        <AdminModalFrame
+          title="Дом Рождества — пригласительный"
+          onClose={() => setModal({ type: "none" })}
+        >
+          <DomRozhdestvaInvite
+            slotId={modal.slot.id}
+            slotTitle={modal.slot.title}
             onClose={() => setModal({ type: "none" })}
           />
         </AdminModalFrame>
