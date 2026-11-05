@@ -75,7 +75,7 @@ async function waitForTicketFonts(page: Page): Promise<void> {
   const fontOk = await page.evaluate(async () => {
     await document.fonts.ready;
     const fam = '"Cy Grotesk Grand"';
-    const sizes = ["12px", "13px", "14.5px", "17px", "24px", "26px", "32px"];
+    const sizes = ["12px", "13px", "14px", "14.5px", "16px", "17px", "24px", "26px", "32px"];
     const weights = [200, 300, 400, 500, 600, 700];
     const specs: string[] = [];
     for (const w of weights) {
@@ -94,7 +94,10 @@ async function waitForTicketFonts(page: Page): Promise<void> {
       });
     });
     return (
-      document.fonts.check(`600 26px ${fam}`) &&
+      document.fonts.check(`400 16px ${fam}`) ||
+      document.fonts.check(`600 26px ${fam}`)
+    ) && (
+      document.fonts.check(`700 24px ${fam}`) ||
       document.fonts.check(`500 13px ${fam}`)
     );
   });
@@ -124,6 +127,7 @@ export async function renderHtmlToPdfBuffer(html: string): Promise<Uint8Array> {
       const buf = await page.pdf({
         format: "A4",
         printBackground: true,
+        preferCSSPageSize: true,
         margin: { top: "0", right: "0", bottom: "0", left: "0" },
       });
       return new Uint8Array(buf);

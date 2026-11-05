@@ -9,11 +9,13 @@ import { formatGardensTicketTimeLines } from "@/lib/gardens-of-dreams/schedule";
 import { parseEventSessionTimeRangeFromTitle } from "@/lib/event-session-title";
 import {
   BELYE_NOCHI_18_SLOT_KIND,
+  DOM_ROZHDESTVA_SLOT_KIND,
   GARDENS_OF_DREAMS_SLOT_KIND,
   isEventSessionSlotKind,
   NEBO_REKA_SLOT_KIND,
   VIVALDI_CONCERT_SLOT_KIND,
 } from "@/lib/slot-kind";
+import { buildDomRozhdestvaTicketHtml } from "@/lib/ticket-html-dom-rozhdestva";
 
 export type TicketPdfInput = {
   title: string;
@@ -236,6 +238,9 @@ function qrRasterWidthPx(): number {
 }
 
 export async function buildTicketHtml(opts: TicketPdfInput): Promise<string> {
+  if (opts.slotKind === DOM_ROZHDESTVA_SLOT_KIND) {
+    return buildDomRozhdestvaTicketHtml(opts);
+  }
   const isGardens = opts.slotKind === GARDENS_OF_DREAMS_SLOT_KIND;
   const isVivaldi = opts.slotKind === VIVALDI_CONCERT_SLOT_KIND;
   const qrPx = qrRasterWidthPx();
