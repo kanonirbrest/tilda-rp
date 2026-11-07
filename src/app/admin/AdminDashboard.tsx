@@ -58,6 +58,8 @@ type OrderRow = {
   refundedAt: string | null;
   /** Есть checkout-токен или UID транзакции списания (для возврата без ручного parent_uid). */
   hasBepaidReference: boolean;
+  /** Ключи магазина, которым оплачен этот заказ, заданы на сервере. */
+  bepaidRefundAvailable?: boolean;
   subtotalCents: number;
   discountCents: number;
   amountCents: number;
@@ -697,13 +699,11 @@ function OrderCancelPendingPanel({
 
 function OrderBepaidRefundPanel({
   order,
-  bepaidRefundAvailable,
   manualParent,
   setManualParent,
   onDone,
 }: {
   order: OrderRow;
-  bepaidRefundAvailable: boolean;
   manualParent: string;
   setManualParent: (v: string) => void;
   /** `ok` — только что возвращён; `duplicate` — уже был REFUNDED (гонка или повтор). */
@@ -713,7 +713,7 @@ function OrderBepaidRefundPanel({
   const [err, setErr] = useState("");
 
   const remainingCents = Math.max(0, order.amountCents - order.refundedCents);
-  if (!bepaidRefundAvailable || order.status.toUpperCase() !== "PAID" || remainingCents < 1) return null;
+  if (!order.bepaidRefundAvailable || order.status.toUpperCase() !== "PAID" || remainingCents < 1) return null;
 
   const needsManualParent = !order.hasBepaidReference;
   const canSubmit = !needsManualParent || manualParent.trim().length >= 8;
@@ -788,13 +788,11 @@ function OrderBepaidRefundPanel({
 function OrderTicketRefundButton({
   order,
   ticket,
-  bepaidRefundAvailable,
   manualParent,
   onDone,
 }: {
   order: OrderRow;
   ticket: OrderRow["tickets"][0];
-  bepaidRefundAvailable: boolean;
   manualParent: string;
   onDone: () => void | Promise<void>;
 }) {
@@ -806,7 +804,7 @@ function OrderTicketRefundButton({
   const canSubmit = !needsManualParent || manualParent.trim().length >= 8;
 
   if (
-    !bepaidRefundAvailable ||
+    !order.bepaidRefundAvailable ||
     order.status.toUpperCase() !== "PAID" ||
     remainingBudget < 1 ||
     ticket.refundedAt ||
@@ -869,13 +867,11 @@ function OrderTicketRefundButton({
 
 function OrderModalBody({
   o,
-  bepaidRefundAvailable,
   onFullRefundDone,
   onTicketRefunded,
   onPendingCancelled,
 }: {
   o: OrderRow;
-  bepaidRefundAvailable: boolean;
   onFullRefundDone: (kind: "ok" | "duplicate") => void;
   onTicketRefunded: () => void | Promise<void>;
   onPendingCancelled: () => void | Promise<void>;
@@ -1003,7 +999,6 @@ function OrderModalBody({
                   <OrderTicketRefundButton
                     order={o}
                     ticket={t}
-                    bepaidRefundAvailable={bepaidRefundAvailable}
                     manualParent={manualParent}
                     onDone={onTicketRefunded}
                   />
@@ -1064,7 +1059,6 @@ function OrderModalBody({
       <OrderCancelPendingPanel order={o} onDone={onPendingCancelled} />
       <OrderBepaidRefundPanel
         order={o}
-        bepaidRefundAvailable={bepaidRefundAvailable}
         manualParent={manualParent}
         setManualParent={setManualParent}
         onDone={onFullRefundDone}
@@ -3092,7 +3086,6 @@ export default function AdminDashboard() {
           <OrderModalBody
             key={modal.order.id}
             o={modal.order}
-            bepaidRefundAvailable={ordersData?.bepaidRefundAvailable ?? false}
             onFullRefundDone={(kind) => {
               setInfoMsg(
                 kind === "duplicate" ?

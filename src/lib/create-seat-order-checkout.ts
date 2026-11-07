@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createPublicTicketToken } from "@/lib/ticket-token";
-import { createBepaidPayment } from "@/lib/bepaid";
+import { BEPAID_SHOP_DEFAULT, createBepaidPayment } from "@/lib/bepaid";
 import { fulfillPaidOrder } from "@/lib/fulfill-order";
 import { applyPromoAtCheckout } from "@/lib/resolve-order-promo";
 import type { Slot } from "@prisma/client";
@@ -18,6 +18,7 @@ import { ensureVivaldiSlots, vivaldiSeatSaleOverridesForSlot } from "@/lib/vival
 import { ensureVivaldiComplimentaryPromo } from "@/lib/vivaldi/ensure-promo";
 import { vivaldiVolumeDiscountCents } from "@/lib/vivaldi/pricing";
 import { vivaldiDateForStartsAt, vivaldiVolumeDiscountApplies } from "@/lib/vivaldi/schedule";
+import { testPayAmountCents } from "@/lib/test-pay-email";
 import { getVivaldiSeatWithOverrides } from "@/lib/vivaldi/seat-map";
 import {
   expireStalePendingOrdersAndReleaseSeats,
@@ -188,7 +189,9 @@ export async function createSeatOrderCheckout(
             clubPromoTelegramUserId: null,
           };
 
-      const amountCents = promoApplied.amountCents;
+      let amountCents = promoApplied.amountCents;
+      const testPay = testPayAmountCents(email, amountCents);
+      if (testPay != null) amountCents = testPay;
       const discountCents = subtotalCents - amountCents;
       const { promoCodeId, clubPromoCode, clubPromoTelegramUserId } = promoApplied;
       chargedAmountCents = amountCents;
@@ -237,10 +240,11 @@ export async function createSeatOrderCheckout(
         customerEmail: email.trim(),
         customerName: name,
         publicBaseUrl,
+        shop: BEPAID_SHOP_DEFAULT,
       });
       await prisma.order.update({
         where: { id: orderId },
-        data: { bepaidUid: pay.bepaidUid },
+        data: { bepaidUid: pay.bepaidUid, bepaidShop: BEPAID_SHOP_DEFAULT },
       });
       return { ok: true, orderId, redirectUrl: pay.redirectUrl };
     } catch (e) {

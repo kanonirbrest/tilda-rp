@@ -128,6 +128,7 @@ async function compensateLostSeats(orderId: string, seatKeys: string[]): Promise
       refundedCents: true,
       bepaidPaymentUid: true,
       bepaidUid: true,
+      bepaidShop: true,
     },
   });
   if (!order || order.status === "REFUNDED" || order.status === "PAID") return;
@@ -153,6 +154,7 @@ async function compensateLostSeats(orderId: string, seatKeys: string[]): Promise
     parentUid,
     amountCents: refundAmount,
     reason: "Места уже проданы: оплата пришла после снятия брони",
+    shop: order.bepaidShop,
   });
   if (!refund.ok) {
     console.error("[fulfill] возврат bePaid не прошёл, заказ оставлен CANCELLED", {

@@ -72,6 +72,7 @@ async function main() {
         currency: order.currency,
         bepaidUid: order.bepaidUid,
         bepaidPaymentUid: order.bepaidPaymentUid,
+        bepaidShop: order.bepaidShop,
         reachedBepaidCheckout: reachedBepaid,
         webhookReceiptForBepaidUid: receipt?.createdAt
           ? formatDisplayDateTime(receipt.createdAt.toISOString())

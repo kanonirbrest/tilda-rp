@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createPublicTicketToken } from "@/lib/ticket-token";
-import { createBepaidPayment } from "@/lib/bepaid";
+import { bepaidShopForSlotKind, BepaidNotConfiguredError, createBepaidPayment } from "@/lib/bepaid";
 import { fulfillPaidOrder } from "@/lib/fulfill-order";
 import { applyPromoAtCheckout } from "@/lib/resolve-order-promo";
 import { PromoApplyError } from "@/lib/promo-code";
@@ -19,6 +19,7 @@ import {
   isDomRozhdestvaSaleOpen,
 } from "@/lib/dom-rozhdestva/schedule";
 import { DOM_ROZHDESTVA_SLOT_KIND } from "@/lib/slot-kind";
+import { testPayAmountCents } from "@/lib/test-pay-email";
 
 export class CapacityExceededError extends Error {
   constructor() {
@@ -132,8 +133,13 @@ export async function createOrderCheckout(
             clubPromoTelegramUserId: null,
           };
 
-      const { discountCents, amountCents, promoCodeId, clubPromoCode, clubPromoTelegramUserId } =
-        promoApplied;
+      let { discountCents, amountCents } = promoApplied;
+      const { promoCodeId, clubPromoCode, clubPromoTelegramUserId } = promoApplied;
+      const testPay = testPayAmountCents(email, amountCents);
+      if (testPay != null) {
+        discountCents += amountCents - testPay;
+        amountCents = testPay;
+      }
 
       chargedAmountCents = amountCents;
 
@@ -193,10 +199,13 @@ export async function createOrderCheckout(
     }
 
     try {
+      const bepaidShop = bepaidShopForSlotKind(slot.kind);
       console.info("[checkout] вызов bePaid", {
         orderId,
         slotId: slot.id,
+        bepaidShop,
         amountCents: chargedAmountCents,
+        testPay: chargedAmountCents !== subtotalCents && testPayAmountCents(email, subtotalCents) != null,
         subtotalCents,
         currency: slot.currency,
         publicBaseUrl,
@@ -212,26 +221,32 @@ export async function createOrderCheckout(
         customerEmail: email.trim(),
         customerName: name,
         publicBaseUrl,
+        shop: bepaidShop,
       });
       await prisma.order.update({
         where: { id: orderId },
-        data: { bepaidUid: pay.bepaidUid },
+        data: { bepaidUid: pay.bepaidUid, bepaidShop },
       });
       console.info("[checkout] bePaid ok, заказ обновлён bepaidUid", {
         orderId,
+        bepaidShop,
         bepaidUidLen: pay.bepaidUid.length,
         bepaidUidHead: pay.bepaidUid.slice(0, 8),
         bepaidUidTail: pay.bepaidUid.slice(-8),
       });
       return { ok: true, orderId, redirectUrl: pay.redirectUrl };
     } catch (e) {
-      if (e instanceof Error && e.message === "BEPAID_NOT_CONFIGURED") {
-        console.warn("[checkout] bePaid не сконфигурирован", { orderId });
+      if (e instanceof BepaidNotConfiguredError || (e instanceof Error && e.message === "BEPAID_NOT_CONFIGURED")) {
+        const dr = e instanceof BepaidNotConfiguredError && e.shop === "dr";
+        console.warn("[checkout] bePaid не сконфигурирован", { orderId, shop: dr ? "dr" : "default" });
         return {
           ok: false,
           status: 503,
           message: "Оплата не настроена",
-          hint: "Укажите BEPAID_SHOP_ID и BEPAID_SECRET_KEY или DEV_SKIP_PAYMENT=true",
+          hint:
+            dr ?
+              "Укажите BEPAID_DR_SHOP_ID и BEPAID_DR_SECRET_KEY или DEV_SKIP_PAYMENT=true"
+            : "Укажите BEPAID_SHOP_ID и BEPAID_SECRET_KEY или DEV_SKIP_PAYMENT=true",
         };
       }
       console.error("[checkout] bePaid исключение", {

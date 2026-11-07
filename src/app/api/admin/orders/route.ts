@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
 import { dateKeyInTz, getExhibitionTimezone, wallDayUtcRange } from "@/lib/exhibition-time";
 import { formatDisplayDateTime } from "@/lib/format-display-datetime";
+import { isBepaidShopConfigured } from "@/lib/bepaid";
 import { parseOptionalSlotKind } from "@/lib/slot-kind";
 
 export async function OPTIONS(req: Request) {
@@ -119,10 +120,6 @@ export async function GET(req: Request) {
     orderFilterFacets(tz, slotKind),
   ]);
 
-  const bepaidRefundAvailable = Boolean(
-    process.env.BEPAID_SHOP_ID?.trim() && process.env.BEPAID_SECRET_KEY?.trim(),
-  );
-
   const orders = rows.map((o) => {
     const { visitState, visitedAt } = visitMeta(o.status, o.tickets);
     return {
@@ -132,6 +129,8 @@ export async function GET(req: Request) {
       paidAt: o.paidAt != null ? formatDisplayDateTime(o.paidAt.toISOString()) : null,
       refundedAt: o.refundedAt != null ? formatDisplayDateTime(o.refundedAt.toISOString()) : null,
       hasBepaidReference: Boolean(o.bepaidPaymentUid || o.bepaidUid),
+      bepaidShop: o.bepaidShop,
+      bepaidRefundAvailable: isBepaidShopConfigured(o.bepaidShop),
       subtotalCents: o.subtotalCents,
       discountCents: o.discountCents,
       amountCents: o.amountCents,
@@ -178,7 +177,7 @@ export async function GET(req: Request) {
     limit,
     offset,
     truncated: offset + orders.length < total,
-    bepaidRefundAvailable,
+    bepaidRefundAvailable: isBepaidShopConfigured(null) || isBepaidShopConfigured("dr"),
     facets,
     orders,
   });

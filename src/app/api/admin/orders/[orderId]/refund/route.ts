@@ -1,29 +1,14 @@
 import { prisma } from "@/lib/prisma";
-import { refundBepaidPayment } from "@/lib/bepaid";
+import { bepaidShopEnvNames, isBepaidShopConfigured, normalizeBepaidShop, refundBepaidPayment } from "@/lib/bepaid";
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
 
 export async function OPTIONS(req: Request) {
   return new Response(null, { status: 204, headers: adminCorsHeaders(req) });
 }
 
-function bepaidRefundConfigured(): boolean {
-  return Boolean(process.env.BEPAID_SHOP_ID?.trim() && process.env.BEPAID_SECRET_KEY?.trim());
-}
-
 export async function POST(req: Request, ctx: { params: Promise<{ orderId: string }> }) {
   const deny = await requireAdmin(req);
   if (deny) return deny;
-
-  if (!bepaidRefundConfigured()) {
-    return jsonWithCors(
-      req,
-      {
-        error: "BEPAID_NOT_CONFIGURED",
-        message: "Возврат через bePaid недоступен: не заданы BEPAID_SHOP_ID и BEPAID_SECRET_KEY.",
-      },
-      { status: 503 },
-    );
-  }
 
   const { orderId } = await ctx.params;
   let body: { parentUid?: unknown; reason?: unknown } = {};
@@ -52,11 +37,23 @@ export async function POST(req: Request, ctx: { params: Promise<{ orderId: strin
       refundedCents: true,
       bepaidUid: true,
       bepaidPaymentUid: true,
+      bepaidShop: true,
     },
   });
 
   if (!order) {
     return jsonWithCors(req, { error: "NOT_FOUND", message: "Заказ не найден" }, { status: 404 });
+  }
+  if (!isBepaidShopConfigured(order.bepaidShop)) {
+    const names = bepaidShopEnvNames(normalizeBepaidShop(order.bepaidShop));
+    return jsonWithCors(
+      req,
+      {
+        error: "BEPAID_NOT_CONFIGURED",
+        message: `Возврат через bePaid недоступен: не заданы ${names.id} и ${names.secret}.`,
+      },
+      { status: 503 },
+    );
   }
   if (order.status === "REFUNDED") {
     return jsonWithCors(req, { ok: true, already: true, message: "Уже возвращён" });
@@ -95,6 +92,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ orderId: strin
     parentUid,
     amountCents: remainingCents,
     reason,
+    shop: order.bepaidShop,
   });
 
   if (!refund.ok) {

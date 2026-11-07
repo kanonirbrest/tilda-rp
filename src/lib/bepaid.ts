@@ -4,7 +4,57 @@
  *
  * Старый URL `https://gateway.bepaid.by/beyag/payments` отвечает 404 — используйте checkout API.
  * Переопределение: `BEPAID_API_URL` (по умолчанию `https://checkout.bepaid.by/ctp/api/checkouts`).
+ *
+ * Два магазина: основной (`BEPAID_SHOP_ID` / `BEPAID_SECRET_KEY`) и Дом Рождества
+ * (`BEPAID_DR_SHOP_ID` / `BEPAID_DR_SECRET_KEY`). На заказе хранится `bepaidShop`,
+ * возврат идёт ключом того магазина, которым создан платёж.
  */
+import { DOM_ROZHDESTVA_SLOT_KIND } from "@/lib/slot-kind";
+
+/** Основной магазин: все витрины, кроме Дома Рождества, и заказы до разделения. */
+export const BEPAID_SHOP_DEFAULT = "default";
+/** Магазин Дома Рождества. */
+export const BEPAID_SHOP_DR = "dr";
+
+export type BepaidShopId = typeof BEPAID_SHOP_DEFAULT | typeof BEPAID_SHOP_DR;
+
+export function bepaidShopForSlotKind(kind: string | null | undefined): BepaidShopId {
+  return kind === DOM_ROZHDESTVA_SLOT_KIND ? BEPAID_SHOP_DR : BEPAID_SHOP_DEFAULT;
+}
+
+/** null и любое неизвестное значение — основной магазин. */
+export function normalizeBepaidShop(raw: string | null | undefined): BepaidShopId {
+  return raw === BEPAID_SHOP_DR ? BEPAID_SHOP_DR : BEPAID_SHOP_DEFAULT;
+}
+
+export function bepaidShopEnvNames(shop: BepaidShopId): { id: string; secret: string } {
+  return shop === BEPAID_SHOP_DR ?
+      { id: "BEPAID_DR_SHOP_ID", secret: "BEPAID_DR_SECRET_KEY" }
+    : { id: "BEPAID_SHOP_ID", secret: "BEPAID_SECRET_KEY" };
+}
+
+export function bepaidCredentials(shop: BepaidShopId): { shopId: string; secret: string } | null {
+  const names = bepaidShopEnvNames(shop);
+  const shopId = process.env[names.id]?.trim();
+  const secret = process.env[names.secret]?.trim();
+  if (!shopId || !secret) return null;
+  return { shopId, secret };
+}
+
+export function isBepaidShopConfigured(raw: string | null | undefined): boolean {
+  return bepaidCredentials(normalizeBepaidShop(raw)) != null;
+}
+
+export class BepaidNotConfiguredError extends Error {
+  readonly shop: BepaidShopId;
+
+  constructor(shop: BepaidShopId) {
+    super("BEPAID_NOT_CONFIGURED");
+    this.name = "BepaidNotConfiguredError";
+    this.shop = shop;
+  }
+}
+
 export type CreatePaymentResult = {
   /** Токен checkout; в БД в `Order.bepaidUid` для сопоставления с вебхуком */
   bepaidUid: string;
@@ -126,15 +176,17 @@ export async function createBepaidPayment(opts: {
   customerName: string;
   /** Как пользователь зашёл на сайт (host/proto), для return_url и вебхука */
   publicBaseUrl: string;
+  shop: BepaidShopId;
 }): Promise<CreatePaymentResult> {
-  const shopId = process.env.BEPAID_SHOP_ID;
-  const secret = process.env.BEPAID_SECRET_KEY;
+  const creds = bepaidCredentials(opts.shop);
   const apiUrl = resolveBepaidApiUrl();
 
-  if (!shopId || !secret) {
-    console.warn("[bePaid] пропуск: нет BEPAID_SHOP_ID или BEPAID_SECRET_KEY");
-    throw new Error("BEPAID_NOT_CONFIGURED");
+  if (!creds) {
+    const names = bepaidShopEnvNames(opts.shop);
+    console.warn("[bePaid] пропуск: нет ключей магазина", { shop: opts.shop, idEnv: names.id });
+    throw new BepaidNotConfiguredError(opts.shop);
   }
+  const { shopId, secret } = creds;
 
   const base = opts.publicBaseUrl.replace(/\/$/, "");
   const notificationUrl = `${base}/api/webhooks/bepaid`;
@@ -150,6 +202,7 @@ export async function createBepaidPayment(opts: {
 
   console.info("[bePaid] создание checkout", {
     orderId: opts.orderId,
+    shop: opts.shop,
     amountCents: opts.amountCents,
     currency: opts.currency,
     bepaidTest,
@@ -321,19 +374,27 @@ export type BepaidRefundResult =
   | { ok: false; httpStatus: number; message: string };
 
 /**
- * Полный возврат по `parent_uid` (документация: Card API refund).
- * Авторизация Basic — те же `BEPAID_SHOP_ID` / `BEPAID_SECRET_KEY`, что и для checkout.
+ * Полный или частичный возврат по `parent_uid` (документация: Card API refund).
+ * Авторизация Basic — ключи того магазина, которым создан платёж (`opts.shop`).
  */
 export async function refundBepaidPayment(opts: {
   parentUid: string;
   amountCents: number;
   reason: string;
+  /** null — основной магазин (заказы до разделения). */
+  shop?: string | null;
 }): Promise<BepaidRefundResult> {
-  const shopId = process.env.BEPAID_SHOP_ID;
-  const secret = process.env.BEPAID_SECRET_KEY;
-  if (!shopId || !secret) {
-    return { ok: false, httpStatus: 503, message: "bePaid не настроен (BEPAID_SHOP_ID / BEPAID_SECRET_KEY)" };
+  const shop = normalizeBepaidShop(opts.shop);
+  const creds = bepaidCredentials(shop);
+  if (!creds) {
+    const names = bepaidShopEnvNames(shop);
+    return {
+      ok: false,
+      httpStatus: 503,
+      message: `bePaid не настроен (${names.id} / ${names.secret})`,
+    };
   }
+  const { shopId, secret } = creds;
 
   const url = resolveBepaidRefundUrl();
   const credentials = Buffer.from(`${shopId}:${secret}`).toString("base64");
@@ -348,6 +409,7 @@ export async function refundBepaidPayment(opts: {
 
   console.info("[bePaid] refund запрос", {
     url,
+    shop,
     parentUidLen: opts.parentUid.length,
     amountCents: opts.amountCents,
   });

@@ -100,6 +100,9 @@ model Order {
   bepaidUid    String?     @unique
   /// UID транзакции списания в bePaid (`parent_uid` для возврата). Заполняется из вебхука.
   bepaidPaymentUid String? @unique
+  /// Магазин bePaid, которым создан платёж: `default` — основной, `dr` — Дом Рождества.
+  /// null — заказ до разделения магазинов; возврат идёт в основной.
+  bepaidShop   String?
   createdAt    DateTime    @default(now())
   paidAt       DateTime?
   refundedAt   DateTime?
