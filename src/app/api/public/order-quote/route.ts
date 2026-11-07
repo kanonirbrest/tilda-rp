@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { ensureNeboGiftOpenDateSlot } from "@/lib/nebo-reka/ensure-gift-slot";
+import {
+  ensureDomRozhdestvaFreePromo,
+  isDomRozhdestvaFreePromoCode,
+} from "@/lib/dom-rozhdestva/ensure-promo";
 import { jsonPublicApiError } from "@/lib/public-api-error";
 import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orders-cors";
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
@@ -116,6 +120,9 @@ export async function GET(req: Request) {
     let promo: PromoOk | PromoErr | null = null;
 
     if (promoRaw) {
+      if (isDomRozhdestvaFreePromoCode(promoRaw)) {
+        await ensureDomRozhdestvaFreePromo();
+      }
       const promoResolved = await resolvePromoForQuote(promoRaw, totalCents, slot);
       if (!promoResolved) {
         promo = { applied: false, error: "INVALID_PROMO", hint: "Промокод не найден" };

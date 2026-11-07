@@ -20,6 +20,10 @@ import {
 } from "@/lib/dom-rozhdestva/schedule";
 import { DOM_ROZHDESTVA_SLOT_KIND } from "@/lib/slot-kind";
 import { testPayAmountCents } from "@/lib/test-pay-email";
+import {
+  ensureDomRozhdestvaFreePromo,
+  isDomRozhdestvaFreePromoCode,
+} from "@/lib/dom-rozhdestva/ensure-promo";
 
 export class CapacityExceededError extends Error {
   constructor() {
@@ -71,6 +75,9 @@ export async function createOrderCheckout(
 
   try {
     await expireStalePendingOrders();
+    if (input.promoCode && isDomRozhdestvaFreePromoCode(input.promoCode)) {
+      await ensureDomRozhdestvaFreePromo();
+    }
 
     const slot = await prisma.slot.findFirst({
       where: { id: input.slotId, active: true },
