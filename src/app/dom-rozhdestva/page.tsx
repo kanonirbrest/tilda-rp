@@ -167,6 +167,8 @@ export default function DomRozhdestvaPage() {
   const [promoInput, setPromoInput] = useState("");
   /** Код, переданный в order-quote после «Применить». */
   const [promoForQuote, setPromoForQuote] = useState("");
+  /** Каждое «Применить» заново запускает расчёт, даже если код не изменился. */
+  const [promoQuoteNonce, setPromoQuoteNonce] = useState(0);
   /** Промокод, подтверждённый ответом quote (applied === true). */
   const [promoConfirmed, setPromoConfirmed] = useState("");
   const [promoHint, setPromoHint] = useState("");
@@ -357,7 +359,7 @@ export default function DomRozhdestvaPage() {
     return () => {
       cancelled = true;
     };
-  }, [date, time, count, promoForQuote]);
+  }, [date, time, count, promoForQuote, promoQuoteNonce]);
 
   function onSelectDate(dateKey: string, bookable: boolean) {
     if (!bookable) return;
@@ -368,16 +370,14 @@ export default function DomRozhdestvaPage() {
 
   function applyPromo() {
     const code = promoInput.trim();
-    setQuotePending(true);
+    setPromoHint("");
+    setPromoConfirmed("");
     if (!code) {
       setPromoForQuote("");
-      setPromoConfirmed("");
-      setPromoHint("");
-      return;
+    } else {
+      setPromoForQuote(code);
     }
-    setPromoForQuote(code);
-    setPromoConfirmed("");
-    setPromoHint("");
+    setPromoQuoteNonce((n) => n + 1);
   }
 
   function onPromoInputChange(value: string) {
