@@ -83,13 +83,6 @@ export function SuccessClient({
   }, [orderId, bepaidReturn, gatewayStatusParam]);
 
   useEffect(() => {
-    if (status !== "payment_incomplete" || !failedOrder) return;
-    const href = paymentRetryHref(failedOrder);
-    if (!href) return;
-    window.location.replace(href);
-  }, [status, failedOrder]);
-
-  useEffect(() => {
     if (bepaidReturn != null || gatewayIndicatesFailure(gatewayStatusParam)) {
       return;
     }
