@@ -1,0 +1,14 @@
+/* Зелёная подкладка билета «Дом Рождества», без золотой рамки и уголков. */
+html:has(.nom-page--dr),
+body:has(.nom-page--dr),
+.nom-tilda-root:has(.nom-page--dr) {
+  background-color: #162b29;
+}
+
+.nom-page--dr .nom-page__bg {
+  background-color: #162b29;
+  background-image: url("/dom-rozhdestva/bg.jpg");
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}

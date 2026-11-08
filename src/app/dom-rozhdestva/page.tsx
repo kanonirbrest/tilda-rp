@@ -451,7 +451,7 @@ export default function DomRozhdestvaPage() {
   }
 
   return (
-    <main className="nom-page">
+    <main className="nom-page nom-page--dr">
       <div className="nom-page__bg" aria-hidden />
 
       <div className="nom-shell">

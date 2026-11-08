@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "../nightofmuseums/nightofmuseums.css";
 import "../buy-tickets-smr/buy-tickets-smr.css";
+import "./dom-rozhdestva.css";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
