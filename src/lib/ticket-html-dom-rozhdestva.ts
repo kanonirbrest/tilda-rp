@@ -201,11 +201,11 @@ export async function buildDomRozhdestvaTicketHtml(opts: TicketPdfInput): Promis
     .logo {
       position: absolute;
       left: 287.4px;
-      top: 31.18px;
+      top: 16.64px;
       width: 223.771px;
       height: 129.891px;
       object-fit: cover;
-      object-position: center 68%;
+      object-position: center top;
       pointer-events: none;
     }
     .by-line {
