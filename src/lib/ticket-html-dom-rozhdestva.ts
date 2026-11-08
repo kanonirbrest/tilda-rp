@@ -138,9 +138,7 @@ export async function buildDomRozhdestvaTicketHtml(opts: TicketPdfInput): Promis
   const background = assetDataUrl("background.jpg") ?? assetDataUrl("background.png");
   const logo = assetDataUrl("logo.png");
   const train = assetDataUrl("train.png");
-  const trainGlow = assetDataUrl("train-glow.svg");
   const drum = assetDataUrl("drum.png");
-  const drumGlow = assetDataUrl("drum-glow.svg");
   const nutcracker = assetDataUrl("nutcracker.png");
   const dei = assetDataUrl("dei-logo.png");
   const razman = assetDataUrl("razman-logo.png");
@@ -189,22 +187,7 @@ export async function buildDomRozhdestvaTicketHtml(opts: TicketPdfInput): Promis
       width: 797px;
       height: 1129px;
       object-fit: cover;
-      opacity: 0.7;
       pointer-events: none;
-    }
-    .train-glow {
-      position: absolute;
-      left: 421px;
-      top: 436.36px;
-      width: 199.89px;
-      height: 118.102px;
-      mix-blend-mode: multiply;
-      pointer-events: none;
-    }
-    .train-glow img {
-      display: block;
-      width: 100%;
-      height: 100%;
     }
     .train {
       position: absolute;
@@ -213,18 +196,6 @@ export async function buildDomRozhdestvaTicketHtml(opts: TicketPdfInput): Promis
       width: 129.169px;
       height: 120.962px;
       object-fit: cover;
-      pointer-events: none;
-    }
-    .logo-glow {
-      position: absolute;
-      left: 284px;
-      top: 31px;
-      width: 230.579px;
-      height: 133.832px;
-      object-fit: cover;
-      object-position: center 68%;
-      opacity: 0.6;
-      filter: blur(5.421px);
       pointer-events: none;
     }
     .logo {
@@ -441,20 +412,6 @@ export async function buildDomRozhdestvaTicketHtml(opts: TicketPdfInput): Promis
       line-height: normal;
       color: rgba(255, 255, 255, 0.6);
     }
-    .drum-glow {
-      position: absolute;
-      left: 446px;
-      top: 593px;
-      width: 82px;
-      height: 16px;
-      mix-blend-mode: multiply;
-      pointer-events: none;
-    }
-    .drum-glow img {
-      display: block;
-      width: 100%;
-      height: 100%;
-    }
     .drum {
       position: absolute;
       left: 443px;
@@ -496,9 +453,7 @@ export async function buildDomRozhdestvaTicketHtml(opts: TicketPdfInput): Promis
   </div>
   <div class="sheet">
     ${img(background, "bg")}
-    ${trainGlow ? `<div class="train-glow">${img(trainGlow, "")}</div>` : ""}
     ${img(train, "train")}
-    ${img(logo, "logo-glow")}
     ${img(logo, "logo")}
     <p class="by-line">BY RAZMAN PRODUCTION</p>
     <p class="title">Интерактивное пространство<br/>«Дом Рождества»</p>
@@ -520,7 +475,6 @@ export async function buildDomRozhdestvaTicketHtml(opts: TicketPdfInput): Promis
     ${img(dei, "dei-logo")}
     ${img(razman, "razman-logo")}
     <p class="age">0+</p>
-    ${drumGlow ? `<div class="drum-glow">${img(drumGlow, "")}</div>` : ""}
     ${img(drum, "drum")}
     ${img(nutcracker, "nutcracker")}
   </div>

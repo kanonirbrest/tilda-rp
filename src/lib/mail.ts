@@ -75,9 +75,7 @@ function buildDomRozhdestvaTicketEmail(opts: TicketEmailInput): BuiltTicketEmail
 
   const subject = multiple ? "Ваши билеты — «Дом Рождества»" : "Ваш билет — «Дом Рождества»";
 
-  const text = `${subject}
-
-Добрый день, на связи Razman Production!
+  const text = `Добрый день, на связи Razman Production!
 
 Благодарим, что выбрали интерактивное пространство "Дом Рождества" - Фабрика чудес! Вот-вот вы погрузитесь в волшебный мир, где вас ждёт незабываемые приключения!
 
@@ -121,7 +119,6 @@ Instagram: @domm.rp (${LINK_INSTAGRAM_DR})
 <html lang="ru">
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;padding:16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#222;">
-<h1 style="font-size:22px;line-height:1.3;margin:0 0 16px;color:#222;">${escapeHtml(subject)}</h1>
 <p>Добрый день, на связи Razman Production!</p>
 <p>Благодарим, что выбрали интерактивное пространство &quot;Дом Рождества&quot; - Фабрика чудес! Вот-вот вы погрузитесь в волшебный мир, где вас ждёт незабываемые приключения!</p>
 <p><strong>${escapeHtml(ticketLead)}</strong></p>
