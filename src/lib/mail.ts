@@ -2,6 +2,7 @@ import dns from "node:dns/promises";
 import net from "node:net";
 import nodemailer from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
+import { DOM_ROZHDESTVA_SLOT_KIND } from "./slot-kind";
 
 const DEFAULT_RESEND_API_URL = "https://api.resend.com/emails";
 
@@ -11,6 +12,8 @@ type TicketEmailInput = {
   /** Один или несколько PDF — по одному файлу на билет. */
   pdfAttachments: { filename: string; content: Buffer }[];
   downloadUrls: string[];
+  /** Тип сеанса: от него зависит текст письма. По умолчанию — «Небо.Река». */
+  slotKind?: string | null;
 };
 
 function maskEmail(email: string): string {
@@ -43,7 +46,106 @@ const LINK_DEI_WAYS = "https://dei.by/contacts#ways";
 const LINK_TELEGRAM_CLUB = "https://t.me/RazmanProductionBot?start=qr";
 const LINK_INSTAGRAM = "https://www.instagram.com/deii.rp";
 
-function buildTicketEmail(opts: TicketEmailInput): { subject: string; text: string; html: string } {
+type BuiltTicketEmail = { subject: string; text: string; html: string };
+
+function buildTicketEmail(opts: TicketEmailInput): BuiltTicketEmail {
+  if (opts.slotKind === DOM_ROZHDESTVA_SLOT_KIND) {
+    return buildDomRozhdestvaTicketEmail(opts);
+  }
+  return buildNeboRekaTicketEmail(opts);
+}
+
+const LINK_INSTAGRAM_DR = "https://www.instagram.com/domm.rp";
+
+/** Письмо для «Дом Рождества» (Razman Production). */
+function buildDomRozhdestvaTicketEmail(opts: TicketEmailInput): BuiltTicketEmail {
+  const multiple = opts.pdfAttachments.length > 1;
+  const urls = opts.downloadUrls.filter(Boolean);
+  const linksBlock =
+    urls.length > 1 ? urls.map((u, i) => `${i + 1}. ${u}`).join("\n") : (urls[0] ?? "");
+
+  const ticketLead = multiple ? "Ваши билеты уже ждут вас:" : "Ваш билет уже ждёт вас:";
+  const downloadBlock =
+    multiple ?
+      `Скачать билеты можно здесь:\n${linksBlock}\n`
+    : `Скачать билет можно здесь:\n${linksBlock}\n`;
+  const attachmentLine = multiple ?
+    "Билеты также прикреплены к этому письму во вложении."
+  : "Билет также прикреплён к этому письму во вложении.";
+
+  const subject = multiple ? "Ваши билеты — «Дом Рождества»" : "Ваш билет — «Дом Рождества»";
+
+  const text = `${subject}
+
+Добрый день, на связи Razman Production!
+
+Благодарим, что выбрали интерактивное пространство "Дом Рождества" - Фабрика чудес! Вот-вот вы погрузитесь в волшебный мир, где вас ждёт незабываемые приключения!
+
+${ticketLead}
+
+${downloadBlock}
+${attachmentLine}
+
+Готовы к встрече?
+
+• Наш адрес: DEI - Дом Экспериментального искусства (${LINK_MAP_DEI}) — Минск, Машерова 15/1 (вход со двора).
+Возле пространства работает платная парковка (${LINK_MAP_PARKING}) — 3 р/час (заезд под шлагбаум возле бара Louis Prima)
+
+Узнайте, как до нас добраться (${LINK_DEI_WAYS}) — мы выбрали удобные маршруты для вас.
+
+• Присоединяйтесь к Клубу друзей Razman Production в Telegram (${LINK_TELEGRAM_CLUB}): здесь эксклюзивная информация о текущих проектах, анонсы событий и возможные спец.предложения!
+
+Ждем вас в "Дом Рождества" — пусть это приключение станет особенным!
+
+————————
+С теплом,
+Команда Razman Production и служба заботы о клиентах
+
+Колл центр +375 (44) 738-33-33 | info@domrp.by
+Instagram: @domm.rp (${LINK_INSTAGRAM_DR})
+`;
+
+  const downloadLinksHtml =
+    urls.length === 0 ?
+      ""
+    : urls.length === 1 ?
+      `<p><a href="${escapeHtml(urls[0]!)}">Скачать билет (PDF)</a></p>`
+    : `<p>Скачать билеты:</p><ul>${urls
+        .map(
+          (u, i) =>
+            `<li><a href="${escapeHtml(u)}">Билет ${i + 1} (PDF)</a></li>`,
+        )
+        .join("")}</ul>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#222;">
+<h1 style="font-size:22px;line-height:1.3;margin:0 0 16px;color:#222;">${escapeHtml(subject)}</h1>
+<p>Добрый день, на связи Razman Production!</p>
+<p>Благодарим, что выбрали интерактивное пространство &quot;Дом Рождества&quot; - Фабрика чудес! Вот-вот вы погрузитесь в волшебный мир, где вас ждёт незабываемые приключения!</p>
+<p><strong>${escapeHtml(ticketLead)}</strong></p>
+${downloadLinksHtml}
+<p>${escapeHtml(attachmentLine)}</p>
+<p>Готовы к встрече?</p>
+<p>• Наш адрес: <a href="${LINK_MAP_DEI}">DEI — Дом Экспериментального искусства</a> — Минск, Машерова 15/1 (вход со двора).<br />
+Возле пространства работает <a href="${LINK_MAP_PARKING}">платная парковка</a> — 3 р/час (заезд под шлагбаум возле бара Louis Prima)</p>
+<p><a href="${LINK_DEI_WAYS}">Узнайте, как до нас добраться</a> — мы выбрали удобные маршруты для вас.</p>
+<p>• Присоединяйтесь к <a href="${LINK_TELEGRAM_CLUB}">Клубу друзей Razman Production в Telegram</a>: здесь эксклюзивная информация о текущих проектах, анонсы событий и возможные спец.предложения!</p>
+<p>Ждем вас в &quot;Дом Рождества&quot; — пусть это приключение станет особенным!</p>
+<hr style="border:none;border-top:1px solid #ddd;margin:20px 0;" />
+<p>С теплом,<br />
+Команда Razman Production и служба заботы о клиентах</p>
+<p>Колл центр <a href="tel:+375447383333">+375 (44) 738-33-33</a> | <a href="mailto:info@domrp.by">info@domrp.by</a><br />
+Instagram: <a href="${LINK_INSTAGRAM_DR}">@domm.rp</a></p>
+</body>
+</html>`;
+
+  return { subject, text, html };
+}
+
+/** Письмо для «Небо.Река» (и остальных сеансов по умолчанию). */
+function buildNeboRekaTicketEmail(opts: TicketEmailInput): BuiltTicketEmail {
   const multiple = opts.pdfAttachments.length > 1;
   const urls = opts.downloadUrls.filter(Boolean);
   const linksBlock =

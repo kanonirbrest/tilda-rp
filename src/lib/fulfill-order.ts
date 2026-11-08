@@ -293,6 +293,7 @@ export async function fulfillPaidOrder(
       customerName: full.customer.name,
       pdfAttachments,
       downloadUrls,
+      slotKind: full.slot.kind,
     });
   } catch (err) {
     console.error("[fulfill] sendTicketEmail", {
