@@ -9,7 +9,7 @@ export const DOM_ROZHDESTVA_CAPACITY = 300;
 /**
  * TBD: 25 декабря — 100 на время предпродажи, потом вернуть 300.
  * TBD: 19 декабря в списке не было — слоты не создаём.
- * TBD: 31 декабря и 1 января сокращённые, сеансы уточняют; пока как выходные 10:00–19:00.
+ * 31.12 — только 11:00, 12:00, 13:00. 01.01 — 12:00–17:00. В остальные дни последний сеанс 18:00.
  * TBD: после 35 BYN — Взрослый/Детский (будни ≠ выходные) и Льготный. Неясно, остаётся ли Единый.
  */
 const CAPACITY_BY_DATE: Record<string, number> = {
@@ -47,8 +47,6 @@ const WEEKEND_DATES = [
   "2026-12-28",
   "2026-12-29",
   "2026-12-30",
-  "2026-12-31",
-  "2027-01-01",
   "2027-01-02",
   "2027-01-03",
   "2027-01-04",
@@ -61,7 +59,7 @@ const WEEKEND_DATES = [
   "2027-01-17",
 ] as const;
 
-const WEEKDAY_HOURS = ["12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"] as const;
+const WEEKDAY_HOURS = ["12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"] as const;
 const WEEKEND_HOURS = [
   "10:00",
   "11:00",
@@ -72,8 +70,9 @@ const WEEKEND_HOURS = [
   "16:00",
   "17:00",
   "18:00",
-  "19:00",
 ] as const;
+const DEC_31_HOURS = ["11:00", "12:00", "13:00"] as const;
+const JAN_1_HOURS = ["12:00", "13:00", "14:00", "15:00", "16:00", "17:00"] as const;
 
 export const DOM_ROZHDESTVA_SALES_OPENS = { date: "2026-11-06", time: "11:00" } as const;
 
@@ -108,6 +107,8 @@ export function listDomRozhdestvaSessions(): DomRozhdestvaSession[] {
   return [
     ...sessionsForDates(WEEKDAY_DATES, WEEKDAY_HOURS),
     ...sessionsForDates(WEEKEND_DATES, WEEKEND_HOURS),
+    ...sessionsForDates(["2026-12-31"], DEC_31_HOURS),
+    ...sessionsForDates(["2027-01-01"], JAN_1_HOURS),
   ];
 }
 

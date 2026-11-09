@@ -13,7 +13,7 @@ import {
 
 let inflight: Promise<void> | null = null;
 
-/** Создаёт недостающие сеансы и подтягивает цену/лимит/название из расписания. */
+/** Создаёт недостающие сеансы, подтягивает цену/лимит и закрывает слоты, которых больше нет в расписании. */
 export function ensureDomRozhdestvaSlots(): Promise<void> {
   if (!inflight) {
     inflight = syncDomRozhdestvaSlots().finally(() => {
@@ -36,8 +36,11 @@ async function syncDomRozhdestvaSlots(): Promise<void> {
       priceChildCents: true,
       priceConcessionCents: true,
       capacity: true,
+      active: true,
     },
   });
+  const sessions = listDomRozhdestvaSessions();
+  const wanted = new Set(sessions.map((session) => `${session.date} ${session.time}`));
   const byWall = new Map(
     existing.map((slot) => [`${dateKeyInTz(slot.startsAt, tz)} ${timeKeyInTz(slot.startsAt, tz)}`, slot]),
   );
@@ -55,7 +58,7 @@ async function syncDomRozhdestvaSlots(): Promise<void> {
     active: boolean;
   }[] = [];
 
-  for (const session of listDomRozhdestvaSessions()) {
+  for (const session of sessions) {
     const startsAt = wallDateAndTimeToUtc(session.date, session.time, tz);
     if (!startsAt) continue;
     const title = formatDomRozhdestvaTitle(session.date, session.time);
@@ -99,5 +102,18 @@ async function syncDomRozhdestvaSlots(): Promise<void> {
 
   if (toCreate.length > 0) {
     await prisma.slot.createMany({ data: toCreate });
+  }
+
+  const closeIds = existing
+    .filter((slot) => {
+      const key = `${dateKeyInTz(slot.startsAt, tz)} ${timeKeyInTz(slot.startsAt, tz)}`;
+      return slot.active && !wanted.has(key);
+    })
+    .map((slot) => slot.id);
+  if (closeIds.length > 0) {
+    await prisma.slot.updateMany({
+      where: { id: { in: closeIds } },
+      data: { active: false },
+    });
   }
 }
