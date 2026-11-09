@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { formatMinorUnits } from "@/lib/money";
 import { getExhibitionTimezone, dateKeyInTz, timeKeyInTz } from "@/lib/exhibition-time";
 import { DOM_ROZHDESTVA_TICKET_LEGAL_BLOCK } from "@/lib/ticket-legal-default";
+import { DOM_ROZHDESTVA_SLOT_KIND } from "@/lib/slot-kind";
 import type { TicketPdfInput } from "./ticket-html-build";
 
 const ASSET_DIR = ["assets", "tickets", "dom-rozhdestva"] as const;
@@ -119,21 +120,60 @@ function img(src: string | null, className: string, extra = ""): string {
   return `<img class="${className}" src="${src}" alt="" ${extra}/>`;
 }
 
-export async function buildDomRozhdestvaTicketHtml(opts: TicketPdfInput): Promise<string> {
-  const tz = getExhibitionTimezone();
-  const dateStr = formatDateDot(opts.startsAt, tz);
-  const timeStr = sanitizeForPdfText(timeKeyInTz(opts.startsAt, tz));
-  const priceStr = formatPrice(opts.amountCents, opts.currency);
-  const orderId = sanitizeForPdfText(opts.orderId);
-  const typeStr = sanitizeForPdfText(opts.ticketTierLabel ?? "");
+export type DomRozhdestvaTicketFields = {
+  date: string;
+  time: string;
+  price: string;
+  orderId: string;
+  type: string;
+};
 
-  const qrDataUrl = await QRCode.toDataURL(opts.qrUrl, {
-    type: "image/png",
-    margin: 1,
-    width: 400,
-    errorCorrectionLevel: "M",
-    color: { dark: "#000000", light: "#ffffff" },
-  });
+/** Строки, которые меняются от билета к билету. Подложка их не содержит. */
+export function domRozhdestvaTicketFields(opts: TicketPdfInput): DomRozhdestvaTicketFields {
+  const tz = getExhibitionTimezone();
+  return {
+    date: formatDateDot(opts.startsAt, tz),
+    time: sanitizeForPdfText(timeKeyInTz(opts.startsAt, tz)),
+    price: formatPrice(opts.amountCents, opts.currency),
+    orderId: sanitizeForPdfText(opts.orderId),
+    type: sanitizeForPdfText(opts.ticketTierLabel ?? ""),
+  };
+}
+
+/** Каталог `assets/tickets/dom-rozhdestva`, откуда читается макет. */
+export function domRozhdestvaAssetDirectory(): string | null {
+  const background =
+    resolveFirstExisting([...ASSET_DIR, "background.jpg"]) ??
+    resolveFirstExisting([...ASSET_DIR, "background.png"]);
+  return background ? dirname(background) : null;
+}
+
+export function readDomRozhdestvaFont(weight: 400 | 700): Buffer {
+  const fileName = weight === 700 ? "CyGrotesk-GrandBold.otf" : "CyGrotesk-GrandRegular.otf";
+  const path = resolveFirstExisting([...FONT_DIR, fileName]);
+  if (!path) throw new Error(`Нет шрифта ${fileName}`);
+  return readFileSync(path);
+}
+
+export async function buildDomRozhdestvaTicketHtml(
+  opts: TicketPdfInput,
+  mode: "full" | "shell" = "full",
+): Promise<string> {
+  const shell = mode === "shell";
+  const fields = shell
+    ? { date: "", time: "", price: "", orderId: "", type: "" }
+    : domRozhdestvaTicketFields(opts);
+  const { date: dateStr, time: timeStr, price: priceStr, orderId, type: typeStr } = fields;
+
+  const qrDataUrl = shell
+    ? ""
+    : await QRCode.toDataURL(opts.qrUrl, {
+        type: "image/png",
+        margin: 1,
+        width: 400,
+        errorCorrectionLevel: "M",
+        color: { dark: "#000000", light: "#ffffff" },
+      });
 
   const background = assetDataUrl("background.jpg") ?? assetDataUrl("background.png");
   const logo = assetDataUrl("logo.png");
@@ -471,7 +511,7 @@ export async function buildDomRozhdestvaTicketHtml(opts: TicketPdfInput): Promis
     <p class="label label-order">номер заказа</p>
     <p class="value value-order">${escapeHtml(orderId)}</p>
     <div class="legal">${legalHtml()}</div>
-    <div class="qr-frame"><img src="${qrDataUrl}" alt="" /></div>
+    <div class="qr-frame">${qrDataUrl ? `<img src="${qrDataUrl}" alt="" />` : ""}</div>
     ${img(dei, "dei-logo")}
     ${img(razman, "razman-logo")}
     <p class="age">0+</p>
@@ -480,4 +520,20 @@ export async function buildDomRozhdestvaTicketHtml(opts: TicketPdfInput): Promis
   </div>
 </body>
 </html>`;
+}
+
+/** Статичная подложка: фон, подписи и юридический блок, без даты, цены, номера и QR. */
+export function buildDomRozhdestvaShellHtml(): Promise<string> {
+  return buildDomRozhdestvaTicketHtml(
+    {
+      title: "",
+      startsAt: new Date(0),
+      amountCents: 0,
+      currency: "BYN",
+      orderId: "",
+      qrUrl: "",
+      slotKind: DOM_ROZHDESTVA_SLOT_KIND,
+    },
+    "shell",
+  );
 }

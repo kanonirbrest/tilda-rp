@@ -7,9 +7,8 @@
  * Переменные: `TICKET_PDF_RENDERER`, `PRINCE_BIN`, `TICKET_PDF_MAX_CONCURRENT` (только Playwright).
  * Chromium: `npx playwright install chromium`
  */
-import { buildTicketHtml, type TicketPdfInput } from "./ticket-html-build";
-import { renderHtmlToPdfBuffer } from "./ticket-pdf-playwright";
-import { renderHtmlToPdfWithPrince } from "./ticket-pdf-prince";
+import type { TicketPdfInput } from "./ticket-html-build";
+import { DOM_ROZHDESTVA_SLOT_KIND } from "@/lib/slot-kind";
 
 export type { TicketPdfInput };
 
@@ -20,9 +19,16 @@ function resolveRenderer(): "playwright" | "prince" {
 }
 
 export async function buildTicketPdf(opts: TicketPdfInput): Promise<Uint8Array> {
+  if (opts.slotKind === DOM_ROZHDESTVA_SLOT_KIND && resolveRenderer() !== "prince") {
+    const { renderDomRozhdestvaTicketPdf } = await import("./ticket-pdf-dom-rozhdestva");
+    return renderDomRozhdestvaTicketPdf(opts);
+  }
+  const { buildTicketHtml } = await import("./ticket-html-build");
   const html = await buildTicketHtml(opts);
   if (resolveRenderer() === "prince") {
+    const { renderHtmlToPdfWithPrince } = await import("./ticket-pdf-prince");
     return renderHtmlToPdfWithPrince(html);
   }
+  const { renderHtmlToPdfBuffer } = await import("./ticket-pdf-playwright");
   return renderHtmlToPdfBuffer(html);
 }

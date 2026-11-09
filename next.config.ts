@@ -23,6 +23,8 @@ function allowedDevOriginsFromEnv(): string[] {
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  /** fontkit — UMD, в бандле сервера ломается. Оставляем пакет как есть в node_modules. */
+  serverExternalPackages: ["@pdf-lib/fontkit", "pdf-lib"],
   /** Иначе Turbopack берёт родительский lockfile и не находит CSS-зависимости. */
   turbopack: {
     root: process.cwd(),

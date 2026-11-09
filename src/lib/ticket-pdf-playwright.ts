@@ -108,6 +108,25 @@ async function waitForTicketFonts(page: Page): Promise<void> {
   }
 }
 
+/** Одна страница уже запущенного Chromium. Браузер не закрывается между вызовами. */
+export async function withChromiumPage<T>(
+  fn: (page: Page) => Promise<T>,
+  viewport: { width: number; height: number } = { width: 797, height: 1123 },
+): Promise<T> {
+  await pdfRenderSemaphore.acquire();
+  try {
+    const browser = await getBrowser();
+    const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
+    try {
+      return await fn(page);
+    } finally {
+      await page.close();
+    }
+  } finally {
+    pdfRenderSemaphore.release();
+  }
+}
+
 /** HTML-документ → PDF A4 (печать как в браузере: потоковая вёрстка без координат). */
 export async function renderHtmlToPdfBuffer(html: string): Promise<Uint8Array> {
   await pdfRenderSemaphore.acquire();

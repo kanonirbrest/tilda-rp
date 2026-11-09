@@ -22,6 +22,8 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 RUN mkdir -p /opt/ms-playwright \
   && npx playwright install-deps chromium \
   && npx playwright install chromium
+# Подложка билета «Дом Рождества»: в рантайме Chromium для этого билета не запускается.
+RUN npx tsx scripts/render-dom-rozhdestva-shell.ts
 
 FROM base AS runner
 ENV NODE_ENV=production
