@@ -379,6 +379,11 @@ function visibleDateChipOptions(
 
 function formatStatsRangeLabel(from: string, to: string): string {
   if (from === to) return formatDateKeyShort(from);
+  const fromYear = from.slice(0, 4);
+  const toYear = to.slice(0, 4);
+  if (fromYear !== toYear) {
+    return `${formatDateKeyShort(from)} ${fromYear} — ${formatDateKeyShort(to)} ${toYear}`;
+  }
   return `${formatDateKeyShort(from)} — ${formatDateKeyShort(to)}`;
 }
 
@@ -399,7 +404,7 @@ function shiftDateKey(dateKey: string, deltaDays: number): string {
   return `${dt.getUTCFullYear()}-${p(dt.getUTCMonth() + 1)}-${p(dt.getUTCDate())}`;
 }
 
-type StatsPeriod = "day" | "week" | "custom";
+type StatsPeriod = "day" | "week" | "custom" | "storefront";
 
 const STATS_RANGE_MAX_DAYS = 366;
 
@@ -1276,9 +1281,21 @@ export default function AdminDashboard() {
       if (statsFrom <= statsTo) return { from: statsFrom, to: statsTo };
       return { from: statsTo, to: statsFrom };
     }
+    if (statsPeriod === "storefront") {
+      if (statsKindFilter === "all" || !slotsData) return null;
+      const slots = slotsData.slots.filter((s) => s.kind === statsKindFilter);
+      if (slots.length === 0) return null;
+      let from = slots[0]!.dateKey;
+      let to = from;
+      for (const slot of slots) {
+        if (slot.dateKey < from) from = slot.dateKey;
+        if (slot.dateKey > to) to = slot.dateKey;
+      }
+      return { from, to };
+    }
     if (!selectedDate) return null;
     return { from: selectedDate, to: selectedDate };
-  }, [statsPeriod, statsFrom, statsTo, selectedDate]);
+  }, [statsPeriod, statsFrom, statsTo, selectedDate, slotsData, statsKindFilter]);
 
   const statsRangeIsSingleDay = statsQueryRange != null && statsQueryRange.from === statsQueryRange.to;
 
@@ -1328,7 +1345,8 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!authed || (tab !== "schedule" && tab !== "stats")) return;
-    void loadSlots();
+    // В статистике нужны и выключенные сеансы, иначе «все дни витрины» обрежет период.
+    void loadSlots(tab === "stats" ? { inactive: true } : {});
   }, [authed, tab, loadSlots]);
 
   useEffect(() => {
@@ -2646,13 +2664,17 @@ export default function AdminDashboard() {
                   {statsQueryRange ? ` · ${formatStatsRangeLabel(statsQueryRange.from, statsQueryRange.to)}` : ""}
                   {statsKindFilter === "all" ? "" : ` · ${slotSalesChannelLabel(statsKindFilter)}`}
                 </span>
+              ) : statsPeriod === "storefront" && statsKindFilter === "all" ? (
+                <span className="admin-hint">Выберите витрину в фильтре «Событие»</span>
+              ) : statsPeriod === "storefront" && slotsData && !statsQueryRange ? (
+                <span className="admin-hint">Нет сеансов у выбранной витрины</span>
               ) : (
                 <span className="admin-hint">Загрузка…</span>
               )}
             </div>
             <p className="admin-hint admin-hint--inline">
-              Продажи по типам билета и проход на входе за день, последние 7 дней или свой период.
-              Считается по дате сеанса.
+              Продажи по типам билета и проход на входе за день, последние 7 дней, все дни выбранной
+              витрины или свой период. Считается по дате сеанса.
             </p>
             <div className="admin-field admin-field--dateblock">
               <span className="admin-field-caption">Период</span>
@@ -2676,6 +2698,16 @@ export default function AdminDashboard() {
                   }}
                 >
                   7 дней
+                </button>
+                <button
+                  type="button"
+                  className={`admin-chip ${statsPeriod === "storefront" ? "admin-chip--on" : ""}`}
+                  onClick={() => {
+                    setStatsPeriod("storefront");
+                    setStatsSlotId("");
+                  }}
+                >
+                  Все дни витрины
                 </button>
                 <button
                   type="button"
@@ -2722,6 +2754,16 @@ export default function AdminDashboard() {
                   {statsQueryRange ?
                     `Последние 7 дней: ${formatStatsRangeLabel(statsQueryRange.from, statsQueryRange.to)}, включая сегодня`
                   : ""}
+                </p>
+              ) : statsPeriod === "storefront" ? (
+                <p className="admin-hint admin-hint--tight">
+                  {statsKindFilter === "all" ?
+                    "Сначала выберите витрину в фильтре «Событие» — отчёт покроет все её сеансы"
+                  : statsQueryRange ?
+                    `Все дни «${slotSalesChannelLabel(statsKindFilter)}»: ${formatStatsRangeLabel(statsQueryRange.from, statsQueryRange.to)}`
+                  : slotsData ?
+                    `У «${slotSalesChannelLabel(statsKindFilter)}» пока нет сеансов`
+                  : "Загрузка сеансов…"}
                 </p>
               ) : (
                 <div className="admin-date-row">
@@ -2799,7 +2841,15 @@ export default function AdminDashboard() {
           </div>
 
           {!checkInStats || !salesStats || !salesReport ? (
-            <div className="admin-empty admin-empty--compact">{statsLoading ? "Загрузка…" : "Нет данных"}</div>
+            <div className="admin-empty admin-empty--compact">
+              {statsPeriod === "storefront" && statsKindFilter === "all" ?
+                "Выберите витрину в фильтре «Событие»"
+              : statsPeriod === "storefront" && slotsData && !statsQueryRange ?
+                "Нет сеансов у выбранной витрины"
+              : statsLoading ?
+                "Загрузка…"
+              : "Нет данных"}
+            </div>
           ) : (
             <div className="admin-stats-panel">
               <section className="admin-stats-section" aria-label="Продажи за период">
