@@ -71,6 +71,11 @@ const WEEKEND_HOURS = [
   "17:00",
   "18:00",
 ] as const;
+/** Сеансы, снятые с продажи на конкретную дату (дата → время). Слот закроется при следующей синхронизации. */
+const EXCLUDED_SESSIONS: Record<string, readonly string[]> = {
+  "2026-12-14": ["12:00"],
+};
+
 const DEC_31_HOURS = ["12:00", "13:00", "14:00"] as const;
 const JAN_1_HOURS = ["12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"] as const;
 
@@ -97,6 +102,7 @@ function sessionsForDates(
   for (const date of dates) {
     const capacity = capacityForDate(date);
     for (const time of hours) {
+      if (EXCLUDED_SESSIONS[date]?.includes(time)) continue;
       out.push({ date, time, capacity, priceCents: DOM_ROZHDESTVA_PRICE_CENTS });
     }
   }
