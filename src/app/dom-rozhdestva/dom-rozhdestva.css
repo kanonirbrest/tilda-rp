@@ -12,3 +12,56 @@ body:has(.nom-page--dr),
   background-size: cover;
   background-repeat: no-repeat;
 }
+
+/* Календарь дат: колонки пн–вс, в том числе на узком экране. */
+.nom-page--dr .sv2-cal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nom-page--dr .sv2-weekdays,
+.nom-page--dr .sv2-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.nom-page--dr .sv2-weekdays span {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.nom-page--dr .sv2-day--pad {
+  visibility: hidden;
+  pointer-events: none;
+  min-height: 0;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+@media (max-width: 479px) {
+  .nom-page--dr .sv2-weekdays,
+  .nom-page--dr .sv2-days {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .nom-page--dr .sv2-day {
+    min-height: 40px;
+    padding: 4px 1px;
+    border-radius: 10px;
+  }
+
+  .nom-page--dr .sv2-day__num {
+    font-size: 14px;
+  }
+
+  .nom-page--dr .sv2-weekdays span {
+    font-size: 11px;
+  }
+}

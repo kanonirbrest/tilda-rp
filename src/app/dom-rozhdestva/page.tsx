@@ -47,12 +47,13 @@ type CalendarDayCell = {
   day: number;
   bookable: boolean;
   hover: string;
+  hasSlots: boolean;
 };
 
 type MonthGroup = {
   key: string;
   title: string;
-  days: CalendarDayCell[];
+  cells: Array<CalendarDayCell | null>;
 };
 
 const MONTH_NOMINATIVE = [
@@ -73,6 +74,9 @@ const MONTH_NOMINATIVE = [
 
 const WEEKDAY_SHORT_RU = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"] as const;
 
+/** Шапка календаря: неделя с понедельника, включая субботу и воскресенье — на них тоже есть сеансы. */
+const CALENDAR_WEEKDAY_HEADERS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"] as const;
+
 /** Не показывать прошедшие сеансы сегодня и прошлые дни (как на /buy-tickets-smr). */
 const PUBLIC_API_HIDE_PAST = "hidePastTimes=1";
 
@@ -85,11 +89,28 @@ function sortDateKeysAsc(keys: string[]): string[] {
   return [...keys].sort((a, b) => a.localeCompare(b));
 }
 
+/** 0=вс … 6=сб по календарной дате YYYY-MM-DD (без сдвига TZ). */
+function calendarWeekdayUtc(dateKey: string): number {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay();
+}
+
+/** 0=пн … 6=вс. */
+function mondayIndex(dateKey: string): number {
+  return (calendarWeekdayUtc(dateKey) + 6) % 7;
+}
+
 /** пн–вс по календарной дате YYYY-MM-DD (без сдвига TZ). */
 function weekdayShortRu(dateKey: string): string {
-  const [y, m, d] = dateKey.split("-").map(Number);
-  const wd = new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay();
+  const wd = calendarWeekdayUtc(dateKey);
   return WEEKDAY_SHORT_RU[wd] ?? "";
+}
+
+function shiftDateKey(dateKey: string, deltaDays: number): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const dt = new Date(Date.UTC(y!, m! - 1, d! + deltaDays));
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${dt.getUTCFullYear()}-${p(dt.getUTCMonth() + 1)}-${p(dt.getUTCDate())}`;
 }
 
 function formatMoneyCents(cents: number, currency: string): string {
@@ -115,25 +136,48 @@ function ticketsWord(n: number): string {
   return "билетов";
 }
 
-/** Дни из календаря по месяцам; в календаре уже только дни с сеансами. */
+/**
+ * Месяц как календарь: колонки пн–вс, недели с сеансами.
+ * День без сеанса остаётся в своей колонке, чтобы ряд не сдвигался.
+ * Пустые ячейки — дни соседнего месяца в первой или последней неделе.
+ */
 function groupDays(days: Record<string, { bookable: boolean; hover: string }>): MonthGroup[] {
-  const byMonth = new Map<string, CalendarDayCell[]>();
+  const byMonth = new Map<string, string[]>();
   for (const dateKey of sortDateKeysAsc(Object.keys(days))) {
     const monthKey = dateKey.slice(0, 7);
     const list = byMonth.get(monthKey) ?? [];
-    list.push({
-      dateKey,
-      day: Number(dateKey.slice(8, 10)),
-      bookable: days[dateKey]!.bookable,
-      hover: days[dateKey]!.hover,
-    });
+    list.push(dateKey);
     byMonth.set(monthKey, list);
   }
-  return [...byMonth.entries()].map(([key, dayList]) => ({
-    key,
-    title: `${MONTH_NOMINATIVE[Number(key.slice(5, 7))] ?? ""} ${key.slice(0, 4)}`,
-    days: dayList,
-  }));
+
+  return [...byMonth.entries()].map(([key, dateKeys]) => {
+    const first = dateKeys[0]!;
+    const last = dateKeys[dateKeys.length - 1]!;
+    const start = shiftDateKey(first, -mondayIndex(first));
+    const end = shiftDateKey(last, 6 - mondayIndex(last));
+    const cells: Array<CalendarDayCell | null> = [];
+
+    for (let cursor = start; cursor <= end; cursor = shiftDateKey(cursor, 1)) {
+      if (cursor.slice(0, 7) !== key) {
+        cells.push(null);
+        continue;
+      }
+      const row = days[cursor];
+      cells.push({
+        dateKey: cursor,
+        day: Number(cursor.slice(8, 10)),
+        bookable: row?.bookable ?? false,
+        hover: row?.hover || (row ? "Недоступно" : "На этот день сеансов нет"),
+        hasSlots: Boolean(row),
+      });
+    }
+
+    return {
+      key,
+      title: `${MONTH_NOMINATIVE[Number(key.slice(5, 7))] ?? ""} ${key.slice(0, 4)}`,
+      cells,
+    };
+  });
 }
 
 /** Ссылка «вернуться к сеансу» после неуспешной оплаты: ?date=&time=&adult= */
@@ -484,29 +528,43 @@ export default function DomRozhdestvaPage() {
                 {monthGroups.map((month) => (
                   <div key={month.key} className="sv2-month sv2-month--open">
                     <p className="sv2-month__title">{month.title}</p>
-                    <div className="sv2-days" role="group" aria-label={month.title}>
-                      {month.days.map((d) => (
-                        <button
-                          key={d.dateKey}
-                          type="button"
-                          className={[
-                            "sv2-day",
-                            date === d.dateKey ? "sv2-day--selected" : "",
-                            d.bookable ? "" : "sv2-day--disabled",
-                          ]
-                            .filter(Boolean)
-                            .join(" ")}
-                          disabled={!d.bookable || busy}
-                          title={d.bookable ? undefined : d.hover || "Недоступно"}
-                          aria-pressed={date === d.dateKey}
-                          onClick={() => onSelectDate(d.dateKey, d.bookable)}
-                        >
-                          <span className="sv2-day__num">{String(d.day).padStart(2, "0")}</span>
-                          <span className="sv2-day__wd" aria-hidden>
-                            {weekdayShortRu(d.dateKey)}
-                          </span>
-                        </button>
-                      ))}
+                    <div className="sv2-cal">
+                      <div className="sv2-weekdays" aria-hidden>
+                        {CALENDAR_WEEKDAY_HEADERS.map((label) => (
+                          <span key={label}>{label}</span>
+                        ))}
+                      </div>
+                      <div className="sv2-days" role="group" aria-label={month.title}>
+                        {month.cells.map((d, index) =>
+                          d == null ? (
+                            <span
+                              key={`${month.key}-pad-${index}`}
+                              className="sv2-day sv2-day--pad"
+                              aria-hidden
+                            />
+                          ) : (
+                            <button
+                              key={d.dateKey}
+                              type="button"
+                              className={[
+                                "sv2-day",
+                                date === d.dateKey ? "sv2-day--selected" : "",
+                                d.hasSlots ? "" : "sv2-day--no-slots",
+                                d.hasSlots && !d.bookable ? "sv2-day--disabled" : "",
+                              ]
+                                .filter(Boolean)
+                                .join(" ")}
+                              disabled={!d.hasSlots || !d.bookable || busy}
+                              title={d.bookable ? undefined : d.hover}
+                              aria-label={`${formatDateKeyRu(d.dateKey)}, ${weekdayShortRu(d.dateKey)}`}
+                              aria-pressed={date === d.dateKey}
+                              onClick={() => onSelectDate(d.dateKey, d.bookable && d.hasSlots)}
+                            >
+                              <span className="sv2-day__num">{String(d.day).padStart(2, "0")}</span>
+                            </button>
+                          ),
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
