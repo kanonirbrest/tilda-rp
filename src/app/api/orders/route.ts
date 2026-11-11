@@ -43,6 +43,8 @@ const bodySchema = z
     seats: z.array(z.string().trim().min(1).max(40)).max(24).optional(),
     /** Подарочный билет Небо.Река с открытой датой */
     giftOpenDate: z.boolean().optional(),
+    /** Согласие на рекламную рассылку (необязательно; для Дом Рождества). */
+    marketingConsent: z.boolean().optional(),
   })
   .refine(
     (d) =>
@@ -230,6 +232,7 @@ export async function POST(req: Request) {
       phone,
       lines,
       promoCode: promoRaw,
+      ...(d.marketingConsent === true ? { marketingConsent: true } : {}),
     },
     getRequestOrigin(req),
   );

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PaymentRetryNotice } from "@/components/payment-retry-notice";
 import { PhoneCountryField } from "@/components/phone-country-field";
+import { MarketingConsentField } from "@/components/marketing-consent-field";
 import { PolicyConsentField } from "@/components/policy-consent-field";
 import { isPhoneComplete, toE164Phone } from "@/lib/phone-countries";
 import { readResponseJson } from "@/lib/read-response-json";
@@ -182,6 +183,7 @@ export default function DomRozhdestvaPage() {
   const [phoneCountryIso, setPhoneCountryIso] = useState("by");
   const [formError, setFormError] = useState("");
   const [policyConsent, setPolicyConsent] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const timeSectionRef = useRef<HTMLElement | null>(null);
@@ -432,6 +434,7 @@ export default function DomRozhdestvaPage() {
           email: email.trim(),
           phone: toE164Phone(phoneCountryIso, phoneLocal),
           ...(promoConfirmed ? { promoCode: promoConfirmed } : {}),
+          ...(marketingConsent ? { marketingConsent: true } : {}),
           date,
           time,
         }),
@@ -670,6 +673,12 @@ export default function DomRozhdestvaPage() {
                 setPolicyConsent(v);
                 if (v) setFormError("");
               }}
+              disabled={busy}
+            />
+
+            <MarketingConsentField
+              checked={marketingConsent}
+              onChange={setMarketingConsent}
               disabled={busy}
             />
 

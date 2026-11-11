@@ -14,6 +14,7 @@ import {
 } from "@/lib/slot-pricing";
 import { expireStalePendingOrders } from "@/lib/expire-pending-orders";
 import { findOrCreateCustomerByEmail } from "@/lib/customer-upsert";
+import { applyMarketingConsentAtCheckout } from "@/lib/marketing-consent";
 import {
   DOM_ROZHDESTVA_SALES_CLOSED_HINT,
   isDomRozhdestvaSaleOpen,
@@ -40,6 +41,8 @@ export type CreateOrderCheckoutInput = {
   lines: LineInput[];
   /** Строка с сайта / Тильды; пусто — без скидки */
   promoCode?: string | null;
+  /** Галочка согласия на рассылку (обрабатывается для витрин, где включён сбор). */
+  marketingConsent?: boolean;
 };
 
 export type CreateOrderCheckoutOk = {
@@ -155,6 +158,12 @@ export async function createOrderCheckout(
         email,
         phone,
       });
+      const marketingConsent = Boolean(input.marketingConsent);
+      const marketingConsentAt =
+        slot.kind === DOM_ROZHDESTVA_SLOT_KIND && marketingConsent ? new Date() : null;
+      if (slot.kind === DOM_ROZHDESTVA_SLOT_KIND && marketingConsentAt) {
+        await applyMarketingConsentAtCheckout(tx, customer.id, true, marketingConsentAt);
+      }
       const o = await tx.order.create({
         data: {
           slotId: slot.id,
@@ -167,6 +176,7 @@ export async function createOrderCheckout(
           promoCodeId,
           clubPromoCode,
           clubPromoTelegramUserId,
+          ...(marketingConsentAt ? { marketingConsentAt } : {}),
         },
       });
       for (const l of lines) {

@@ -46,6 +46,10 @@ model Customer {
   phone     String
   /// Дата рождения (анкета); у покупателей билетов обычно null.
   birthDate DateTime? @db.Date
+  /// Согласие на рекламную/информационную рассылку (галочка при покупке).
+  marketingConsentAt DateTime?
+  /// Отказ от рассылки (админка или будущий self-service).
+  marketingOptOutAt  DateTime?
   createdAt DateTime  @default(now())
   orders    Order[]
 }
@@ -115,6 +119,8 @@ model Order {
   clubPromoTelegramUserId  String?
   /// Пригласительный из админки: билет выдан без оплаты.
   complimentary Boolean @default(false)
+  /// Галочка «согласен на рассылку» в этом заказе; null — не ставил или не спрашивали.
+  marketingConsentAt DateTime?
   tickets      Ticket[]
   lines        OrderLine[]
   seatReservations SeatReservation[]
