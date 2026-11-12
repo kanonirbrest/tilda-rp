@@ -1,16 +1,18 @@
 import { getExhibitionTimezone, wallDateAndTimeToUtc } from "@/lib/exhibition-time";
 
-/** Единый билет, 30 BYN. TBD: порог повышения до 35 — Снежана напишет. */
-export const DOM_ROZHDESTVA_PRICE_CENTS = 30_00;
+/** Взрослый билет, 35 BYN. Одинаково в будни и выходные. */
+export const DOM_ROZHDESTVA_ADULT_CENTS = 35_00;
+
+/** Детский билет, 30 BYN. Одинаково в будни и выходные. */
+export const DOM_ROZHDESTVA_CHILD_CENTS = 30_00;
 
 /** Лимит на сеанс. Штатный Slot.capacity: гонка на 1–2 билета допустима. */
 export const DOM_ROZHDESTVA_CAPACITY = 300;
 
 /**
- * TBD: 25 декабря — 100 на время предпродажи, потом вернуть 300.
- * TBD: 19 декабря в списке не было — слоты не создаём.
+ * 25 декабря — 100 на время предпродажи, потом вернуть 300.
+ * 19 декабря в списке не было — слоты не создаём.
  * 31.12 — 12:00–14:00. 01.01 — 12:00–18:00. В остальные дни последний сеанс 18:00.
- * TBD: после 35 BYN — Взрослый/Детский (будни ≠ выходные) и Льготный. Неясно, остаётся ли Единый.
  */
 const CAPACITY_BY_DATE: Record<string, number> = {
   "2026-12-25": 100,
@@ -87,7 +89,8 @@ export type DomRozhdestvaSession = {
   date: string;
   time: string;
   capacity: number;
-  priceCents: number;
+  priceAdultCents: number;
+  priceChildCents: number;
 };
 
 function capacityForDate(date: string): number {
@@ -103,7 +106,13 @@ function sessionsForDates(
     const capacity = capacityForDate(date);
     for (const time of hours) {
       if (EXCLUDED_SESSIONS[date]?.includes(time)) continue;
-      out.push({ date, time, capacity, priceCents: DOM_ROZHDESTVA_PRICE_CENTS });
+      out.push({
+        date,
+        time,
+        capacity,
+        priceAdultCents: DOM_ROZHDESTVA_ADULT_CENTS,
+        priceChildCents: DOM_ROZHDESTVA_CHILD_CENTS,
+      });
     }
   }
   return out;

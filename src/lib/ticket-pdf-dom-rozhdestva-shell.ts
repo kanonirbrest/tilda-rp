@@ -78,7 +78,7 @@ export async function buildDomRozhdestvaShellAssets(): Promise<{
     currency: "BYN",
     orderId: "CLXXXXXXXXXXXXXXXXXXXX",
     qrUrl: "https://dei.by/staff/quick?t=LAYOUT",
-    ticketTierLabel: "Единый",
+    ticketTierLabel: "Взрослый",
     admissionCount: 1,
   });
 
