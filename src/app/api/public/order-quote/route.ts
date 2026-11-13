@@ -9,6 +9,7 @@ import { jsonPublicReadResponse, publicReadCorsHeaders } from "@/lib/public-orde
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
 import { resolvePromoForQuote } from "@/lib/resolve-order-promo";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
+import { ensureDomRozhdestvaSlots } from "@/lib/dom-rozhdestva/ensure-slots";
 import {
   DOM_ROZHDESTVA_SALES_CLOSED_HINT,
   isDomRozhdestvaSaleOpen,
@@ -73,6 +74,9 @@ export async function GET(req: Request) {
   }
 
   try {
+    if (slotKind === DOM_ROZHDESTVA_SLOT_KIND) {
+      await ensureDomRozhdestvaSlots();
+    }
     const resolved =
       giftOpenDate ?
         { ok: true as const, slot: await ensureNeboGiftOpenDateSlot() }

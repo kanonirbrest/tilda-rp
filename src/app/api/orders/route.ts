@@ -8,8 +8,9 @@ import { jsonOrdersResponse, publicOrdersCorsHeaders } from "@/lib/public-orders
 import { getRequestOrigin } from "@/lib/request-origin";
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
+import { ensureDomRozhdestvaSlots } from "@/lib/dom-rozhdestva/ensure-slots";
 import { ensureNeboGiftOpenDateSlot } from "@/lib/nebo-reka/ensure-gift-slot";
-import { normalizeSlotKind } from "@/lib/slot-kind";
+import { DOM_ROZHDESTVA_SLOT_KIND, normalizeSlotKind } from "@/lib/slot-kind";
 import { buildLinesFromCounts, type LineInput } from "@/lib/slot-pricing";
 import {
   hasDateAndTimeInQuery,
@@ -95,6 +96,10 @@ export async function POST(req: Request) {
   const slotKind = normalizeSlotKind(d.slotKind);
   const { name, email, phone } = d;
   const lineItems = (d.lines ?? []).filter((l) => l.quantity > 0);
+
+  if (slotKind === DOM_ROZHDESTVA_SLOT_KIND) {
+    await ensureDomRozhdestvaSlots();
+  }
 
   const resolved =
     d.giftOpenDate ?

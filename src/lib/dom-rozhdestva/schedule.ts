@@ -1,10 +1,26 @@
 import { getExhibitionTimezone, wallDateAndTimeToUtc } from "@/lib/exhibition-time";
 
-/** Взрослый билет, 35 BYN. Одинаково в будни и выходные. */
-export const DOM_ROZHDESTVA_ADULT_CENTS = 35_00;
+/** Взрослый, будний день, 40 BYN. */
+export const DOM_ROZHDESTVA_ADULT_WEEKDAY_CENTS = 40_00;
 
-/** Детский билет, 30 BYN. Одинаково в будни и выходные. */
-export const DOM_ROZHDESTVA_CHILD_CENTS = 30_00;
+/** Взрослый, выходной или праздник, 45 BYN. */
+export const DOM_ROZHDESTVA_ADULT_WEEKEND_CENTS = 45_00;
+
+/** Детский, будний день, 30 BYN. */
+export const DOM_ROZHDESTVA_CHILD_WEEKDAY_CENTS = 30_00;
+
+/** Детский, выходной или праздник, 35 BYN. */
+export const DOM_ROZHDESTVA_CHILD_WEEKEND_CENTS = 35_00;
+
+/** Льготный, любой день, 30 BYN. */
+export const DOM_ROZHDESTVA_CONCESSION_CENTS = 30_00;
+
+/**
+ * С этой метки детский за 30 BYN в будний день — новая цена.
+ * Раньше те же 30 BYN были «детский, любой день».
+ * Заказы, где в той же корзине взрослый за 35 или 40, режутся по цене взрослого, не по метке.
+ */
+export const DOM_ROZHDESTVA_PRICE_V2_AT = new Date("2026-11-13T12:00:00.000Z");
 
 /** Лимит на сеанс. Штатный Slot.capacity: гонка на 1–2 билета допустима. */
 export const DOM_ROZHDESTVA_CAPACITY = 300;
@@ -85,12 +101,42 @@ export const DOM_ROZHDESTVA_SALES_OPENS = { date: "2026-11-06", time: "11:00" } 
 
 export const DOM_ROZHDESTVA_SALES_CLOSED_HINT = "Продажа откроется 6 ноября в 11:00";
 
+const WEEKEND_OR_HOLIDAY_DATES = new Set<string>([
+  ...WEEKEND_DATES,
+  "2026-12-31",
+  "2027-01-01",
+]);
+
+/** Выходной или праздничный день расписания: цены 45 / 35, не 40 / 30. */
+export function isDomRozhdestvaWeekendDate(date: string): boolean {
+  return WEEKEND_OR_HOLIDAY_DATES.has(date);
+}
+
+type DomRozhdestvaPrices = {
+  priceAdultCents: number;
+  priceChildCents: number;
+  priceConcessionCents: number;
+};
+
+const WEEKDAY_PRICES: DomRozhdestvaPrices = {
+  priceAdultCents: DOM_ROZHDESTVA_ADULT_WEEKDAY_CENTS,
+  priceChildCents: DOM_ROZHDESTVA_CHILD_WEEKDAY_CENTS,
+  priceConcessionCents: DOM_ROZHDESTVA_CONCESSION_CENTS,
+};
+
+const WEEKEND_PRICES: DomRozhdestvaPrices = {
+  priceAdultCents: DOM_ROZHDESTVA_ADULT_WEEKEND_CENTS,
+  priceChildCents: DOM_ROZHDESTVA_CHILD_WEEKEND_CENTS,
+  priceConcessionCents: DOM_ROZHDESTVA_CONCESSION_CENTS,
+};
+
 export type DomRozhdestvaSession = {
   date: string;
   time: string;
   capacity: number;
   priceAdultCents: number;
   priceChildCents: number;
+  priceConcessionCents: number;
 };
 
 function capacityForDate(date: string): number {
@@ -100,6 +146,7 @@ function capacityForDate(date: string): number {
 function sessionsForDates(
   dates: readonly string[],
   hours: readonly string[],
+  prices: DomRozhdestvaPrices,
 ): DomRozhdestvaSession[] {
   const out: DomRozhdestvaSession[] = [];
   for (const date of dates) {
@@ -110,8 +157,9 @@ function sessionsForDates(
         date,
         time,
         capacity,
-        priceAdultCents: DOM_ROZHDESTVA_ADULT_CENTS,
-        priceChildCents: DOM_ROZHDESTVA_CHILD_CENTS,
+        priceAdultCents: prices.priceAdultCents,
+        priceChildCents: prices.priceChildCents,
+        priceConcessionCents: prices.priceConcessionCents,
       });
     }
   }
@@ -120,10 +168,10 @@ function sessionsForDates(
 
 export function listDomRozhdestvaSessions(): DomRozhdestvaSession[] {
   return [
-    ...sessionsForDates(WEEKDAY_DATES, WEEKDAY_HOURS),
-    ...sessionsForDates(WEEKEND_DATES, WEEKEND_HOURS),
-    ...sessionsForDates(["2026-12-31"], DEC_31_HOURS),
-    ...sessionsForDates(["2027-01-01"], JAN_1_HOURS),
+    ...sessionsForDates(WEEKDAY_DATES, WEEKDAY_HOURS, WEEKDAY_PRICES),
+    ...sessionsForDates(WEEKEND_DATES, WEEKEND_HOURS, WEEKEND_PRICES),
+    ...sessionsForDates(["2026-12-31"], DEC_31_HOURS, WEEKEND_PRICES),
+    ...sessionsForDates(["2027-01-01"], JAN_1_HOURS, WEEKEND_PRICES),
   ];
 }
 

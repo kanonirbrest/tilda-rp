@@ -13,7 +13,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Дом Рождества 2026 — билеты",
-  description: "Купить взрослый и детский билет на «Дом Рождества 2026»",
+  description: "Купить взрослый, детский и льготный билет на «Дом Рождества 2026»",
 };
 
 export default function DomRozhdestvaLayout({

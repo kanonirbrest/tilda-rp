@@ -71,7 +71,7 @@ async function syncDomRozhdestvaSlots(): Promise<void> {
         priceCents: session.priceAdultCents,
         priceAdultCents: session.priceAdultCents,
         priceChildCents: session.priceChildCents,
-        priceConcessionCents: session.priceAdultCents,
+        priceConcessionCents: session.priceConcessionCents,
         capacity: session.capacity,
         currency: "BYN",
         active: true,
@@ -84,7 +84,7 @@ async function syncDomRozhdestvaSlots(): Promise<void> {
       found.priceCents !== session.priceAdultCents ||
       found.priceAdultCents !== session.priceAdultCents ||
       found.priceChildCents !== session.priceChildCents ||
-      found.priceConcessionCents !== session.priceAdultCents ||
+      found.priceConcessionCents !== session.priceConcessionCents ||
       found.capacity !== session.capacity
     ) {
       await prisma.slot.update({
@@ -95,7 +95,7 @@ async function syncDomRozhdestvaSlots(): Promise<void> {
           priceCents: session.priceAdultCents,
           priceAdultCents: session.priceAdultCents,
           priceChildCents: session.priceChildCents,
-          priceConcessionCents: session.priceAdultCents,
+          priceConcessionCents: session.priceConcessionCents,
           capacity: session.capacity,
         },
       });

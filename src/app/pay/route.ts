@@ -3,8 +3,9 @@ import { createOrderCheckout } from "@/lib/create-order-checkout";
 import { getRequestOrigin } from "@/lib/request-origin";
 import { absoluteRedirectFromRequest, payHtmlError } from "@/lib/pay-http";
 import { messageForResolveFailure } from "@/lib/resolve-checkout-messages";
+import { ensureDomRozhdestvaSlots } from "@/lib/dom-rozhdestva/ensure-slots";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
-import { normalizeSlotKind } from "@/lib/slot-kind";
+import { DOM_ROZHDESTVA_SLOT_KIND, normalizeSlotKind } from "@/lib/slot-kind";
 import { buildLinesFromCounts } from "@/lib/slot-pricing";
 import {
   hasDateAndTimeInQuery,
@@ -43,6 +44,10 @@ export async function GET(req: Request) {
   const adult = parseTicketCountParam(searchParams.get("adult"));
   const child = parseTicketCountParam(searchParams.get("child"));
   const concession = parseTicketCountParam(searchParams.get("concession"));
+
+  if (slotKind === DOM_ROZHDESTVA_SLOT_KIND) {
+    await ensureDomRozhdestvaSlots();
+  }
 
   const resolved = await resolveCheckoutSlot({
     slotId: slotIdParam,

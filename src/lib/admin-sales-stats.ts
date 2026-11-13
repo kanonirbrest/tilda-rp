@@ -2,6 +2,8 @@ import { type OrderStatus, type TicketTier } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { reportTicketsWhereForDay } from "@/lib/admin-day-ticket-filter";
 import { dateKeyInTz, getExhibitionTimezone, timeKeyInTz, wallDaysUtcRange } from "@/lib/exhibition-time";
+import { DOM_ROZHDESTVA_SALES_CATALOG, domRozhdestvaReportKey } from "@/lib/dom-rozhdestva/sales-skus";
+import { DOM_ROZHDESTVA_SLOT_KIND } from "@/lib/slot-kind";
 
 /** Верхняя граница отчёта, чтобы не выгружать всю историю одним запросом. */
 const STATS_RANGE_MAX_DAYS = 366;
@@ -186,8 +188,10 @@ export async function querySalesStats(params: {
         order: {
           select: {
             status: true,
+            createdAt: true,
             slotId: true,
-            slot: { select: { title: true, startsAt: true } },
+            lines: { select: { tier: true, unitPriceCents: true } },
+            slot: { select: { title: true, startsAt: true, kind: true } },
             clubPromoCode: true,
             promoCode: { select: { code: true, maxUses: true } },
           },
@@ -200,7 +204,7 @@ export async function querySalesStats(params: {
         ...(slotKind ? { kind: slotKind } : {}),
         ...(slotId ? { id: slotId } : {}),
       },
-      select: { capacity: true },
+      select: { capacity: true, kind: true },
     }),
     prisma.order.findMany({
       where: orderWhere,
@@ -211,13 +215,29 @@ export async function querySalesStats(params: {
   const sold = emptyTierCounts();
   const slotMap = new Map<string, SalesStatsBySlot & { startsAt: Date }>();
   const tierCells = new Map<string, ReportCell>();
+  const extraTierLabels = new Map<string, string>();
   const promoCells = new Map<string, ReportCell & { label: string; quota: number | null }>();
+  const drCatalog =
+    slotKind === DOM_ROZHDESTVA_SLOT_KIND ||
+    (slots.length > 0 && slots.every((slot) => slot.kind === DOM_ROZHDESTVA_SLOT_KIND));
 
   for (const t of tickets) {
     const status = t.order.status;
     const refunded = t.refundedAt != null;
 
-    const tKey = tierKey(t.tier);
+    const reportRow = drCatalog
+      ? domRozhdestvaReportKey({
+          tier: t.tier,
+          lines: t.order.lines,
+          slotStartsAt: t.order.slot.startsAt,
+          orderCreatedAt: t.order.createdAt,
+          timeZone: tz,
+        })
+      : { key: tierKey(t.tier), label: "" };
+    const tKey = reportRow.key;
+    if (drCatalog && !DOM_ROZHDESTVA_SALES_CATALOG.some((row) => row.key === tKey)) {
+      extraTierLabels.set(tKey, reportRow.label);
+    }
     let tierCell = tierCells.get(tKey);
     if (!tierCell) {
       tierCell = emptyCell();
@@ -259,20 +279,30 @@ export async function querySalesStats(params: {
       total: row.total,
     }));
 
-  const rows: SalesReportRow[] = TIER_ROWS.map((r) => {
+  const tierRowDefs = drCatalog
+    ? DOM_ROZHDESTVA_SALES_CATALOG
+    : TIER_ROWS.map((row) => ({ key: row.key, label: row.label }));
+  const rows: SalesReportRow[] = tierRowDefs.map((r) => {
     const cell = tierCells.get(r.key) ?? emptyCell();
     return { key: r.key, label: r.label, kind: "tier" as const, quota: null, ...cell };
   });
 
-  const unknownCell = tierCells.get("tier:UNKNOWN");
-  if (unknownCell) {
-    rows.push({
-      key: "tier:UNKNOWN",
-      label: "Без типа",
-      kind: "tier",
-      quota: null,
-      ...unknownCell,
-    });
+  if (!drCatalog) {
+    const unknownCell = tierCells.get("tier:UNKNOWN");
+    if (unknownCell) {
+      rows.push({
+        key: "tier:UNKNOWN",
+        label: "Без типа",
+        kind: "tier",
+        quota: null,
+        ...unknownCell,
+      });
+    }
+  } else {
+    for (const [key, label] of extraTierLabels) {
+      const cell = tierCells.get(key) ?? emptyCell();
+      rows.push({ key, label, kind: "tier", quota: null, ...cell });
+    }
   }
 
   for (const [code, cell] of [...promoCells.entries()].sort((a, b) =>

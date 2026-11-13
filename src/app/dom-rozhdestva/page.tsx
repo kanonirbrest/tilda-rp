@@ -186,19 +186,27 @@ function parseCountParam(raw: string | null): number {
   return Math.min(MAX_TICKETS, n);
 }
 
-/** Ссылка «вернуться к сеансу» после неуспешной оплаты: ?date=&time=&adult=&child= */
-function readQuerySelection(): { date: string; time: string; adult: number; child: number } | null {
+/** Ссылка «вернуться к сеансу» после неуспешной оплаты: ?date=&time=&adult=&child=&concession= */
+function readQuerySelection(): {
+  date: string;
+  time: string;
+  adult: number;
+  child: number;
+  concession: number;
+} | null {
   const sp = new URLSearchParams(window.location.search);
   const dateRaw = sp.get("date")?.trim() ?? "";
   const date = /^\d{4}-\d{2}-\d{2}$/.test(dateRaw) ? dateRaw : "";
   const adult = parseCountParam(sp.get("adult"));
   const child = parseCountParam(sp.get("child"));
-  if (!date && adult < 1 && child < 1) return null;
+  const concession = parseCountParam(sp.get("concession"));
+  if (!date && adult < 1 && child < 1 && concession < 1) return null;
   return {
     date,
     time: normalizeTimeInput(sp.get("time") ?? "") ?? "",
     adult,
     child,
+    concession,
   };
 }
 
@@ -214,9 +222,11 @@ export default function DomRozhdestvaPage() {
 
   const [adult, setAdult] = useState(0);
   const [child, setChild] = useState(0);
+  const [concession, setConcession] = useState(0);
 
   const [unitAdult, setUnitAdult] = useState("—");
   const [unitChild, setUnitChild] = useState("—");
+  const [unitConcession, setUnitConcession] = useState("—");
   const [quoteTotalLabel, setQuoteTotalLabel] = useState("—");
   const [quoteTotalCents, setQuoteTotalCents] = useState<number | null>(null);
   const [quotePending, setQuotePending] = useState(false);
@@ -242,7 +252,7 @@ export default function DomRozhdestvaPage() {
   const timeSectionRef = useRef<HTMLElement | null>(null);
   const scrollToTimeAfterDateRef = useRef(false);
 
-  const ticketCount = adult + child;
+  const ticketCount = adult + child + concession;
   const checkoutReady = Boolean(date && time);
   /** Пока quote не подтвердил промо — не пускаем в оплату (иначе bePaid получит полную сумму). */
   const promoCheckoutBlocked =
@@ -280,9 +290,10 @@ export default function DomRozhdestvaPage() {
         }
         setMonthGroups(groupDays(days));
 
-        if (query && query.adult + query.child > 0) {
+        if (query && query.adult + query.child + query.concession > 0) {
           setAdult(query.adult);
           setChild(query.child);
+          setConcession(query.concession);
         }
         if (query?.date && days[query.date]?.bookable) {
           setDate(query.date);
@@ -364,8 +375,8 @@ export default function DomRozhdestvaPage() {
     const promoQ = promoForQuote.trim();
     const promoSuffix = promoQ ? `&promoCode=${encodeURIComponent(promoQ)}` : "";
 
-    const fetchQuote = async (a: number, c: number) => {
-      const r = await fetch(`${base}&adult=${a}&child=${c}&concession=0${promoSuffix}`);
+    const fetchQuote = async (a: number, c: number, co: number) => {
+      const r = await fetch(`${base}&adult=${a}&child=${c}&concession=${co}${promoSuffix}`);
       const body = await readResponseJson<QuoteResponse>(r);
       return { ok: r.ok, body };
     };
@@ -375,12 +386,18 @@ export default function DomRozhdestvaPage() {
       return formatMoneyCents(res.body.totalCents, res.body.currency || "BYN");
     };
 
-    Promise.all([fetchQuote(1, 0), fetchQuote(0, 1), fetchQuote(adult, child)])
-      .then(([unitA, unitC, total]) => {
+    Promise.all([
+      fetchQuote(1, 0, 0),
+      fetchQuote(0, 1, 0),
+      fetchQuote(0, 0, 1),
+      fetchQuote(adult, child, concession),
+    ])
+      .then(([unitA, unitC, unitCo, total]) => {
         if (cancelled) return;
         setQuotePending(false);
         setUnitAdult(unitFrom(unitA));
         setUnitChild(unitFrom(unitC));
+        setUnitConcession(unitFrom(unitCo));
 
         if (
           !total.ok ||
@@ -422,7 +439,7 @@ export default function DomRozhdestvaPage() {
     return () => {
       cancelled = true;
     };
-  }, [date, time, adult, child, promoForQuote, promoQuoteNonce]);
+  }, [date, time, adult, child, concession, promoForQuote, promoQuoteNonce]);
 
   function onSelectDate(dateKey: string, bookable: boolean) {
     if (!bookable) return;
@@ -487,7 +504,7 @@ export default function DomRozhdestvaPage() {
           slotKind: DOM_ROZHDESTVA_SLOT_KIND,
           adult,
           child,
-          concession: 0,
+          concession,
           name: name.trim(),
           email: email.trim(),
           phone: toE164Phone(phoneCountryIso, phoneLocal),
@@ -671,6 +688,33 @@ export default function DomRozhdestvaPage() {
                       aria-label="Больше детских"
                       disabled={busy}
                       onClick={() => setChild((n) => Math.min(MAX_TICKETS, n + 1))}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div className="nom-ticket-row">
+                  <div className="nom-ticket-text">
+                    <div className="nom-ticket-line">Льготный {unitConcession}</div>
+                  </div>
+                  <div className="nom-qty">
+                    <button
+                      type="button"
+                      className="nom-qty-btn"
+                      aria-label="Меньше льготных"
+                      disabled={concession <= 0 || busy}
+                      onClick={() => setConcession((n) => Math.max(0, n - 1))}
+                    >
+                      −
+                    </button>
+                    <span className="nom-qty-ring">{concession}</span>
+                    <button
+                      type="button"
+                      className="nom-qty-btn"
+                      aria-label="Больше льготных"
+                      disabled={busy}
+                      onClick={() => setConcession((n) => Math.min(MAX_TICKETS, n + 1))}
                     >
                       +
                     </button>
