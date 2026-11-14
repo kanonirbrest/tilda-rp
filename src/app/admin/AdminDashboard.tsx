@@ -644,6 +644,82 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return json as T;
 }
 
+function OrderSendTicketsPanel({ order }: { order: OrderRow }) {
+  const [email, setEmail] = useState(order.customer.email);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState("");
+  const count = orderActiveTicketCount(order);
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
+  if (order.status.toUpperCase() !== "PAID" || count < 1) return null;
+
+  async function onSend() {
+    const to = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return;
+    if (!window.confirm(`Отправить билеты (${count}) на ${to}?`)) return;
+    setErr("");
+    setOk("");
+    setBusy(true);
+    try {
+      const res = await apiFetch<{ to?: string }>(
+        `/api/admin/orders/${encodeURIComponent(order.id)}/send-tickets`,
+        { method: "POST", body: JSON.stringify({ email: to }) },
+      );
+      setOk(`Письмо с билетами отправлено на ${res.to ?? to}.`);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="admin-detail__row admin-detail__row--block">
+      <span className="admin-detail__k">На почту</span>
+      <div className="admin-detail__block">
+        <p className="admin-hint admin-hint--tight">
+          То же письмо, что после оплаты: PDF во вложении и ссылки на скачивание. Возвращённые билеты не
+          включаются.
+        </p>
+        <div className="admin-field" style={{ marginTop: "0.5rem" }}>
+          <label htmlFor={`send-tickets-email-${order.id}`}>Почта</label>
+          <input
+            id={`send-tickets-email-${order.id}`}
+            type="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setOk("");
+            }}
+            autoComplete="email"
+            style={{ width: "100%", maxWidth: "28rem" }}
+          />
+        </div>
+        {err ? (
+          <p className="admin-alert admin-alert--err admin-hint--tight" style={{ marginTop: "0.5rem" }}>
+            {err}
+          </p>
+        ) : null}
+        {ok ? (
+          <p className="admin-alert admin-alert--ok admin-hint--tight" style={{ marginTop: "0.5rem" }}>
+            {ok}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          className={`btn btn-secondary ${busy ? "is-loading" : ""}`}
+          style={{ marginTop: "0.75rem" }}
+          disabled={!valid || busy}
+          onClick={() => void onSend()}
+        >
+          Отправить билеты
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function OrderCancelPendingPanel({
   order,
   onDone,
@@ -1012,6 +1088,7 @@ function OrderModalBody({
           </ul>
         </div>
       ) : null}
+      <OrderSendTicketsPanel order={o} />
       <div className="admin-detail__row">
         <span className="admin-detail__k">Сумма</span>
         <span className="mono">{formatMinorUnits(o.amountCents, o.currency)}</span>

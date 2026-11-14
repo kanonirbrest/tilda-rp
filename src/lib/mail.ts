@@ -30,6 +30,11 @@ function resolveResendApiUrl(): string {
   return raw.replace(/\/+$/, "");
 }
 
+/** Куда уходит ответ клиента. Тот же ящик, что на странице успеха. */
+function resolveReplyTo(): string {
+  return (process.env.SUPPORT_EMAIL || "bilet@domrp.by").trim();
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -232,10 +237,12 @@ async function sendViaResendApi(
 ): Promise<void> {
   const { subject, text, html } = buildTicketEmail(opts);
   const apiUrl = resolveResendApiUrl();
+  const replyTo = resolveReplyTo();
   const attachmentBytes = opts.pdfAttachments.reduce((n, a) => n + a.content.length, 0);
   console.info("[mail][resend] отправка", {
     apiUrl,
     from: opts.from,
+    replyTo,
     to: maskEmail(opts.to),
     attachments: opts.pdfAttachments.length,
     attachmentBytes,
@@ -251,6 +258,7 @@ async function sendViaResendApi(
     body: JSON.stringify({
       from: opts.from,
       to: [opts.to],
+      reply_to: replyTo || undefined,
       subject,
       text,
       html,
@@ -306,6 +314,14 @@ async function smtpConnectTarget(hostname: string): Promise<{
     });
     return { host: h };
   }
+}
+
+/** Есть ли чем отправить письмо: Resend с адресом отправителя или SMTP. */
+export function isOutboundMailConfigured(): boolean {
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
+  const from = (process.env.RESEND_FROM || process.env.SMTP_FROM || "").trim();
+  if (resendApiKey) return Boolean(from);
+  return Boolean(process.env.SMTP_HOST?.trim());
 }
 
 export async function sendTicketEmail(opts: TicketEmailInput): Promise<void> {
@@ -375,9 +391,11 @@ export async function sendTicketEmail(opts: TicketEmailInput): Promise<void> {
 
   try {
     const { subject, text, html } = buildTicketEmail(opts);
+    const replyTo = resolveReplyTo();
     const info = await transporter.sendMail({
       from,
       to: opts.to,
+      replyTo: replyTo || undefined,
       subject,
       text,
       html,
