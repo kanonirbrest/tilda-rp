@@ -82,8 +82,8 @@ const PUBLIC_API_HIDE_PAST = "hidePastTimes=1";
 
 const MAX_TICKETS = 30;
 
-/** Поле промокода скрыто на странице. Поставьте true, чтобы снова показать блок. */
-const SHOW_PROMO_FIELD = false;
+/** Персональные коды DR-* из бота и локальные промокоды витрины. */
+const SHOW_PROMO_FIELD = true;
 
 function sortDateKeysAsc(keys: string[]): string[] {
   return [...keys].sort((a, b) => a.localeCompare(b));

@@ -1,6 +1,7 @@
 import { normalizePromoCode } from "@/lib/promo-code";
 
 const NR_PROMO_RE = /^NR-[A-Z0-9]{8}$/;
+const DR_PROMO_RE = /^DR-[A-Z0-9]{8}$/;
 
 export type DeiClubRedeemOk = {
   ok: true;
@@ -24,6 +25,16 @@ export function isDeiClubNrPromoCode(raw: string): boolean {
 /** Пользователь ввёл NR-… — обрабатываем через API бота, не через локальную таблицу PromoCode. */
 export function isDeiClubNrPromoAttempt(raw: string): boolean {
   return normalizePromoCode(raw).startsWith("NR-");
+}
+
+/** Персональный код «Дом Рождества» из бота: DR- + 8 символов. DR-FREE-TEST сюда не попадает. */
+export function isDeiClubDrPromoCode(raw: string): boolean {
+  return DR_PROMO_RE.test(normalizePromoCode(raw));
+}
+
+export function isDeiClubBotPromoCode(raw: string): boolean {
+  const code = normalizePromoCode(raw);
+  return NR_PROMO_RE.test(code) || DR_PROMO_RE.test(code);
 }
 
 export function getDeiClubPromoDiscountPercent(): number {
@@ -111,13 +122,13 @@ function hintForRedeemError(error: string, status: number): string {
 }
 
 /**
- * Погашение NR-* через POST /api/promo/redeem (rp_bot).
- * Вызывать только при создании заказа, не при превью суммы.
+ * Погашение NR-* и DR-* через POST /api/promo/redeem (rp_bot).
+ * Вызывать только после оплаты, не при превью суммы.
  */
 export async function redeemDeiClubPromoCode(raw: string): Promise<DeiClubRedeemOk | DeiClubRedeemErr> {
   const code = normalizePromoCode(raw);
 
-  if (!isDeiClubNrPromoCode(code)) {
+  if (!isDeiClubBotPromoCode(code)) {
     return {
       ok: false,
       error: "invalid_format",
@@ -233,8 +244,9 @@ export function previewDeiClubPromo(
   subtotalCents: number,
 ): { applied: true; discountCents: number; amountCents: number; hint: string } | { applied: false; error: string; hint: string } {
   const code = normalizePromoCode(raw);
+  const dr = isDeiClubDrPromoCode(code);
 
-  if (!isDeiClubNrPromoCode(code)) {
+  if (!isDeiClubNrPromoCode(code) && !dr) {
     return {
       applied: false,
       error: "INVALID_PROMO",
@@ -264,6 +276,8 @@ export function previewDeiClubPromo(
     applied: true,
     discountCents,
     amountCents,
-    hint: `Скидка клуба DEI ${pct}%. Промокод будет погашён после успешной оплаты.`,
+    hint: dr
+      ? `Скидка ${pct}% на Дом Рождества. Промокод будет погашён после успешной оплаты.`
+      : `Скидка клуба DEI ${pct}%. Промокод будет погашён после успешной оплаты.`,
   };
 }

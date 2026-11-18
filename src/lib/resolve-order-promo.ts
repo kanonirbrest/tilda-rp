@@ -1,11 +1,13 @@
 import type { Slot } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import {
+  isDeiClubDrPromoCode,
   isDeiClubNrPromoAttempt,
   previewDeiClubPromo,
   redeemDeiClubPromoCode,
   computeDeiClubPromoAmounts,
 } from "@/lib/dei-club-promo";
+import { DOM_ROZHDESTVA_SLOT_KIND } from "@/lib/slot-kind";
 import {
   computePromoAmounts,
   isPromoActiveBySchedule,
@@ -32,7 +34,22 @@ export type ResolvedPromoCheckout = {
   clubPromoTelegramUserId: string | null;
 };
 
-/** Оценка промо для order-quote (без погашения NR-*). */
+const PROMO_WRONG_CHANNEL_HINT = "Промокод не действует для этого канала продажи";
+
+function quoteClubBotPromo(norm: string, subtotalCents: number): ResolvedPromoQuote {
+  const club = previewDeiClubPromo(norm, subtotalCents);
+  if (!club.applied) {
+    return { applied: false, error: club.error, hint: club.hint };
+  }
+  return {
+    applied: true,
+    discountCents: club.discountCents,
+    amountCents: club.amountCents,
+    hint: club.hint,
+  };
+}
+
+/** Оценка промо для order-quote (без погашения NR-* и DR-*). */
 export async function resolvePromoForQuote(
   promoRaw: string,
   subtotalCents: number,
@@ -41,17 +58,19 @@ export async function resolvePromoForQuote(
   const norm = normalizePromoCode(promoRaw);
   if (!norm) return null;
 
-  if (isDeiClubNrPromoAttempt(norm)) {
-    const club = previewDeiClubPromo(norm, subtotalCents);
-    if (!club.applied) {
-      return { applied: false, error: club.error, hint: club.hint };
+  if (isDeiClubDrPromoCode(norm)) {
+    if (slot.kind !== DOM_ROZHDESTVA_SLOT_KIND) {
+      return {
+        applied: false,
+        error: "PROMO_WRONG_CHANNEL",
+        hint: PROMO_WRONG_CHANNEL_HINT,
+      };
     }
-    return {
-      applied: true,
-      discountCents: club.discountCents,
-      amountCents: club.amountCents,
-      hint: club.hint,
-    };
+    return quoteClubBotPromo(norm, subtotalCents);
+  }
+
+  if (isDeiClubNrPromoAttempt(norm)) {
+    return quoteClubBotPromo(norm, subtotalCents);
   }
 
   const row = await prisma.promoCode.findUnique({ where: { code: norm } });
@@ -112,9 +131,50 @@ function throwFromDeiClubPreview(club: { applied: false; error: string; hint: st
   throw new PromoApplyError(club.hint, code, httpStatus);
 }
 
+async function reserveClubBotPromo(
+  tx: Prisma.TransactionClient,
+  norm: string,
+  subtotalCents: number,
+  skipPayment: boolean,
+): Promise<ResolvedPromoCheckout> {
+  const club = previewDeiClubPromo(norm, subtotalCents);
+  if (!club.applied) {
+    if (!(club.error === "PROMO_ZERO_PAYMENT" && skipPayment)) {
+      throwFromDeiClubPreview(club);
+    }
+  }
+
+  const { discountCents, amountCents } =
+    club.applied ?
+      { discountCents: club.discountCents, amountCents: club.amountCents }
+    : computeDeiClubPromoAmounts(subtotalCents);
+
+  const reservedClub = await tx.order.count({
+    where: {
+      clubPromoCode: norm,
+      status: { in: ["PENDING", "PAID"] },
+    },
+  });
+  if (reservedClub > 0) {
+    throw new PromoApplyError(
+      "Этот промокод уже зарезервирован в другом заказе",
+      "PROMO_EXHAUSTED",
+    );
+  }
+
+  return {
+    discountCents,
+    amountCents,
+    promoCodeId: null,
+    clubPromoCode: norm,
+    clubPromoTelegramUserId: null,
+  };
+}
+
 /**
  * Применение промо при создании заказа.
- * NR-*: превью скидки и резерв в заказе; redeem — после оплаты (finalizeDeiClubPromoRedemption).
+ * NR-* и DR-*: превью скидки и резерв в заказе; redeem — после оплаты.
+ * DR-* только для витрины Дома Рождества.
  * Остальные — локальная таблица PromoCode.
  */
 export async function applyPromoAtCheckout(
@@ -137,39 +197,15 @@ export async function applyPromoAtCheckout(
     };
   }
 
+  if (isDeiClubDrPromoCode(norm)) {
+    if (params.slot.kind !== DOM_ROZHDESTVA_SLOT_KIND) {
+      throw new PromoApplyError(PROMO_WRONG_CHANNEL_HINT, "PROMO_WRONG_CHANNEL");
+    }
+    return reserveClubBotPromo(tx, norm, params.subtotalCents, params.skipPayment);
+  }
+
   if (isDeiClubNrPromoAttempt(norm)) {
-    const club = previewDeiClubPromo(norm, params.subtotalCents);
-    if (!club.applied) {
-      if (!(club.error === "PROMO_ZERO_PAYMENT" && params.skipPayment)) {
-        throwFromDeiClubPreview(club);
-      }
-    }
-
-    const { discountCents, amountCents } =
-      club.applied ?
-        { discountCents: club.discountCents, amountCents: club.amountCents }
-      : computeDeiClubPromoAmounts(params.subtotalCents);
-
-    const reservedClub = await tx.order.count({
-      where: {
-        clubPromoCode: norm,
-        status: { in: ["PENDING", "PAID"] },
-      },
-    });
-    if (reservedClub > 0) {
-      throw new PromoApplyError(
-        "Этот промокод уже зарезервирован в другом заказе",
-        "PROMO_EXHAUSTED",
-      );
-    }
-
-    return {
-      discountCents,
-      amountCents,
-      promoCodeId: null,
-      clubPromoCode: norm,
-      clubPromoTelegramUserId: null,
-    };
+    return reserveClubBotPromo(tx, norm, params.subtotalCents, params.skipPayment);
   }
 
   const promo = await tx.promoCode.findUnique({ where: { code: norm } });
@@ -217,7 +253,7 @@ export async function applyPromoAtCheckout(
 }
 
 /**
- * Погашение NR-* в боте после подтверждения оплаты.
+ * Погашение NR-* и DR-* в боте после подтверждения оплаты.
  * Не бросает — билет уже выдан; ошибки только в лог.
  */
 export async function finalizeDeiClubPromoRedemption(orderId: string): Promise<void> {
