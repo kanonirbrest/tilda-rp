@@ -15,13 +15,13 @@ const UNIFIED_CENTS = 30_00;
 
 /** Строки отчёта «Дом Рождества», включая старые номиналы. Нулевые тоже показываем. */
 export const DOM_ROZHDESTVA_SALES_CATALOG: { key: string; label: string }[] = [
-  { key: "dr:unified-30", label: "Единый 30" },
+  { key: "dr:unified-30", label: "Единый (любой день) 30" },
   { key: "dr:adult-35", label: "Взрослый (любой день) 35" },
   { key: "dr:child-30-any", label: "Детский (любой день) 30" },
-  { key: "dr:adult-40", label: "Взрослый 40" },
-  { key: "dr:adult-45", label: "Взрослый 45" },
+  { key: "dr:adult-40", label: "Взрослый (будний) 40" },
+  { key: "dr:adult-45", label: "Взрослый (выходной) 45" },
   { key: "dr:child-30-weekday", label: "Детский (будний) 30" },
-  { key: "dr:child-35", label: "Детский 35" },
+  { key: "dr:child-35", label: "Детский (выходной) 35" },
   { key: "dr:concession", label: "Льготный" },
 ];
 
@@ -72,7 +72,10 @@ export function domRozhdestvaReportKey(input: {
   const slotDateKey = dateKeyInTz(input.slotStartsAt, input.timeZone);
 
   if (input.tier === "CONCESSION") return catalog("dr:concession");
-  if (input.tier == null && unit === UNIFIED_CENTS) return catalog("dr:unified-30");
+  // Первые продажи: единый билет за 30 BYN записан как взрослый, отдельного типа не было.
+  if ((input.tier == null || input.tier === "ADULT") && unit === UNIFIED_CENTS) {
+    return catalog("dr:unified-30");
+  }
   if (input.tier === "ADULT" && unit === ADULT_ANY_CENTS) return catalog("dr:adult-35");
   if (input.tier === "ADULT" && unit === ADULT_WEEKDAY_CENTS) return catalog("dr:adult-40");
   if (input.tier === "ADULT" && unit === ADULT_WEEKEND_CENTS) return catalog("dr:adult-45");

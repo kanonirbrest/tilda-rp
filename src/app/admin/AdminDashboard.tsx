@@ -2957,8 +2957,8 @@ export default function AdminDashboard() {
                 <p className="admin-stats-section__hint">
                   Сумма продаж — деньги по оплаченным заказам за вычетом возвратов. Бронь —
                   неоплаченные заявки (PENDING) · Продано — оплаченные билеты без возврата ·
-                  Возврат — билеты с возвратом. Промокоды — разрез тех же продаж, а не отдельные
-                  билеты.
+                  Возврат — билеты с возвратом. Промокоды — те же категории с промокодом, разрез
+                  тех же продаж, а не отдельные билеты.
                 </p>
                 <div className="admin-stats-by-slot admin-stats-report">
                   <table>
@@ -2978,7 +2978,9 @@ export default function AdminDashboard() {
                           className={row.kind === "promo" ? "admin-stats-report__promo" : undefined}
                         >
                           <td className="admin-stats-row-title">
-                            {row.kind === "promo" ? `Промокод ${row.label}` : row.label}
+                            {row.kind === "promo" && !row.label.includes(" с промокодом ")
+                              ? `Промокод ${row.label}`
+                              : row.label}
                           </td>
                           <td className="num">{salesQuotaCell(row.quota)}</td>
                           <td className="num">{salesNumCell(row.reserved)}</td>

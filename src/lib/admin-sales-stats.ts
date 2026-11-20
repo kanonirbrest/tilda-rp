@@ -216,7 +216,13 @@ export async function querySalesStats(params: {
   const slotMap = new Map<string, SalesStatsBySlot & { startsAt: Date }>();
   const tierCells = new Map<string, ReportCell>();
   const extraTierLabels = new Map<string, string>();
-  const promoCells = new Map<string, ReportCell & { label: string; quota: number | null }>();
+  const promoCells = new Map<
+    string,
+    ReportCell & { label: string; quota: number | null; sort: number }
+  >();
+  const drCategoryOrder = new Map(
+    DOM_ROZHDESTVA_SALES_CATALOG.map((row, index) => [row.key, index]),
+  );
   const drCatalog =
     slotKind === DOM_ROZHDESTVA_SLOT_KIND ||
     (slots.length > 0 && slots.every((slot) => slot.kind === DOM_ROZHDESTVA_SLOT_KIND));
@@ -247,14 +253,18 @@ export async function querySalesStats(params: {
 
     const promoLabel = t.order.promoCode?.code ?? t.order.clubPromoCode;
     if (promoLabel) {
-      let promoCell = promoCells.get(promoLabel);
+      const promoKey = drCatalog ? `${tKey}::${promoLabel}` : promoLabel;
+      let promoCell = promoCells.get(promoKey);
       if (!promoCell) {
         promoCell = {
           ...emptyCell(),
-          label: promoLabel,
-          quota: t.order.promoCode?.maxUses ?? null,
+          label: drCatalog ? `${reportRow.label} с промокодом ${promoLabel}` : promoLabel,
+          quota: drCatalog ? null : (t.order.promoCode?.maxUses ?? null),
+          sort: drCatalog
+            ? (drCategoryOrder.get(tKey) ?? DOM_ROZHDESTVA_SALES_CATALOG.length)
+            : 0,
         };
-        promoCells.set(promoLabel, promoCell);
+        promoCells.set(promoKey, promoCell);
       }
       bumpCell(promoCell, status, refunded);
     }
@@ -305,9 +315,11 @@ export async function querySalesStats(params: {
     }
   }
 
-  for (const [code, cell] of [...promoCells.entries()].sort((a, b) =>
-    a[0].localeCompare(b[0], "ru"),
-  )) {
+  for (const [code, cell] of [...promoCells.entries()].sort((a, b) => {
+    const byCategory = a[1].sort - b[1].sort;
+    if (byCategory !== 0) return byCategory;
+    return a[1].label.localeCompare(b[1].label, "ru");
+  })) {
     rows.push({
       key: `promo:${code}`,
       label: cell.label,
