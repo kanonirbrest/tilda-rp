@@ -76,6 +76,7 @@ export async function GET(req: Request) {
       priceConcessionCents: s.priceConcessionCents,
       currency: s.currency,
       active: s.active,
+      registrationOpen: s.registrationOpen,
     };
   });
 

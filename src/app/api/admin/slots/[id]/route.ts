@@ -21,6 +21,7 @@ const patchBody = z
     priceConcessionCents: z.number().int().nonnegative().nullable().optional(),
     currency: z.string().min(1).max(8).optional(),
     active: z.boolean().optional(),
+    registrationOpen: z.boolean().optional(),
   })
   .refine((o) => Object.values(o).some((v) => v !== undefined), {
     message: "Нужно хотя бы одно поле",
@@ -62,6 +63,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (body.priceConcessionCents !== undefined) data.priceConcessionCents = body.priceConcessionCents;
   if (body.currency !== undefined) data.currency = body.currency;
   if (body.active !== undefined) data.active = body.active;
+  if (body.registrationOpen !== undefined) data.registrationOpen = body.registrationOpen;
 
   if (body.capacity !== undefined && body.capacity !== null) {
     const reserved = await reservedSeatsForSlot(id);
