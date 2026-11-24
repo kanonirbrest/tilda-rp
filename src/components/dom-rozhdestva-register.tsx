@@ -389,6 +389,7 @@ export function DomRozhdestvaRegister({ initialToken }: { initialToken: string }
             {!loading && loadError ? <p className="nom-plain-msg">{loadError}</p> : null}
             {!loading && !loadError ? (
               <form
+                id="sv2-checkout-form"
                 className="nom-form-block nom-tilda-form t-form"
                 onSubmit={(ev) => void onSubmit(ev)}
               >
