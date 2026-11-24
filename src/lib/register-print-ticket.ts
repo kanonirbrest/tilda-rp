@@ -3,11 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { CapacityExceededError } from "@/lib/create-order-checkout";
 import { findOrCreateCustomerByEmail } from "@/lib/customer-upsert";
 import { applyMarketingConsentAtCheckout } from "@/lib/marketing-consent";
-import { fulfillPaidOrder } from "@/lib/fulfill-order";
 import { resolveCheckoutSlot } from "@/lib/resolve-checkout-slot";
 import { DOM_ROZHDESTVA_SLOT_KIND } from "@/lib/slot-kind";
 import { unitPriceCents } from "@/lib/slot-pricing";
-import { PrintTicketError, findTicketByScannedToken } from "@/lib/print-tickets";
+import {
+  PrintTicketError,
+  findTicketByScannedToken,
+  printTicketTierFromStored,
+} from "@/lib/print-tickets";
 import { getPublicAppBaseUrl } from "@/lib/request-origin";
 import { sendPrintTicketReservationEmail } from "@/lib/send-print-ticket-email";
 
@@ -55,7 +58,6 @@ export async function registerPrintTicket(input: {
     throw new PrintRegistrationClosedError();
   }
 
-  const priceCents = unitPriceCents(slot, "ADULT");
   const name = input.name.replace(/\s+/g, " ").trim();
   const email = input.email.trim().toLowerCase();
   const phone = input.phone.replace(/\s+/g, " ").trim();
@@ -94,8 +96,11 @@ export async function registerPrintTicket(input: {
       }
     }
 
+    const tier = printTicketTierFromStored(lockedTicket.tier);
+    const priceCents = unitPriceCents(lockedSlot, tier);
+    const now = new Date();
     const customer = await findOrCreateCustomerByEmail(tx, { name, email, phone });
-    const marketingConsentAt = input.marketingConsent ? new Date() : null;
+    const marketingConsentAt = input.marketingConsent ? now : null;
     if (marketingConsentAt) {
       await applyMarketingConsentAtCheckout(tx, customer.id, true, marketingConsentAt);
     }
@@ -108,7 +113,8 @@ export async function registerPrintTicket(input: {
         discountCents: priceCents,
         amountCents: 0,
         currency: lockedSlot.currency,
-        status: "PENDING",
+        status: "PAID",
+        paidAt: now,
         complimentary: true,
         ...(marketingConsentAt ? { marketingConsentAt } : {}),
       },
@@ -116,19 +122,18 @@ export async function registerPrintTicket(input: {
     await tx.orderLine.create({
       data: {
         orderId: order.id,
-        tier: "ADULT",
+        tier,
         quantity: 1,
         unitPriceCents: priceCents,
       },
     });
     await tx.ticket.update({
       where: { id: lockedTicket.id },
-      data: { orderId: order.id, tier: "ADULT" },
+      data: { orderId: order.id, tier },
     });
     return order.id;
   });
 
-  await fulfillPaidOrder(orderId, { notify: false });
   try {
     await sendPrintTicketReservationEmail(orderId, input.baseUrl ?? getPublicAppBaseUrl());
   } catch (err) {

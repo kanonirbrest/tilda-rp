@@ -22,6 +22,7 @@ type TicketView = {
   status: "unregistered" | "registered" | "used";
   serialLabel: string;
   displayCode: string;
+  tierLabel: string;
   qrDataUrl?: string;
   reservation: {
     dateLabel: string;
@@ -143,6 +144,8 @@ function TicketQr({ view }: { view: TicketView }) {
         />
       ) : null}
       <p className="nom-plain-msg">
+        {view.tierLabel} билет
+        <br />
         Уникальный код билета: <strong>{view.displayCode}</strong>
         <br />
         № {view.serialLabel}
@@ -379,6 +382,9 @@ export function DomRozhdestvaRegister({ initialToken }: { initialToken: string }
 
         {showForm ? (
           <>
+            <p className="nom-plain-msg nom-plain-msg--muted">
+              {view.tierLabel} билет · {view.displayCode} · № {view.serialLabel}
+            </p>
             {loading ? <p className="nom-plain-msg nom-plain-msg--muted">Загрузка…</p> : null}
             {!loading && loadError ? <p className="nom-plain-msg">{loadError}</p> : null}
             {!loading && !loadError ? (

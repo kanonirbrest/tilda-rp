@@ -1,5 +1,5 @@
 import { adminCorsHeaders, jsonWithCors, requireAdmin } from "@/lib/admin-api";
-import { loadPrintTicketsForPdf, PrintTicketError } from "@/lib/print-tickets";
+import { loadPrintTicketsForPdf, PrintTicketError, printTicketSheetTierLabel } from "@/lib/print-tickets";
 import { renderDomRozhdestvaPrintBatchPdf } from "@/lib/ticket-pdf-dom-rozhdestva";
 
 export const maxDuration = 300;
@@ -24,7 +24,14 @@ export async function GET(req: Request) {
 
   try {
     const tickets = await loadPrintTicketsForPdf({ fromSerial, toSerial });
-    const pdf = await renderDomRozhdestvaPrintBatchPdf(tickets);
+    const pdf = await renderDomRozhdestvaPrintBatchPdf(
+      tickets.map((t) => ({
+        qrUrl: t.qrUrl,
+        serialLabel: t.serialLabel,
+        displayCode: t.displayCode,
+        tierLabel: printTicketSheetTierLabel(t.tier),
+      })),
+    );
     const from = tickets[0]!.serialLabel;
     const to = tickets[tickets.length - 1]!.serialLabel;
     return new Response(Buffer.from(pdf), {

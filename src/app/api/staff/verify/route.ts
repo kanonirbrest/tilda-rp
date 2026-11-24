@@ -11,7 +11,7 @@ import {
 } from "@/lib/exhibition-time";
 import { isNeboGiftOpenDateSlot } from "@/lib/nebo-reka/ensure-gift-slot";
 import { isTicketCheckInDayOpen } from "@/lib/ticket-check-in-day";
-import { findTicketByScannedToken } from "@/lib/print-tickets";
+import { findTicketByScannedToken, isPrintTicketAwaitingRegistration } from "@/lib/print-tickets";
 
 const schema = z.object({
   token: z.string().min(10).max(200),
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ found: false });
   }
 
-  if (!ticket.order) {
+  if (!ticket.order || isPrintTicketAwaitingRegistration(ticket)) {
     return NextResponse.json({
       found: true,
       paid: false,

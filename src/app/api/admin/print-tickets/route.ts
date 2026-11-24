@@ -25,6 +25,7 @@ export async function GET(req: Request) {
 
 const issueBody = z.object({
   count: z.number().int().min(1).max(PRINT_TICKET_ISSUE_MAX),
+  tier: z.enum(["ADULT", "CHILD"]),
 });
 
 export async function POST(req: Request) {
@@ -40,12 +41,19 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return jsonWithCors(
       req,
-      { error: "BAD_COUNT", message: `Укажите количество от 1 до ${PRINT_TICKET_ISSUE_MAX}.` },
+      {
+        error: "BAD_COUNT",
+        message: `Укажите количество от 1 до ${PRINT_TICKET_ISSUE_MAX} и тип: взрослый или детский.`,
+      },
       { status: 400 },
     );
   }
   try {
-    const issued = await issuePrintTickets(parsed.data.count, getRequestOrigin(req));
+    const issued = await issuePrintTickets({
+      count: parsed.data.count,
+      tier: parsed.data.tier,
+      baseUrl: getRequestOrigin(req),
+    });
     return jsonWithCors(req, issued, { status: 201 });
   } catch (err) {
     if (err instanceof PrintTicketError) {

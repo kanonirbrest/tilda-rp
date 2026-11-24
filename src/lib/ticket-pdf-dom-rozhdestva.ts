@@ -183,98 +183,167 @@ export async function renderDomRozhdestvaTicketPdf(opts: TicketPdfInput): Promis
 
 export type PrintTicketPdfPage = {
   qrUrl: string;
+  /** Порядковый номер: «0001». */
   serialLabel: string;
+  /** Уникальный код: «XXXXX-XXXXX». */
   displayCode: string;
+  /** Тип билета, как он печатается: «ВЗРОСЛЫЙ», «ДЕТСКИЙ (3-11 ЛЕТ)». */
+  tierLabel: string;
 };
 
+const PRINT_SHELL_PDF = "shell.pdf";
+const PRINT_SHELL_HASH = "shell.hash";
+const PRINT_ASSET_DIR = ["assets", "tickets", "print-dom-rozhdestva"] as const;
+
+let printShellPdf: Promise<Uint8Array> | null = null;
+
+function printAssetPath(name: string): string {
+  return join(process.cwd(), ...PRINT_ASSET_DIR, name);
+}
+
+/** Подложка печатного билета: с диска, если hash совпал; иначе Chromium один раз. */
+function loadPrintShell(): Promise<Uint8Array> {
+  printShellPdf ??= (async () => {
+    const { buildPrintDomRozhdestvaSheetHtml } = await import("./print-ticket-dom-rozhdestva-sheet");
+    const html = buildPrintDomRozhdestvaSheetHtml();
+    const hash = createHash("sha256").update(html).digest("hex");
+    const pdfPath = printAssetPath(PRINT_SHELL_PDF);
+    const hashPath = printAssetPath(PRINT_SHELL_HASH);
+    if (existsSync(pdfPath) && existsSync(hashPath) && readFileSync(hashPath, "utf8").trim() === hash) {
+      return new Uint8Array(readFileSync(pdfPath));
+    }
+    const { renderHtmlToPdfBuffer } = await import("./ticket-pdf-playwright");
+    const pdf = await renderHtmlToPdfBuffer(html);
+    try {
+      writeFileSync(pdfPath, pdf);
+      writeFileSync(hashPath, hash);
+    } catch (err) {
+      console.warn("[print-ticket] подложку не удалось записать на диск", err);
+    }
+    return pdf;
+  })().catch((err) => {
+    printShellPdf = null;
+    throw err;
+  });
+  return printShellPdf;
+}
+
+type FontMetrics = { ascent: number; lineGap: number; unitsPerEm: number };
+
+/** Метрики шрифта: из них считается базовая линия строки при `line-height: normal`. */
+async function readFontMetrics(bytes: Buffer): Promise<FontMetrics> {
+  const fontkit = (await import("@pdf-lib/fontkit")) as unknown as {
+    create?: (b: Buffer) => FontMetrics;
+    default?: { create: (b: Buffer) => FontMetrics };
+  };
+  const create = fontkit.create ?? fontkit.default?.create;
+  if (!create) throw new Error("fontkit.create недоступен");
+  const f = create(bytes);
+  return { ascent: f.ascent, lineGap: f.lineGap, unitsPerEm: f.unitsPerEm };
+}
+
 /**
- * Пачка печатных билетов в одном PDF: фон и шрифты один раз.
- * Макет полей даты/цены — черновик до нового дизайна.
+ * Печатные билеты «Дом Рождества»: вся пачка — один PDF, на каждый билет страница.
+ * Подложка рисуется один раз, на странице меняются тип, коды, номер и QR.
  */
 export async function renderDomRozhdestvaPrintBatchPdf(
   pages: PrintTicketPdfPage[],
 ): Promise<Uint8Array> {
   if (pages.length === 0) throw new Error("Нет билетов для PDF");
-  const shell = await loadShell();
+  const { PRINT_SHEET_FIELDS, PRINT_SHEET_HEIGHT, PRINT_SHEET_QR, PRINT_SHEET_WIDTH } = await import(
+    "./print-ticket-dom-rozhdestva-sheet"
+  );
+  const shellPdf = await loadPrintShell();
+
   const out = await PDFDocument.create();
   const fontkit = await import("@pdf-lib/fontkit");
   const kit = ("default" in fontkit && fontkit.default ? fontkit.default : fontkit) as Parameters<
     PDFDocument["registerFontkit"]
   >[0];
   out.registerFontkit(kit);
-  const regular = await out.embedFont(fontBytes(400), { subset: false });
-  const bold = await out.embedFont(fontBytes(700), { subset: false });
-  const donor = await PDFDocument.load(shell.pdf);
+
+  const regularBytes = fontBytes(400);
+  const boldBytes = fontBytes(700);
+  // subset ломает cmap у этих CFF/OTF: цифры и кириллица превращаются в чужие глифы.
+  const regular = await out.embedFont(regularBytes, { subset: false });
+  const bold = await out.embedFont(boldBytes, { subset: false });
+  const metrics = {
+    400: await readFontMetrics(regularBytes),
+    700: await readFontMetrics(boldBytes),
+  } as const;
+
+  const donor = await PDFDocument.load(shellPdf);
   const donorPage = donor.getPages()[0];
-  if (!donorPage) throw new Error("В подложке билета нет страницы");
+  if (!donorPage) throw new Error("В подложке печатного билета нет страницы");
   const { width, height } = donorPage.getSize();
   const [embedded] = await out.embedPages([donorPage]);
-  const { layout } = shell;
-  const fontFor = (weight: 400 | 700) => (weight === 700 ? bold : regular);
+  const sx = width / PRINT_SHEET_WIDTH;
+  const sy = height / PRINT_SHEET_HEIGHT;
+
+  const drawField = (
+    page: PDFPage,
+    field: (typeof PRINT_SHEET_FIELDS)[keyof typeof PRINT_SHEET_FIELDS],
+    text: string,
+  ): void => {
+    const value = text.trim();
+    if (!value) return;
+    const m = metrics[field.weight];
+    // Строка в вёрстке стоит от верха line box; при `line-height: normal` базовая линия — ниже на lineGap/2 + ascent.
+    const baseline = field.top + ((m.lineGap / 2 + m.ascent) / m.unitsPerEm) * field.size;
+    page.drawText(value, {
+      x: field.x * sx,
+      y: height - baseline * sy,
+      size: field.size * sy,
+      font: field.weight === 700 ? bold : regular,
+      color: rgb(0, 0, 0),
+    });
+  };
 
   for (const item of pages) {
     const page = out.addPage([width, height]);
     page.drawPage(embedded);
-    drawField(page, fontFor(layout.fields.type.weight), layout.fields.type, "Регистрация", width, height, layout.cssWidth, layout.cssHeight);
-    drawField(page, fontFor(layout.fields.order.weight), layout.fields.order, item.serialLabel, width, height, layout.cssWidth, layout.cssHeight);
+    drawField(page, PRINT_SHEET_FIELDS.tier, item.tierLabel);
+    drawField(page, PRINT_SHEET_FIELDS.codeLeft, item.displayCode);
+    drawField(page, PRINT_SHEET_FIELDS.codeRight, item.displayCode);
+    drawField(page, PRINT_SHEET_FIELDS.serial, item.serialLabel);
 
-    const png = await QRCode.toBuffer(item.qrUrl, {
-      type: "png",
-      margin: 1,
-      width: 400,
-      errorCorrectionLevel: "M",
-      color: { dark: "#000000", light: "#ffffff" },
-    });
-    const image = await out.embedPng(png);
-    const sx = width / layout.cssWidth;
-    const sy = height / layout.cssHeight;
-    const qrSize = layout.qr.size * sx;
-    page.drawImage(image, {
-      x: layout.qr.x * sx,
-      y: height - (layout.qr.y + layout.qr.size) * sy,
-      width: qrSize,
-      height: layout.qr.size * sy,
-    });
-
-    const codeUnderQr: DomShellField = {
-      x: layout.qr.x + layout.qr.size / 2,
-      baseline: layout.qr.y + layout.qr.size + 18,
-      size: 11,
-      weight: 700,
-      align: "center",
-      maxWidth: layout.qr.size + 40,
-    };
-    drawField(page, bold, codeUnderQr, item.displayCode, width, height, layout.cssWidth, layout.cssHeight);
-
-    const codeBottom: DomShellField = {
-      x: layout.cssWidth / 2,
-      baseline: layout.cssHeight - 28,
-      size: 10,
-      weight: 400,
-      align: "center",
-      maxWidth: layout.cssWidth - 40,
-    };
-    drawField(
-      page,
-      regular,
-      codeBottom,
-      `Уникальный код билета  ${item.displayCode}`,
-      width,
-      height,
-      layout.cssWidth,
-      layout.cssHeight,
-    );
-
-    const serialSize = 10 * sy;
-    const serialWidth = bold.widthOfTextAtSize(item.serialLabel, serialSize);
-    page.drawText(item.serialLabel, {
-      x: width - 16 * sx - serialWidth,
-      y: height - 22 * sy,
-      size: serialSize,
-      font: bold,
-      color: rgb(1, 1, 1),
+    // QR векторный: легче PNG на порядок и не мылится при печати.
+    page.drawSvgPath(qrSvgPath(item.qrUrl, PRINT_SHEET_QR.size * sx), {
+      x: PRINT_SHEET_QR.x * sx,
+      y: height - PRINT_SHEET_QR.y * sy,
+      color: rgb(0, 0, 0),
+      borderWidth: 0,
     });
   }
 
   return out.save();
+}
+
+/**
+ * Контур QR одним путём (в pt, ось Y вниз от верхнего левого угла).
+ * Подряд идущие тёмные модули строки склеены в один прямоугольник; поля — 1 модуль, как у PNG-версии.
+ */
+function qrSvgPath(text: string, sizePt: number): string {
+  const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
+  const n = qr.modules.size;
+  const quiet = 1;
+  const cell = sizePt / (n + quiet * 2);
+  const f = (v: number) => Number(v.toFixed(3));
+  const parts: string[] = [];
+  for (let row = 0; row < n; row++) {
+    let col = 0;
+    while (col < n) {
+      if (!qr.modules.get(row, col)) {
+        col++;
+        continue;
+      }
+      const start = col;
+      while (col < n && qr.modules.get(row, col)) col++;
+      // Чуть перекрываем соседние строки, чтобы между ними не было волосяных швов.
+      parts.push(
+        `M${f((start + quiet) * cell)} ${f((row + quiet) * cell)}h${f((col - start) * cell)}v${f(cell + 0.02)}h${f(-(col - start) * cell)}z`,
+      );
+    }
+  }
+  return parts.join("");
 }

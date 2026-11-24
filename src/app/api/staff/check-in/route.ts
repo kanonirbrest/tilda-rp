@@ -45,11 +45,8 @@ export async function POST(req: Request) {
     if (!ticket) {
       return { type: "NOT_FOUND" as const };
     }
-    if (!ticket.order) {
+    if (!ticket.order || ticket.order.status !== "PAID") {
       return { type: ticket.source === "PRINT" ? ("NOT_REGISTERED" as const) : ("NOT_PAID" as const) };
-    }
-    if (ticket.order.status !== "PAID") {
-      return { type: "NOT_PAID" as const };
     }
     if (ticket.refundedAt) {
       return { type: "REFUNDED" as const };

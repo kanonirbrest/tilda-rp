@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type TicketTier } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPublicAppBaseUrl } from "@/lib/request-origin";
 import {
@@ -18,6 +18,41 @@ import {
 } from "@/lib/print-ticket-token";
 
 export { PRINT_TICKET_ISSUE_MAX, PRINT_TICKET_ISSUE_MIN };
+
+export const PRINT_TICKET_TIERS = ["ADULT", "CHILD"] as const;
+export type PrintTicketTier = (typeof PRINT_TICKET_TIERS)[number];
+
+export function isPrintTicketTier(value: unknown): value is PrintTicketTier {
+  return value === "ADULT" || value === "CHILD";
+}
+
+export function printTicketTierFromStored(tier: TicketTier | null | undefined): PrintTicketTier {
+  return tier === "CHILD" ? "CHILD" : "ADULT";
+}
+
+export function printTicketTierLabelRu(tier: TicketTier | null | undefined): string {
+  return printTicketTierFromStored(tier) === "CHILD" ? "Детский" : "Взрослый";
+}
+
+/** Подпись на печатном бланке. */
+export function printTicketSheetTierLabel(tier: TicketTier | null | undefined): string {
+  return printTicketTierFromStored(tier) === "CHILD" ? "ДЕТСКИЙ (3-11 ЛЕТ)" : "ВЗРОСЛЫЙ";
+}
+
+/** Печатный билет без активной брони: ещё не регистрировали или бронь сняли. */
+export function isPrintTicketAwaitingRegistration(ticket: {
+  source: string;
+  order: { status: string } | null;
+}): boolean {
+  return ticket.source === "PRINT" && (!ticket.order || ticket.order.status !== "PAID");
+}
+
+function printReservationActive(ticket: {
+  refundedAt: Date | null;
+  order: { status: string } | null;
+}): boolean {
+  return Boolean(ticket.order && ticket.order.status === "PAID" && !ticket.refundedAt);
+}
 
 export class PrintTicketError extends Error {
   constructor(
@@ -58,6 +93,8 @@ export type PrintTicketPublicView = {
   serialLabel: string;
   displayCode: string;
   qrUrl: string;
+  tier: PrintTicketTier;
+  tierLabel: string;
   reservation: {
     dateKey: string;
     dateLabel: string;
@@ -74,14 +111,17 @@ function publicViewFromTicket(
 ): PrintTicketPublicView | null {
   if (ticket.source !== "PRINT" || ticket.serial == null) return null;
   const order = ticket.order;
-  const registered = Boolean(order && order.status === "PAID" && !ticket.refundedAt);
+  const registered = printReservationActive(ticket);
   const tz = getExhibitionTimezone();
+  const tier = printTicketTierFromStored(ticket.tier);
   return {
     status: ticket.usedAt ? "used" : registered ? "registered" : "unregistered",
     serial: ticket.serial,
     serialLabel: formatPrintSerial(ticket.serial),
     displayCode: formatPrintTicketToken(ticket.publicToken),
     qrUrl: printTicketQrUrl(baseUrl, ticket.publicToken),
+    tier,
+    tierLabel: printTicketTierLabelRu(tier),
     reservation:
       registered && order ?
         {
@@ -137,19 +177,40 @@ export type IssuedPrintTicket = {
   publicToken: string;
   displayCode: string;
   qrUrl: string;
+  tier: PrintTicketTier;
 };
 
-export async function issuePrintTickets(
-  count: number,
-  baseUrl: string = getPublicAppBaseUrl(),
-): Promise<{ tickets: IssuedPrintTicket[]; fromSerial: number; toSerial: number }> {
-  const n = Math.floor(count);
+function toIssuedPrintTicket(
+  t: { id: string; serial: number | null; publicToken: string; tier: TicketTier | null },
+  baseUrl: string,
+): IssuedPrintTicket {
+  const serial = t.serial ?? 0;
+  const tier = printTicketTierFromStored(t.tier);
+  return {
+    id: t.id,
+    serial,
+    serialLabel: formatPrintSerial(serial),
+    publicToken: t.publicToken,
+    displayCode: formatPrintTicketToken(t.publicToken),
+    qrUrl: printTicketQrUrl(baseUrl, t.publicToken),
+    tier,
+  };
+}
+
+export async function issuePrintTickets(input: {
+  count: number;
+  tier: PrintTicketTier;
+  baseUrl?: string;
+}): Promise<{ tickets: IssuedPrintTicket[]; fromSerial: number; toSerial: number; tier: PrintTicketTier }> {
+  const n = Math.floor(input.count);
   if (!Number.isFinite(n) || n < PRINT_TICKET_ISSUE_MIN || n > PRINT_TICKET_ISSUE_MAX) {
     throw new PrintTicketError(
       "BAD_COUNT",
       `Укажите количество от ${PRINT_TICKET_ISSUE_MIN} до ${PRINT_TICKET_ISSUE_MAX}.`,
     );
   }
+  const tier = input.tier;
+  const baseUrl = input.baseUrl ?? getPublicAppBaseUrl();
 
   const tokens = await uniquePrintTokens(n);
 
@@ -171,7 +232,7 @@ export async function issuePrintTickets(
       publicToken,
       source: "PRINT" as const,
       serial: start + i,
-      tier: "ADULT" as const,
+      tier,
       admissionCount: 1,
     }));
     await tx.ticket.createMany({ data: rows });
@@ -179,23 +240,17 @@ export async function issuePrintTickets(
     return tx.ticket.findMany({
       where: { source: "PRINT", serial: { gte: start, lte: start + n - 1 } },
       orderBy: { serial: "asc" },
-      select: { id: true, serial: true, publicToken: true },
+      select: { id: true, serial: true, publicToken: true, tier: true },
     });
   });
 
-  const tickets: IssuedPrintTicket[] = created.map((t) => ({
-    id: t.id,
-    serial: t.serial!,
-    serialLabel: formatPrintSerial(t.serial!),
-    publicToken: t.publicToken,
-    displayCode: formatPrintTicketToken(t.publicToken),
-    qrUrl: printTicketQrUrl(baseUrl, t.publicToken),
-  }));
+  const tickets = created.map((t) => toIssuedPrintTicket(t, baseUrl));
 
   return {
     tickets,
     fromSerial: tickets[0]!.serial,
     toSerial: tickets[tickets.length - 1]!.serial,
+    tier,
   };
 }
 
@@ -205,6 +260,8 @@ export type PrintTicketAdminRow = {
   serialLabel: string;
   publicToken: string;
   displayCode: string;
+  tier: PrintTicketTier;
+  tierLabel: string;
   status: "unregistered" | "registered" | "used" | "cancelled";
   usedAt: string | null;
   createdAt: string;
@@ -269,24 +326,28 @@ export async function listPrintTickets(opts: {
   const tz = getExhibitionTimezone();
   const tickets: PrintTicketAdminRow[] = rows.map((t) => {
     const order = t.order;
-    const registered = Boolean(order && order.status === "PAID" && !t.refundedAt);
+    const registered = printReservationActive(t);
     const cancelled = Boolean(order && (order.status === "CANCELLED" || order.status === "REFUNDED"));
+    const showGuest = Boolean(order) && (registered || cancelled || Boolean(t.usedAt));
+    const tier = printTicketTierFromStored(t.tier);
     return {
       id: t.id,
       serial: t.serial ?? 0,
       serialLabel: formatPrintSerial(t.serial ?? 0),
       publicToken: t.publicToken,
       displayCode: formatPrintTicketToken(t.publicToken),
+      tier,
+      tierLabel: printTicketTierLabelRu(tier),
       status: t.usedAt ? "used" : registered ? "registered" : cancelled ? "cancelled" : "unregistered",
       usedAt: t.usedAt?.toISOString() ?? null,
       createdAt: t.createdAt.toISOString(),
-      customerName: registered ? order!.customer.name : null,
-      email: registered ? order!.customer.email : null,
-      phone: registered ? order!.customer.phone : null,
-      slotTitle: registered ? order!.slot.title : null,
-      slotStartsAt: registered ? order!.slot.startsAt.toISOString() : null,
-      dateKey: registered ? dateKeyInTz(order!.slot.startsAt, tz) : null,
-      orderId: registered ? order!.id : null,
+      customerName: showGuest ? order!.customer.name : null,
+      email: showGuest ? order!.customer.email : null,
+      phone: showGuest ? order!.customer.phone : null,
+      slotTitle: showGuest ? order!.slot.title : null,
+      slotStartsAt: showGuest ? order!.slot.startsAt.toISOString() : null,
+      dateKey: showGuest ? dateKeyInTz(order!.slot.startsAt, tz) : null,
+      orderId: showGuest ? order!.id : null,
     };
   });
 
@@ -316,10 +377,6 @@ export async function cancelPrintTicketReservation(ticketId: string): Promise<vo
       where: { id: ticket.orderId },
       data: { status: "CANCELLED" },
     });
-    await tx.ticket.update({
-      where: { id: ticket.id },
-      data: { orderId: null },
-    });
   });
 }
 
@@ -341,17 +398,10 @@ export async function loadPrintTicketsForPdf(opts: {
   const rows = await prisma.ticket.findMany({
     where,
     orderBy: { serial: "asc" },
-    select: { id: true, serial: true, publicToken: true },
+    select: { id: true, serial: true, publicToken: true, tier: true },
   });
   if (rows.length === 0) {
     throw new PrintTicketError("NOT_FOUND", "Печатные билеты в этом диапазоне не найдены.");
   }
-  return rows.map((t) => ({
-    id: t.id,
-    serial: t.serial!,
-    serialLabel: formatPrintSerial(t.serial!),
-    publicToken: t.publicToken,
-    displayCode: formatPrintTicketToken(t.publicToken),
-    qrUrl: printTicketQrUrl(baseUrl, t.publicToken),
-  }));
+  return rows.map((t) => toIssuedPrintTicket(t, baseUrl));
 }

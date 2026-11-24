@@ -2,12 +2,15 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { PRINT_TICKET_ISSUE_MAX } from "@/lib/print-ticket-token";
+type PrintTicketTier = "ADULT" | "CHILD";
 
 type PrintRow = {
   id: string;
   serial: number;
   serialLabel: string;
   displayCode: string;
+  tier: PrintTicketTier;
+  tierLabel: string;
   status: "unregistered" | "registered" | "used" | "cancelled";
   customerName: string | null;
   email: string | null;
@@ -26,6 +29,7 @@ function statusLabel(s: PrintRow["status"]): string {
 export function PrintTicketsAdmin() {
   const [q, setQ] = useState("");
   const [count, setCount] = useState(50);
+  const [tier, setTier] = useState<PrintTicketTier>("ADULT");
   const [rows, setRows] = useState<PrintRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -66,19 +70,23 @@ export function PrintTicketsAdmin() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count }),
+        body: JSON.stringify({ count, tier }),
       });
       const j = (await r.json()) as {
         fromSerial?: number;
         toSerial?: number;
         tickets?: unknown[];
+        tier?: PrintTicketTier;
         message?: string;
       };
       if (!r.ok) throw new Error(j.message || "Не удалось создать билеты");
       const from = j.fromSerial ?? 0;
       const to = j.toSerial ?? 0;
+      const typeLabel = j.tier === "CHILD" ? "детских" : "взрослых";
       setLastRange({ from, to });
-      setInfo(`Создано билетов: ${j.tickets?.length ?? count}. Номера ${String(from).padStart(4, "0")}–${String(to).padStart(4, "0")}.`);
+      setInfo(
+        `Создано ${j.tickets?.length ?? count} ${typeLabel}. Номера ${String(from).padStart(4, "0")}–${String(to).padStart(4, "0")}.`,
+      );
       await load(q);
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -123,6 +131,16 @@ export function PrintTicketsAdmin() {
               onChange={(e) => setCount(Number.parseInt(e.target.value, 10) || 1)}
             />
           </label>
+          <label className="admin-field">
+            Тип
+            <select
+              value={tier}
+              onChange={(e) => setTier(e.target.value === "CHILD" ? "CHILD" : "ADULT")}
+            >
+              <option value="ADULT">Взрослый</option>
+              <option value="CHILD">Детский</option>
+            </select>
+          </label>
           <button type="submit" className="btn" disabled={loading}>
             Сгенерировать
           </button>
@@ -137,7 +155,7 @@ export function PrintTicketsAdmin() {
           ) : null}
         </form>
         <p className="admin-hint admin-hint--inline">
-          Пачка в одном PDF. QR ведёт на регистрацию, этот же код — на входе. Макет билета обновим, когда будет дизайн.
+          Пачка в одном PDF. Тип — взрослый или детский — печатается на бланке. QR ведёт на регистрацию, этот же код — на входе.
         </p>
       </div>
 
@@ -173,8 +191,10 @@ export function PrintTicketsAdmin() {
               <div className="admin-slot-row__main">
                 <span className="admin-slot-row__title mono">{row.displayCode}</span>
                 <span className="admin-slot-row__meta">
-                  {statusLabel(row.status)}
+                  {row.tierLabel.toLowerCase()}
+                  {` · ${statusLabel(row.status)}`}
                   {row.email ? ` · ${row.email}` : ""}
+                  {row.phone ? ` · ${row.phone}` : ""}
                   {row.dateKey ? ` · ${row.dateKey}` : ""}
                   {row.slotTitle ? ` · ${row.slotTitle}` : ""}
                 </span>

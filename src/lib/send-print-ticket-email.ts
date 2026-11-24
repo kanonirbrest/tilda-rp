@@ -9,6 +9,7 @@ import {
   timeKeyInTz,
 } from "@/lib/exhibition-time";
 import { formatPrintTicketToken, printTicketQrUrl } from "@/lib/print-ticket-token";
+import { printTicketTierLabelRu } from "@/lib/print-tickets";
 
 export async function sendPrintTicketReservationEmail(
   orderId: string,
@@ -36,7 +37,7 @@ export async function sendPrintTicketReservationEmail(
     currency: order.currency,
     orderId: displayCode,
     qrUrl,
-    ticketTierLabel: "Регистрация",
+    ticketTierLabel: printTicketTierLabelRu(ticket.tier),
     admissionCount: 1,
     slotKind: DOM_ROZHDESTVA_SLOT_KIND,
   });
