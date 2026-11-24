@@ -46,7 +46,10 @@ export async function POST(req: Request) {
       return { type: "NOT_FOUND" as const };
     }
     if (!ticket.order || ticket.order.status !== "PAID") {
-      return { type: ticket.source === "PRINT" ? ("NOT_REGISTERED" as const) : ("NOT_PAID" as const) };
+      if (ticket.source === "PRINT") {
+        return { type: "NOT_REGISTERED" as const };
+      }
+      return { type: "NOT_PAID" as const };
     }
     if (ticket.refundedAt) {
       return { type: "REFUNDED" as const };
@@ -76,6 +79,7 @@ export async function POST(req: Request) {
     return {
       type: "OK" as const,
       ticket,
+      order: ticket.order,
     };
   });
 
@@ -100,15 +104,8 @@ export async function POST(req: Request) {
       { status: 409 },
     );
   }
-  if (result.type !== "OK") {
-    return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-  }
-
   const t = result.ticket;
-  const order = t.order;
-  if (!order) {
-    return NextResponse.json({ ok: true });
-  }
+  const order = result.order;
   try {
     await sendCrmWebhook({
       event: "ticket_used",

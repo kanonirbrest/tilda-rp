@@ -62,11 +62,13 @@ export type SalesReport = {
 /** Деньги по оплаченным заказам периода. Считается по заказу, а не по строке типа билета. */
 export type SalesRevenue = {
   currency: string;
-  /** Сумма оплат (PAID и REFUNDED), до вычета возвратов. */
+  /** Сумма оплат (PAID и REFUNDED), до вычета возвратов. Без групповых. */
   paidCents: number;
+  /** Номинал групповых (печатных) билетов: цена слота, заказ на 0 ₽. */
+  groupCents: number;
   /** Уже возвращено покупателям. */
   refundedCents: number;
-  /** paidCents − refundedCents: сколько осталось с продаж. */
+  /** paidCents − refundedCents + groupCents. */
   netCents: number;
 };
 
@@ -216,7 +218,13 @@ export async function querySalesStats(params: {
     }),
     prisma.order.findMany({
       where: orderWhere,
-      select: { amountCents: true, refundedCents: true, currency: true },
+      select: {
+        amountCents: true,
+        subtotalCents: true,
+        refundedCents: true,
+        currency: true,
+        tickets: { select: { source: true }, take: 1 },
+      },
     }),
   ]);
 
@@ -376,12 +384,23 @@ export async function querySalesStats(params: {
       { reserved: 0, sold: 0, refunded: 0 },
     );
 
-  const revenueByCurrency = new Map<string, { paidCents: number; refundedCents: number }>();
+  const revenueByCurrency = new Map<
+    string,
+    { paidCents: number; groupCents: number; refundedCents: number }
+  >();
   for (const order of paidOrders) {
     const currency = order.currency?.trim() || "BYN";
-    const bucket = revenueByCurrency.get(currency) ?? { paidCents: 0, refundedCents: 0 };
-    bucket.paidCents += order.amountCents;
-    bucket.refundedCents += Math.max(0, order.refundedCents);
+    const bucket = revenueByCurrency.get(currency) ?? {
+      paidCents: 0,
+      groupCents: 0,
+      refundedCents: 0,
+    };
+    if (order.tickets.some((ticket) => ticket.source === "PRINT")) {
+      bucket.groupCents += order.subtotalCents;
+    } else {
+      bucket.paidCents += order.amountCents;
+      bucket.refundedCents += Math.max(0, order.refundedCents);
+    }
     revenueByCurrency.set(currency, bucket);
   }
   const revenue: SalesRevenue[] =
@@ -391,10 +410,11 @@ export async function querySalesStats(params: {
         .map(([currency, bucket]) => ({
           currency,
           paidCents: bucket.paidCents,
+          groupCents: bucket.groupCents,
           refundedCents: bucket.refundedCents,
-          netCents: Math.max(0, bucket.paidCents - bucket.refundedCents),
+          netCents: Math.max(0, bucket.paidCents - bucket.refundedCents) + bucket.groupCents,
         }))
-    : [{ currency: "BYN", paidCents: 0, refundedCents: 0, netCents: 0 }];
+    : [{ currency: "BYN", paidCents: 0, groupCents: 0, refundedCents: 0, netCents: 0 }];
 
   return {
     timezone: tz,

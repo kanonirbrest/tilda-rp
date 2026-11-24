@@ -7,7 +7,6 @@ import {
   timeKeyInTz,
   wallDayUtcRange,
 } from "@/lib/exhibition-time";
-import { ensureDomRozhdestvaSlots } from "@/lib/dom-rozhdestva/ensure-slots";
 import { DOM_ROZHDESTVA_SLOT_KIND } from "@/lib/slot-kind";
 import { slotOrderLineStatsMap } from "@/lib/slot-order-line-stats";
 
@@ -16,7 +15,6 @@ export async function listPrintRegistrationDays(): Promise<{
   timezone: string;
   days: Record<string, { bookable: boolean; hover: string }>;
 }> {
-  await ensureDomRozhdestvaSlots();
   const tz = getExhibitionTimezone();
   const now = new Date();
   const slots = await prisma.slot.findMany({
@@ -55,7 +53,6 @@ export async function listPrintRegistrationTimes(date: string): Promise<{
   date: string;
   times: string[];
 }> {
-  await ensureDomRozhdestvaSlots();
   const tz = getExhibitionTimezone();
   if (isWallCalendarDayBeforeToday(date, tz)) {
     return { timezone: tz, date, times: [] };

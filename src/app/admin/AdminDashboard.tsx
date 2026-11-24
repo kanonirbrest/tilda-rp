@@ -194,6 +194,7 @@ type SalesReport = {
 type SalesRevenue = {
   currency: string;
   paidCents: number;
+  groupCents?: number;
   refundedCents: number;
   netCents: number;
 };
@@ -2965,6 +2966,9 @@ export default function AdminDashboard() {
                         <div className="admin-stats-kpi__label">Сумма продаж</div>
                         <div className="admin-stats-kpi__sub mono">
                           оплачено {formatMinorUnits(rev.paidCents, rev.currency)}
+                          {(rev.groupCents ?? 0) > 0 || (salesStats.sold.group ?? 0) > 0 ?
+                            ` · групповые ${formatMinorUnits(rev.groupCents ?? 0, rev.currency)}`
+                          : ""}
                           {rev.refundedCents > 0 ?
                             ` · возвраты ${formatMinorUnits(rev.refundedCents, rev.currency)}`
                           : ""}
@@ -2974,8 +2978,9 @@ export default function AdminDashboard() {
                   </div>
                 ) : null}
                 <p className="admin-stats-section__hint">
-                  Сумма продаж — деньги по оплаченным заказам за вычетом возвратов. Бронь —
-                  неоплаченные заявки (PENDING) · Продано — оплаченные билеты без возврата ·
+                  Сумма продаж — оплаченные заказы за вычетом возвратов плюс номинал групповых
+                  билетов (цена взрослого или детского на сеансе). Бронь — неоплаченные заявки
+                  (PENDING) · Продано — оплаченные билеты без возврата, групповые — отдельно ·
                   Возврат — билеты с возвратом. Промокоды — те же категории с промокодом, разрез
                   тех же продаж, а не отдельные билеты.
                 </p>

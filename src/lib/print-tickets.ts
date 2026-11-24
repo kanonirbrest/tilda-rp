@@ -274,6 +274,9 @@ export type PrintTicketAdminRow = {
   orderId: string | null;
 };
 
+/** Максимум колонки Int в Postgres: большее значение уронит запрос Prisma. */
+const PG_INT_MAX = 2147483647;
+
 export async function listPrintTickets(opts: {
   q?: string;
   limit?: number;
@@ -286,11 +289,14 @@ export async function listPrintTickets(opts: {
   const where: Prisma.TicketWhereInput = { source: "PRINT" };
 
   if (q) {
-    const serialNum = Number.parseInt(q.replace(/^0+/, "") || q, 10);
     const tokenCandidates = ticketTokenLookupCandidates(q);
     const or: Prisma.TicketWhereInput[] = [];
-    if (Number.isFinite(serialNum) && serialNum > 0) {
-      or.push({ serial: serialNum });
+    // Серийный номер ищем только если запрос целиком из цифр.
+    if (/^\d+$/.test(q)) {
+      const serialNum = Number.parseInt(q, 10);
+      if (serialNum > 0 && serialNum <= PG_INT_MAX) {
+        or.push({ serial: serialNum });
+      }
     }
     if (tokenCandidates.length > 0) {
       or.push({ publicToken: { in: tokenCandidates } });
