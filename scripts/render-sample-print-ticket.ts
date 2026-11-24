@@ -14,13 +14,13 @@ async function main() {
   const pdf = await renderDomRozhdestvaPrintBatchPdf([
     {
       qrUrl: "https://dei-tickets.onrender.com/r?t=7K3M9P2QXD",
-      serialLabel: "0001",
+      serialLabel: "00001",
       displayCode: "7K3M9-P2QXD",
       tierLabel: "ВЗРОСЛЫЙ",
     },
     {
       qrUrl: "https://dei-tickets.onrender.com/r?t=B4N8T1WZ5C",
-      serialLabel: "0002",
+      serialLabel: "00002",
       displayCode: "B4N8T-1WZ5C",
       tierLabel: "ДЕТСКИЙ (3-11 ЛЕТ)",
     },

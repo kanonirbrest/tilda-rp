@@ -183,7 +183,7 @@ export async function renderDomRozhdestvaTicketPdf(opts: TicketPdfInput): Promis
 
 export type PrintTicketPdfPage = {
   qrUrl: string;
-  /** Порядковый номер: «0001». */
+  /** Порядковый номер: «00001». */
   serialLabel: string;
   /** Уникальный код: «XXXXX-XXXXX». */
   displayCode: string;

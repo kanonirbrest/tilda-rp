@@ -152,6 +152,7 @@ type TierSoldCounts = {
   adult: number;
   child: number;
   concession: number;
+  group?: number;
   unknown: number;
   total: number;
 };
@@ -164,6 +165,7 @@ type SalesStatsBySlot = {
   adult: number;
   child: number;
   concession: number;
+  group?: number;
   unknown: number;
   total: number;
 };
@@ -227,6 +229,7 @@ function salesReportFromSold(sold: TierSoldCounts): SalesReport {
     { key: "tier:ADULT", label: "Взрослый", sold: sold.adult },
     { key: "tier:CHILD", label: "Детский", sold: sold.child },
     { key: "tier:CONCESSION", label: "Льготный", sold: sold.concession },
+    ...((sold.group ?? 0) > 0 ? [{ key: "dr:group", label: "Групповой", sold: sold.group ?? 0 }] : []),
     ...(sold.unknown > 0 ? [{ key: "tier:UNKNOWN", label: "Без типа", sold: sold.unknown }] : []),
   ].map((r) => ({ ...r, kind: "tier" as const, quota: null, reserved: null, refunded: null }));
 
@@ -3029,6 +3032,7 @@ export default function AdminDashboard() {
                           <th className="num">Взр.</th>
                           <th className="num">Дет.</th>
                           <th className="num">Льг.</th>
+                          <th className="num">Груп.</th>
                           <th className="num">Всего</th>
                         </tr>
                       </thead>
@@ -3053,6 +3057,7 @@ export default function AdminDashboard() {
                             <td className="num">{row.adult}</td>
                             <td className="num">{row.child}</td>
                             <td className="num">{row.concession}</td>
+                            <td className="num">{row.group ?? 0}</td>
                             <td className="num">{row.total}</td>
                           </tr>
                         ))}

@@ -23,6 +23,7 @@ export const DOM_ROZHDESTVA_SALES_CATALOG: { key: string; label: string }[] = [
   { key: "dr:child-30-weekday", label: "Детский (будний) 30" },
   { key: "dr:child-35", label: "Детский (выходной) 35" },
   { key: "dr:concession", label: "Льготный" },
+  { key: "dr:group", label: "Групповой" },
 ];
 
 const CATALOG_BY_KEY = new Map(DOM_ROZHDESTVA_SALES_CATALOG.map((row) => [row.key, row.label]));

@@ -27,7 +27,7 @@ export function formatPrintTicketToken(token: string): string {
 }
 
 export function formatPrintSerial(serial: number): string {
-  return String(serial).padStart(4, "0");
+  return String(serial).padStart(5, "0");
 }
 
 /** Верхний регистр, без дефисов/пробелов, I/L→1, O→0, U→V. */

@@ -1,4 +1,4 @@
-import { type OrderStatus, type TicketTier } from "@prisma/client";
+import { type OrderStatus, type TicketSource, type TicketTier } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { reportTicketsWhereForDay } from "@/lib/admin-day-ticket-filter";
 import { dateKeyInTz, getExhibitionTimezone, timeKeyInTz, wallDaysUtcRange } from "@/lib/exhibition-time";
@@ -12,6 +12,8 @@ export type TierSoldCounts = {
   adult: number;
   child: number;
   concession: number;
+  /** Печатные билеты регистрации, одна строка «Групповой». */
+  group: number;
   /** Старые билеты без tier в БД. */
   unknown: number;
   total: number;
@@ -26,6 +28,7 @@ export type SalesStatsBySlot = {
   adult: number;
   child: number;
   concession: number;
+  group: number;
   unknown: number;
   total: number;
 };
@@ -82,12 +85,13 @@ export type SalesStatsResult = {
 };
 
 function emptyTierCounts(): TierSoldCounts {
-  return { adult: 0, child: 0, concession: 0, unknown: 0, total: 0 };
+  return { adult: 0, child: 0, concession: 0, group: 0, unknown: 0, total: 0 };
 }
 
-function addTier(counts: TierSoldCounts, tier: TicketTier | null) {
+function addTier(counts: TierSoldCounts, tier: TicketTier | null, source: TicketSource) {
   counts.total += 1;
-  if (tier === "ADULT") counts.adult += 1;
+  if (source === "PRINT") counts.group += 1;
+  else if (tier === "ADULT") counts.adult += 1;
   else if (tier === "CHILD") counts.child += 1;
   else if (tier === "CONCESSION") counts.concession += 1;
   else counts.unknown += 1;
@@ -95,6 +99,7 @@ function addTier(counts: TierSoldCounts, tier: TicketTier | null) {
 
 type SalesTicketRow = {
   tier: TicketTier | null;
+  source: TicketSource;
   order: {
     slotId: string;
     slot: { title: string; startsAt: Date };
@@ -117,13 +122,15 @@ function accumulateSalesSlot(
       adult: 0,
       child: 0,
       concession: 0,
+      group: 0,
       unknown: 0,
       total: 0,
     };
     map.set(sid, row);
   }
   row.total += 1;
-  if (t.tier === "ADULT") row.adult += 1;
+  if (t.source === "PRINT") row.group += 1;
+  else if (t.tier === "ADULT") row.adult += 1;
   else if (t.tier === "CHILD") row.child += 1;
   else if (t.tier === "CONCESSION") row.concession += 1;
   else row.unknown += 1;
@@ -184,6 +191,7 @@ export async function querySalesStats(params: {
       where: reportTicketsWhereForDay(range, slotId, slotKind),
       select: {
         tier: true,
+        source: true,
         refundedAt: true,
         order: {
           select: {
@@ -232,8 +240,11 @@ export async function querySalesStats(params: {
     const status = t.order.status;
     const refunded = t.refundedAt != null;
 
-    const reportRow = drCatalog
-      ? domRozhdestvaReportKey({
+    const reportRow =
+      t.source === "PRINT" ?
+        { key: "dr:group", label: "Групповой" }
+      : drCatalog ?
+        domRozhdestvaReportKey({
           tier: t.tier,
           lines: t.order.lines,
           slotStartsAt: t.order.slot.startsAt,
@@ -271,7 +282,7 @@ export async function querySalesStats(params: {
     }
 
     if (status === "PAID" && !refunded) {
-      addTier(sold, t.tier);
+      addTier(sold, t.tier, t.source);
       if (!slotId) accumulateSalesSlot(slotMap, { ...t, order: t.order });
     }
   }
@@ -286,6 +297,7 @@ export async function querySalesStats(params: {
       adult: row.adult,
       child: row.child,
       concession: row.concession,
+      group: row.group,
       unknown: row.unknown,
       total: row.total,
     }));
@@ -307,6 +319,16 @@ export async function querySalesStats(params: {
         kind: "tier",
         quota: null,
         ...unknownCell,
+      });
+    }
+    const groupCell = tierCells.get("dr:group");
+    if (groupCell) {
+      rows.push({
+        key: "dr:group",
+        label: "Групповой",
+        kind: "tier",
+        quota: null,
+        ...groupCell,
       });
     }
   } else {

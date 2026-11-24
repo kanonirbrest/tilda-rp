@@ -85,7 +85,7 @@ export function PrintTicketsAdmin() {
       const typeLabel = j.tier === "CHILD" ? "детских" : "взрослых";
       setLastRange({ from, to });
       setInfo(
-        `Создано ${j.tickets?.length ?? count} ${typeLabel}. Номера ${String(from).padStart(4, "0")}–${String(to).padStart(4, "0")}.`,
+        `Создано ${j.tickets?.length ?? count} ${typeLabel}. Номера ${String(from).padStart(5, "0")}–${String(to).padStart(5, "0")}.`,
       );
       await load(q);
     } catch (e: unknown) {
@@ -150,7 +150,7 @@ export function PrintTicketsAdmin() {
               className="btn btn-secondary"
               onClick={() => downloadPdf(lastRange.from, lastRange.to)}
             >
-              Скачать PDF {String(lastRange.from).padStart(4, "0")}–{String(lastRange.to).padStart(4, "0")}
+              Скачать PDF {String(lastRange.from).padStart(5, "0")}–{String(lastRange.to).padStart(5, "0")}
             </button>
           ) : null}
         </form>
