@@ -6,6 +6,7 @@ import { paidCentsForOrderTicketAtIndex } from "@/lib/ticket-refund-alloc";
 import { BELYE_NOCHI_18_SLOT_KIND } from "@/lib/slot-kind";
 import { tierTicketSingularRu } from "@/lib/slot-pricing";
 import { isNeboGiftOpenDateSlot } from "@/lib/nebo-reka/ensure-gift-slot";
+import { printTicketQrUrl } from "@/lib/print-ticket-token";
 
 /** На Vercel и др. поднимает лимит выполнения route (иначе PDF + очередь семафора могут обрезаться). На self-hosted `next start` часто игнорируется. */
 export const maxDuration = 300;
@@ -29,7 +30,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     },
   });
 
-  if (!ticket || ticket.order.status !== "PAID" || ticket.refundedAt) {
+  if (!ticket || !ticket.order || ticket.order.status !== "PAID" || ticket.refundedAt) {
     return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
   }
 
@@ -42,7 +43,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     : ticket.order.amountCents;
 
   const base = getPublicAppBaseUrl();
-  const qrUrl = `${base}/staff/quick?t=${ticket.publicToken}`;
+  const qrUrl =
+    ticket.source === "PRINT" ?
+      printTicketQrUrl(base, ticket.publicToken)
+    : `${base}/staff/quick?t=${ticket.publicToken}`;
 
   try {
     const giftOpenDate = isNeboGiftOpenDateSlot(ticket.order.slot);

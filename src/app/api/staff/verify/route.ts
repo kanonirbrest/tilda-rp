@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
 import { getStaffFromCookies } from "@/lib/auth-staff";
 import { formatMinorUnits } from "@/lib/money";
 import { formatDisplayDateTime } from "@/lib/format-display-datetime";
@@ -12,6 +11,7 @@ import {
 } from "@/lib/exhibition-time";
 import { isNeboGiftOpenDateSlot } from "@/lib/nebo-reka/ensure-gift-slot";
 import { isTicketCheckInDayOpen } from "@/lib/ticket-check-in-day";
+import { findTicketByScannedToken } from "@/lib/print-tickets";
 
 const schema = z.object({
   token: z.string().min(10).max(200),
@@ -34,15 +34,36 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "VALIDATION" }, { status: 400 });
   }
 
-  const ticket = await prisma.ticket.findUnique({
-    where: { publicToken: parsed.data.token },
-    include: {
-      order: { include: { customer: true, slot: true } },
-    },
-  });
+  const ticket = await findTicketByScannedToken(parsed.data.token);
 
   if (!ticket) {
     return NextResponse.json({ found: false });
+  }
+
+  if (!ticket.order) {
+    return NextResponse.json({
+      found: true,
+      paid: false,
+      notRegistered: ticket.source === "PRINT",
+      refunded: Boolean(ticket.refundedAt),
+      used: Boolean(ticket.usedAt),
+      usedAt: ticket.usedAt != null ? formatDisplayDateTime(ticket.usedAt.toISOString()) : null,
+      giftOpenDate: false,
+      sessionToday: false,
+      sessionDate: "",
+      todayDate: "",
+      dayError: null,
+      customerName: ticket.source === "PRINT" ? "Печатный билет" : "",
+      email: "",
+      phone: "",
+      slotTitle: ticket.source === "PRINT" ? "Сначала регистрация по QR" : "",
+      startsAt: "",
+      amountCents: 0,
+      amountDisplay: "",
+      currency: "BYN",
+      orderId: "",
+      admissionCount: ticket.admissionCount,
+    });
   }
 
   const paid = ticket.order.status === "PAID" && ticket.refundedAt == null;

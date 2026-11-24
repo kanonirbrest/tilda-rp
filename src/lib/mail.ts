@@ -14,6 +14,12 @@ type TicketEmailInput = {
   downloadUrls: string[];
   /** Тип сеанса: от него зависит текст письма. По умолчанию — «Небо.Река». */
   slotKind?: string | null;
+  /** Регистрация печатного билета: отдельный текст, купленные письма не затрагивает. */
+  printReservation?: {
+    dateLabel: string;
+    timeLabel: string;
+    displayCode: string;
+  };
 };
 
 function maskEmail(email: string): string {
@@ -50,17 +56,83 @@ const LINK_MAP_PARKING =
 const LINK_DEI_WAYS = "https://dei.by/contacts#ways";
 const LINK_TELEGRAM_CLUB = "https://t.me/RazmanProductionBot?start=qr";
 const LINK_INSTAGRAM = "https://www.instagram.com/deii.rp";
+const LINK_INSTAGRAM_DR = "https://www.instagram.com/domm.rp";
 
 type BuiltTicketEmail = { subject: string; text: string; html: string };
 
 function buildTicketEmail(opts: TicketEmailInput): BuiltTicketEmail {
+  if (opts.printReservation) {
+    return buildPrintReservationEmail(opts);
+  }
   if (opts.slotKind === DOM_ROZHDESTVA_SLOT_KIND) {
     return buildDomRozhdestvaTicketEmail(opts);
   }
   return buildNeboRekaTicketEmail(opts);
 }
 
-const LINK_INSTAGRAM_DR = "https://www.instagram.com/domm.rp";
+function buildPrintReservationEmail(opts: TicketEmailInput): BuiltTicketEmail {
+  const res = opts.printReservation!;
+  const urls = opts.downloadUrls.filter(Boolean);
+  const downloadBlock =
+    urls.length > 0 ? `Скачать билет с QR можно здесь:\n${urls[0]}\n` : "";
+  const subject = "Вы зарегистрированы — «Дом Рождества»";
+  const text = `Добрый день, ${opts.customerName}!
+
+Вы зарегистрированы на «Дом Рождества»:
+${res.dateLabel}, ${res.timeLabel}.
+
+Адрес: DEI — Дом Экспериментального искусства, Минск, Машерова 15/1 (вход со двора).
+Карта: ${LINK_MAP_DEI}
+
+Приходите с печатным билетом или покажите QR из этого письма (это тот же билет).
+Уникальный код билета: ${res.displayCode}
+
+${downloadBlock}Билет также прикреплён к письму во вложении.
+
+Готовы к встрече?
+
+• Возле пространства платная парковка (${LINK_MAP_PARKING}) — 3 р/час.
+• Как добраться: ${LINK_DEI_WAYS}
+
+Ждём вас в «Доме Рождества»!
+
+————————
+С теплом,
+Команда Razman Production и служба заботы о клиентах
+
+Колл центр +375 (44) 738-33-33 | info@domrp.by
+Instagram: @domm.rp (${LINK_INSTAGRAM_DR})
+`;
+
+  const downloadHtml =
+    urls.length > 0 ? `<p><a href="${escapeHtml(urls[0]!)}">Скачать билет (PDF)</a></p>` : "";
+
+  const html = `<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="utf-8" /></head>
+<body style="margin:0;padding:16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#222;">
+<p>Добрый день, ${escapeHtml(opts.customerName)}!</p>
+<p>Вы зарегистрированы на «Дом Рождества»:<br />
+<strong>${escapeHtml(res.dateLabel)}, ${escapeHtml(res.timeLabel)}</strong>.</p>
+<p>Адрес: <a href="${LINK_MAP_DEI}">DEI — Дом Экспериментального искусства</a> — Минск, Машерова 15/1 (вход со двора).</p>
+<p>Приходите с печатным билетом или покажите QR из этого письма (это тот же билет).<br />
+Уникальный код билета: <strong>${escapeHtml(res.displayCode)}</strong></p>
+${downloadHtml}
+<p>Билет также прикреплён к письму во вложении.</p>
+<p>Готовы к встрече?</p>
+<p>Возле пространства <a href="${LINK_MAP_PARKING}">платная парковка</a> — 3 р/час.<br />
+<a href="${LINK_DEI_WAYS}">Как добраться</a></p>
+<p>Ждём вас в «Доме Рождества»!</p>
+<hr style="border:none;border-top:1px solid #ddd;margin:20px 0;" />
+<p>С теплом,<br />
+Команда Razman Production и служба заботы о клиентах</p>
+<p>Колл центр <a href="tel:+375447383333">+375 (44) 738-33-33</a> | <a href="mailto:info@domrp.by">info@domrp.by</a><br />
+Instagram: <a href="${LINK_INSTAGRAM_DR}">@domm.rp</a></p>
+</body>
+</html>`;
+
+  return { subject, text, html };
+}
 
 /** Письмо для «Дом Рождества» (Razman Production). */
 function buildDomRozhdestvaTicketEmail(opts: TicketEmailInput): BuiltTicketEmail {

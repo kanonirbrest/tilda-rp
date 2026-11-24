@@ -13,6 +13,7 @@ import {
 } from "@/lib/exhibition-time";
 import { isNeboGiftOpenDateSlot } from "@/lib/nebo-reka/ensure-gift-slot";
 import { isTicketCheckInDayOpen } from "@/lib/ticket-check-in-day";
+import { ticketTokenLookupCandidates } from "@/lib/print-ticket-token";
 
 const schema = z.object({
   token: z.string().min(10).max(200),
@@ -36,12 +37,16 @@ export async function POST(req: Request) {
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const ticket = await tx.ticket.findUnique({
-      where: { publicToken: parsed.data.token },
+    const candidates = ticketTokenLookupCandidates(parsed.data.token);
+    const ticket = await tx.ticket.findFirst({
+      where: { publicToken: { in: candidates } },
       include: { order: { include: { customer: true, slot: true } } },
     });
     if (!ticket) {
       return { type: "NOT_FOUND" as const };
+    }
+    if (!ticket.order) {
+      return { type: ticket.source === "PRINT" ? ("NOT_REGISTERED" as const) : ("NOT_PAID" as const) };
     }
     if (ticket.order.status !== "PAID") {
       return { type: "NOT_PAID" as const };
@@ -83,6 +88,9 @@ export async function POST(req: Request) {
   if (result.type === "NOT_PAID") {
     return NextResponse.json({ error: "NOT_PAID" }, { status: 400 });
   }
+  if (result.type === "NOT_REGISTERED") {
+    return NextResponse.json({ error: "NOT_REGISTERED" }, { status: 400 });
+  }
   if (result.type === "REFUNDED") {
     return NextResponse.json({ error: "REFUNDED" }, { status: 400 });
   }
@@ -97,19 +105,23 @@ export async function POST(req: Request) {
   }
 
   const t = result.ticket;
+  const order = t.order;
+  if (!order) {
+    return NextResponse.json({ ok: true });
+  }
   try {
     await sendCrmWebhook({
       event: "ticket_used",
-      customerName: t.order.customer.name,
-      email: t.order.customer.email,
-      phone: t.order.customer.phone,
-      amountCents: t.order.amountCents,
-      amountDisplay: formatMinorUnits(t.order.amountCents, t.order.currency),
-      currency: t.order.currency,
-      orderId: t.order.id,
+      customerName: order.customer.name,
+      email: order.customer.email,
+      phone: order.customer.phone,
+      amountCents: order.amountCents,
+      amountDisplay: formatMinorUnits(order.amountCents, order.currency),
+      currency: order.currency,
+      orderId: order.id,
       ticketToken: t.publicToken,
-      slotTitle: t.order.slot.title,
-      slotStartsAt: t.order.slot.startsAt.toISOString(),
+      slotTitle: order.slot.title,
+      slotStartsAt: order.slot.startsAt.toISOString(),
       usedAt: new Date().toISOString(),
       admissionCount: t.admissionCount,
     });

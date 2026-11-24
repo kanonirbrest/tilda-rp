@@ -180,3 +180,101 @@ export async function renderDomRozhdestvaTicketPdf(opts: TicketPdfInput): Promis
     return renderHtmlToPdfBuffer(await buildTicketHtml(opts));
   }
 }
+
+export type PrintTicketPdfPage = {
+  qrUrl: string;
+  serialLabel: string;
+  displayCode: string;
+};
+
+/**
+ * Пачка печатных билетов в одном PDF: фон и шрифты один раз.
+ * Макет полей даты/цены — черновик до нового дизайна.
+ */
+export async function renderDomRozhdestvaPrintBatchPdf(
+  pages: PrintTicketPdfPage[],
+): Promise<Uint8Array> {
+  if (pages.length === 0) throw new Error("Нет билетов для PDF");
+  const shell = await loadShell();
+  const out = await PDFDocument.create();
+  const fontkit = await import("@pdf-lib/fontkit");
+  const kit = ("default" in fontkit && fontkit.default ? fontkit.default : fontkit) as Parameters<
+    PDFDocument["registerFontkit"]
+  >[0];
+  out.registerFontkit(kit);
+  const regular = await out.embedFont(fontBytes(400), { subset: false });
+  const bold = await out.embedFont(fontBytes(700), { subset: false });
+  const donor = await PDFDocument.load(shell.pdf);
+  const donorPage = donor.getPages()[0];
+  if (!donorPage) throw new Error("В подложке билета нет страницы");
+  const { width, height } = donorPage.getSize();
+  const [embedded] = await out.embedPages([donorPage]);
+  const { layout } = shell;
+  const fontFor = (weight: 400 | 700) => (weight === 700 ? bold : regular);
+
+  for (const item of pages) {
+    const page = out.addPage([width, height]);
+    page.drawPage(embedded);
+    drawField(page, fontFor(layout.fields.type.weight), layout.fields.type, "Регистрация", width, height, layout.cssWidth, layout.cssHeight);
+    drawField(page, fontFor(layout.fields.order.weight), layout.fields.order, item.serialLabel, width, height, layout.cssWidth, layout.cssHeight);
+
+    const png = await QRCode.toBuffer(item.qrUrl, {
+      type: "png",
+      margin: 1,
+      width: 400,
+      errorCorrectionLevel: "M",
+      color: { dark: "#000000", light: "#ffffff" },
+    });
+    const image = await out.embedPng(png);
+    const sx = width / layout.cssWidth;
+    const sy = height / layout.cssHeight;
+    const qrSize = layout.qr.size * sx;
+    page.drawImage(image, {
+      x: layout.qr.x * sx,
+      y: height - (layout.qr.y + layout.qr.size) * sy,
+      width: qrSize,
+      height: layout.qr.size * sy,
+    });
+
+    const codeUnderQr: DomShellField = {
+      x: layout.qr.x + layout.qr.size / 2,
+      baseline: layout.qr.y + layout.qr.size + 18,
+      size: 11,
+      weight: 700,
+      align: "center",
+      maxWidth: layout.qr.size + 40,
+    };
+    drawField(page, bold, codeUnderQr, item.displayCode, width, height, layout.cssWidth, layout.cssHeight);
+
+    const codeBottom: DomShellField = {
+      x: layout.cssWidth / 2,
+      baseline: layout.cssHeight - 28,
+      size: 10,
+      weight: 400,
+      align: "center",
+      maxWidth: layout.cssWidth - 40,
+    };
+    drawField(
+      page,
+      regular,
+      codeBottom,
+      `Уникальный код билета  ${item.displayCode}`,
+      width,
+      height,
+      layout.cssWidth,
+      layout.cssHeight,
+    );
+
+    const serialSize = 10 * sy;
+    const serialWidth = bold.widthOfTextAtSize(item.serialLabel, serialSize);
+    page.drawText(item.serialLabel, {
+      x: width - 16 * sx - serialWidth,
+      y: height - 22 * sy,
+      size: serialSize,
+      font: bold,
+      color: rgb(1, 1, 1),
+    });
+  }
+
+  return out.save();
+}

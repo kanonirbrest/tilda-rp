@@ -20,6 +20,8 @@ type VerifyOk = {
   todayDate?: string;
   /** Готовый текст отказа, если день сеанса не сегодняшний. */
   dayError?: string | null;
+  /** Печатный билет ещё не зарегистрирован на сеанс. */
+  notRegistered?: boolean;
   giftOpenDate?: boolean;
   customerName: string;
   email: string;
@@ -99,6 +101,7 @@ export function QuickClient({ token }: { token: string }) {
         setError(
           code === "REFUNDED" ? "Возврат: проход по этому билету недоступен."
           : code === "NOT_PAID" ? "Заказ не оплачен."
+          : code === "NOT_REGISTERED" ? "Сначала регистрация по QR."
           : (code || "Ошибка"),
         );
         return;
@@ -162,6 +165,10 @@ export function QuickClient({ token }: { token: string }) {
             {data.refunded ? (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">
                 Возврат
+              </span>
+            ) : data.notRegistered ? (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">
+                Не зарегистрирован
               </span>
             ) : !data.paid ? (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">

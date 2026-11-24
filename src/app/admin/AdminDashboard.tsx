@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GardensSeatSalesEditor } from "@/components/gardens-seat-sales-editor";
 import { VivaldiSeatStaff } from "@/components/vivaldi-seat-staff";
 import { DomRozhdestvaInvite } from "@/components/dom-rozhdestva-invite";
+import { PrintTicketsAdmin } from "@/components/print-tickets-admin";
 import {
   formatMinorUnits,
   minorToMajorNumber,
@@ -44,6 +45,7 @@ type SlotRow = {
   priceConcessionCents: number | null;
   currency: string;
   active: boolean;
+  registrationOpen: boolean;
 };
 
 type SlotsResponse = { timezone: string; slots: SlotRow[] };
@@ -110,7 +112,7 @@ type OrdersResponse = {
   orders: OrderRow[];
 };
 
-type TabId = "orders" | "schedule" | "stats" | "promos";
+type TabId = "orders" | "schedule" | "stats" | "promos" | "print";
 
 type CheckInStatsStatus = "all" | "checked_in" | "not_checked_in";
 
@@ -1916,6 +1918,8 @@ export default function AdminDashboard() {
     const capRaw = String(fd.get("capacity") ?? "").trim();
     const activeEl = form.elements.namedItem("active");
     const active = activeEl instanceof HTMLInputElement ? activeEl.checked : true;
+    const registrationEl = form.elements.namedItem("registrationOpen");
+    const registrationOpen = registrationEl instanceof HTMLInputElement ? registrationEl.checked : true;
     const priceAdultCents = parseOptionalMajorUnitsToMinor(String(fd.get("priceAdultCents") ?? ""));
     const priceChildCents = parseOptionalMajorUnitsToMinor(String(fd.get("priceChildCents") ?? ""));
     const priceConcessionCents = parseOptionalMajorUnitsToMinor(
@@ -1930,6 +1934,7 @@ export default function AdminDashboard() {
         kind,
         title: title.trim(),
         active,
+        registrationOpen,
         priceCents: priceCents >= 0 ? priceCents : 0,
         priceAdultCents,
         priceChildCents,
@@ -2235,6 +2240,14 @@ export default function AdminDashboard() {
           onClick={() => setTab("promos")}
         >
           Промокоды
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "print"}
+          onClick={() => setTab("print")}
+        >
+          Печатные
         </button>
       </div>
 
@@ -2704,6 +2717,9 @@ export default function AdminDashboard() {
                             {" · "}
                             {formatMinorUnits(s.priceCents, s.currency)} · опл. {s.soldPaid} · ожид.{" "}
                             {s.pendingReserved} · места {free}/{cap}
+                            {s.kind === DOM_ROZHDESTVA_SLOT_KIND && s.registrationOpen === false ?
+                              " · рег. выкл"
+                            : ""}
                           </span>
                         </div>
                         <span className={`pill ${s.active ? "slot-on" : "slot-off"}`}>
@@ -3206,6 +3222,8 @@ export default function AdminDashboard() {
           )}
         </section>
       ) : null}
+
+      {tab === "print" ? <PrintTicketsAdmin /> : null}
 
       {modal.type === "order" ? (
         <AdminModalFrame title="Заявка" onClose={() => setModal({ type: "none" })}>
@@ -3826,6 +3844,16 @@ export default function AdminDashboard() {
                       <input type="checkbox" name="active" defaultChecked={s.active} />
                       Сеанс активен (виден на сайте)
                     </label>
+                    {s.kind === DOM_ROZHDESTVA_SLOT_KIND ? (
+                      <label className="admin-check admin-check--modal">
+                        <input
+                          type="checkbox"
+                          name="registrationOpen"
+                          defaultChecked={s.registrationOpen !== false}
+                        />
+                        Открыт для регистрации печатных билетов
+                      </label>
+                    ) : null}
                   </div>
                 </div>
                 <div className="admin-modal-actions admin-modal-actions--split">
