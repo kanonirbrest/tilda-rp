@@ -131,6 +131,7 @@ export async function queryCheckInStats(params: {
   const slotMap = new Map<string, CheckInStatsBySlot & { startsAt: Date }>();
 
   for (const t of tickets) {
+    if (!t.order) continue;
     const checked = t.usedAt != null;
     ticketsTotal += 1;
     peopleTotal += t.admissionCount;
@@ -138,7 +139,7 @@ export async function queryCheckInStats(params: {
       ticketsCheckedIn += 1;
       peopleCheckedIn += t.admissionCount;
     }
-    if (!slotId) accumulateSlot(slotMap, t, checked);
+    if (!slotId) accumulateSlot(slotMap, { ...t, order: t.order }, checked);
   }
 
   const ticketsNotCheckedIn = ticketsTotal - ticketsCheckedIn;

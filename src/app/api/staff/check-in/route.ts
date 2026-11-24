@@ -103,6 +103,9 @@ export async function POST(req: Request) {
       { status: 409 },
     );
   }
+  if (result.type !== "OK") {
+    return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+  }
 
   const t = result.ticket;
   const order = t.order;

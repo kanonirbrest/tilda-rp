@@ -9,13 +9,10 @@ export const PRINT_TICKET_ISSUE_MIN = 1;
 export const PRINT_TICKET_ISSUE_MAX = 1000;
 
 export function createPrintTicketToken(): string {
-  const bytes = randomBytes(6);
-  let n = 0n;
-  for (const b of bytes) n = (n << 8n) + BigInt(b);
+  const bytes = randomBytes(PRINT_TICKET_TOKEN_LENGTH);
   let out = "";
   for (let i = 0; i < PRINT_TICKET_TOKEN_LENGTH; i++) {
-    out = CROCKFORD[Number(n % 32n)]! + out;
-    n /= 32n;
+    out += CROCKFORD[bytes[i]! % 32];
   }
   return out;
 }

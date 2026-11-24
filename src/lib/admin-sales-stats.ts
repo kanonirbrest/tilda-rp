@@ -228,6 +228,7 @@ export async function querySalesStats(params: {
     (slots.length > 0 && slots.every((slot) => slot.kind === DOM_ROZHDESTVA_SLOT_KIND));
 
   for (const t of tickets) {
+    if (!t.order) continue;
     const status = t.order.status;
     const refunded = t.refundedAt != null;
 
@@ -271,7 +272,7 @@ export async function querySalesStats(params: {
 
     if (status === "PAID" && !refunded) {
       addTier(sold, t.tier);
-      if (!slotId) accumulateSalesSlot(slotMap, t);
+      if (!slotId) accumulateSalesSlot(slotMap, { ...t, order: t.order });
     }
   }
 
