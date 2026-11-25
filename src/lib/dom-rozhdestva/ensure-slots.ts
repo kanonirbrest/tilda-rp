@@ -79,7 +79,6 @@ async function syncDomRozhdestvaSlots(): Promise<void> {
       continue;
     }
     if (
-      !found.active ||
       found.title !== title ||
       found.priceCents !== session.priceAdultCents ||
       found.priceAdultCents !== session.priceAdultCents ||
@@ -91,7 +90,6 @@ async function syncDomRozhdestvaSlots(): Promise<void> {
         where: { id: found.id },
         data: {
           title,
-          active: true,
           priceCents: session.priceAdultCents,
           priceAdultCents: session.priceAdultCents,
           priceChildCents: session.priceChildCents,
