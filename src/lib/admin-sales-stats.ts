@@ -2,7 +2,12 @@ import { type OrderStatus, type TicketSource, type TicketTier } from "@prisma/cl
 import { prisma } from "@/lib/prisma";
 import { reportTicketsWhereForDay } from "@/lib/admin-day-ticket-filter";
 import { dateKeyInTz, getExhibitionTimezone, timeKeyInTz, wallDaysUtcRange } from "@/lib/exhibition-time";
-import { DOM_ROZHDESTVA_SALES_CATALOG, domRozhdestvaReportKey } from "@/lib/dom-rozhdestva/sales-skus";
+import {
+  DOM_ROZHDESTVA_SALES_CATALOG,
+  GROUP_REPORT_ROWS,
+  domRozhdestvaReportKey,
+  groupReportKey,
+} from "@/lib/dom-rozhdestva/sales-skus";
 import { DOM_ROZHDESTVA_SLOT_KIND } from "@/lib/slot-kind";
 
 /** Верхняя граница отчёта, чтобы не выгружать всю историю одним запросом. */
@@ -12,7 +17,7 @@ export type TierSoldCounts = {
   adult: number;
   child: number;
   concession: number;
-  /** Печатные билеты регистрации, одна строка «Групповой». */
+  /** Печатные билеты регистрации (всего; в отчёте делятся на взрослый и детский). */
   group: number;
   /** Старые билеты без tier в БД. */
   unknown: number;
@@ -250,7 +255,7 @@ export async function querySalesStats(params: {
 
     const reportRow =
       t.source === "PRINT" ?
-        { key: "dr:group", label: "Групповой" }
+        groupReportKey(t.tier)
       : drCatalog ?
         domRozhdestvaReportKey({
           tier: t.tier,
@@ -329,15 +334,10 @@ export async function querySalesStats(params: {
         ...unknownCell,
       });
     }
-    const groupCell = tierCells.get("dr:group");
-    if (groupCell) {
-      rows.push({
-        key: "dr:group",
-        label: "Групповой",
-        kind: "tier",
-        quota: null,
-        ...groupCell,
-      });
+    for (const groupRow of GROUP_REPORT_ROWS) {
+      const groupCell = tierCells.get(groupRow.key);
+      if (!groupCell) continue;
+      rows.push({ ...groupRow, kind: "tier", quota: null, ...groupCell });
     }
   } else {
     for (const [key, label] of extraTierLabels) {

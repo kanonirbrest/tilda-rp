@@ -13,6 +13,12 @@ const CHILD_FLAT_OR_WEEKDAY_CENTS = 30_00;
 const CHILD_WEEKEND_CENTS = 35_00;
 const UNIFIED_CENTS = 30_00;
 
+/** Строки отчёта для печатных (групповых) билетов: взрослый и детский отдельно. */
+export const GROUP_REPORT_ROWS: { key: string; label: string }[] = [
+  { key: "group:ADULT", label: "Групповой взрослый" },
+  { key: "group:CHILD", label: "Групповой детский" },
+];
+
 /** Строки отчёта «Дом Рождества», включая старые номиналы. Нулевые тоже показываем. */
 export const DOM_ROZHDESTVA_SALES_CATALOG: { key: string; label: string }[] = [
   { key: "dr:unified-30", label: "Единый (любой день) 30" },
@@ -23,10 +29,15 @@ export const DOM_ROZHDESTVA_SALES_CATALOG: { key: string; label: string }[] = [
   { key: "dr:child-30-weekday", label: "Детский (будний) 30" },
   { key: "dr:child-35", label: "Детский (выходной) 35" },
   { key: "dr:concession", label: "Льготный" },
-  { key: "dr:group", label: "Групповой" },
+  ...GROUP_REPORT_ROWS,
 ];
 
 const CATALOG_BY_KEY = new Map(DOM_ROZHDESTVA_SALES_CATALOG.map((row) => [row.key, row.label]));
+
+/** Строка отчёта для печатного билета по его типу (как написано на бланке). */
+export function groupReportKey(tier: TicketTier | null): { key: string; label: string } {
+  return tier === "CHILD" ? GROUP_REPORT_ROWS[1]! : GROUP_REPORT_ROWS[0]!;
+}
 
 type PriceLine = { tier: TicketTier; unitPriceCents: number };
 
